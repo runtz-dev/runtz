@@ -1,0 +1,103 @@
+---
+name: runtz CI/CD Prod
+on:
+  release:
+    types:
+      - published
+
+env:
+  REGISTRY: registry-docker-registry.registry.svc.cluster.local:5000
+  GOOGLE_CLIENT_ID: "724575650478-rvqpmrlvqljr50e111rvj1f96n43pp5s.apps.googleusercontent.com"
+
+jobs:
+  publish-images:
+    name: Publish public images (Docker Hub)
+    runs-on:
+      - runtz-runners
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKER_LOGIN }}
+          password: ${{ secrets.DOCKER_PASS }}
+      - name: Build and push multi-arch engine + frontend
+        # Publishes runtzdev/runtz-engine and runtzdev/runtz-frontend (generic,
+        # no build-time config), and moves :latest for stable versions.
+        run: ./scripts/release-images.sh
+
+  build-cloud-frontend:
+    name: Build cloud frontend (in-cluster registry)
+    runs-on:
+      - runtz-runners
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-config-inline: |
+            [registry."registry-docker-registry.registry.svc.cluster.local:5000"]
+              http = true
+              insecure = true
+      - name: Build and push cloud frontend
+        run: |
+          VERSION="$(cat VERSION)"
+          docker buildx build \
+            --push \
+            --tag ${REGISTRY}/runtz-frontend-cloud:${VERSION} \
+            --build-arg NEXT_PUBLIC_GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
+            ./frontend
+
+  publish-chart:
+    name: Publish Helm chart (ChartMuseum)
+    runs-on:
+      - runtz-runners
+    container:
+      image: runtzdev/deploy-k8s:v1
+      credentials:
+        username: ${{ vars.DOCKER_LOGIN }}
+        password: ${{ secrets.DOCKER_PASS }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Lint, package and push chart to ChartMuseum
+        env:
+          CHARTMUSEUM_USER: ${{ secrets.CHARTMUSEUM_USER }}
+          CHARTMUSEUM_PASSWORD: ${{ secrets.CHARTMUSEUM_PASSWORD }}
+        run: ./scripts/helm-release.sh
+
+  deploy-prod:
+    name: Deploy prod
+    runs-on:
+      - runtz-runners
+    needs:
+      - publish-images
+      - build-cloud-frontend
+      - publish-chart
+    container:
+      image: runtzdev/deploy-k8s:v1
+      credentials:
+        username: ${{ vars.DOCKER_LOGIN }}
+        password: ${{ secrets.DOCKER_PASS }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Add ChartMuseum repo
+        run: |
+          helm repo add runtz https://helm.runtz.dev
+          helm repo update
+      - name: Deploy on prod environment
+        run: |
+          VERSION="$(cat VERSION)"
+          helm upgrade --install runtz runtz/runtz \
+            --version "$VERSION" \
+            -n prod \
+            -f helm/environments/prod/values.yaml \
+            --set "backend.image.tag=${VERSION}" \
+            --set "frontend.image.tag=${VERSION}"

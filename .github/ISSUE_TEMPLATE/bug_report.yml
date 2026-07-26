@@ -1,0 +1,53 @@
+name: Bug report
+description: Something in runtz is not working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! **Do not report security vulnerabilities here** —
+        email security@runtz.dev instead (see SECURITY.md).
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - Engine (API)
+        - CLI / scanners
+        - Frontend (web platform)
+        - Helm chart
+        - Docker Compose / images
+        - Installer (get.runtz.dev)
+        - Documentation
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `runtz version`, image tag, or chart version.
+      placeholder: 1.0.0-rc1
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Redact secrets and tokens before pasting.
+      render: shell

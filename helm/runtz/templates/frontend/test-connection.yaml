@@ -1,0 +1,17 @@
+{{- if .Values.frontend.enabled -}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "runtz.frontendName" . }}-test-connection"
+  labels:
+    {{- include "runtz.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ["wget"]
+      args: ["http://{{ include "runtz.frontendName" . }}:{{ .Values.frontend.service.port }}/login"]
+  restartPolicy: Never
+{{- end }}

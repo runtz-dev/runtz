@@ -1,0 +1,14 @@
+{{- if .Values.frontend.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "runtz.frontendConfigMapName" . }}
+  labels:
+    {{- include "runtz.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+data:
+  PORT: {{ .Values.frontend.env.PORT | quote }}
+  HOSTNAME: {{ .Values.frontend.env.HOSTNAME | quote }}
+  NEXT_PUBLIC_API_URL: {{ .Values.frontend.env.NEXT_PUBLIC_API_URL | quote }}
+  NEXT_PUBLIC_GOOGLE_CLIENT_ID: {{ .Values.frontend.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID | quote }}
+  RUNTZ_BACKEND_URL: {{ default (printf "http://%s:%v" (include "runtz.backendName" .) .Values.backend.service.port) .Values.frontend.env.RUNTZ_BACKEND_URL | quote }}
+{{- end }}

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/runtz-dev/runtz/blob/main/SECURITY.md
+    about: Please report vulnerabilities privately to security@runtz.dev — never in public issues.
+  - name: Documentation
+    url: https://runtz.dev/home/docs
+    about: Guides for the CLI, Docker Compose, Helm and CI integrations.

@@ -1,0 +1,30 @@
+runtz
+Copyright (c) 2026 RAW DEVOPS LTDA (CNPJ 51.460.107/0001-53).
+
+This software is source-available under the Business Source License 1.1
+(BUSL-1.1). See the LICENSE file for the full terms. Each release converts to
+the Mozilla Public License 2.0 (MPL-2.0) four years after it is published.
+
+Licensing and fair use
+----------------------
+
+runtz is free to use, self-host and modify for your own organization, including
+in production. It is NOT free to offer to third parties as a competing hosted or
+embedded commercial product; only RAW DEVOPS LTDA may commercialize the
+platform. See the "Additional Use Grant" in LICENSE.
+
+Paid plans (Pro and Enterprise) are gated by a cryptographic license:
+
+- The central engine at https://engine.runtz.dev signs short-lived license
+  certificates with an Ed25519 private key held only by RAW DEVOPS LTDA.
+- Every runtz engine binary verifies those certificates against a public key
+  compiled into the binary (internal/config.LicenseVerificationKey) and
+  re-verifies the stored certificate on every read.
+
+Modifying the source to remove, weaken or bypass this verification — for example
+to unlock Pro/Enterprise features without an active subscription, to point the
+central-engine URL at a look-alike signer, or to forge or edit a stored license
+— is a breach of the Business Source License and of applicable law. Please don't.
+
+Report security issues to security@runtz.dev.
+For commercial licensing, contact licensing@runtz.dev.

@@ -68,7 +68,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Lint, package and push chart to ChartMuseum
         env:
-          CHARTMUSEUM_USER: ${{ secrets.CHARTMUSEUM_USER }}
+          CHARTMUSEUM_USER: ${{ vars.CHARTMUSEUM_USER }}
           CHARTMUSEUM_PASSWORD: ${{ secrets.CHARTMUSEUM_PASSWORD }}
         run: ./scripts/helm-release.sh
 

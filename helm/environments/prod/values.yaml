@@ -17,7 +17,7 @@
 frontend:
   image:
     # Cloud build: NEXT_PUBLIC_GOOGLE_CLIENT_ID baked in, pushed to the in-cluster registry.
-    repository: registry-docker-registry.registry.svc.cluster.local:5000/runtz-frontend-cloud
+    repository: registry.local:5000/runtz-frontend-cloud
     tag: ""
     pullPolicy: Always
   env:

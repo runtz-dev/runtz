@@ -1,0 +1,17 @@
+{{- if .Values.mongodb.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "runtz.mongodbName" . }}
+  labels:
+    {{- include "runtz.componentLabels" (dict "root" . "component" "mongodb") | nindent 4 }}
+spec:
+  type: {{ .Values.mongodb.service.type }}
+  ports:
+    - name: mongodb
+      port: {{ .Values.mongodb.service.port }}
+      targetPort: mongodb
+      protocol: TCP
+  selector:
+    {{- include "runtz.componentSelectorLabels" (dict "root" . "component" "mongodb") | nindent 4 }}
+{{- end }}

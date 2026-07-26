@@ -1,0 +1,34 @@
+runtz {{ .Chart.AppVersion }} has been installed.
+
+In-cluster services:
+  Frontend: {{ include "runtz.frontendName" . }}:{{ .Values.frontend.service.port }}
+  Engine:   {{ include "runtz.backendName" . }}:{{ .Values.backend.service.port }}
+{{- if .Values.mongodb.enabled }}
+  MongoDB:  {{ include "runtz.mongodbName" . }}:{{ .Values.mongodb.service.port }}
+{{- end }}
+
+{{- if not .Values.ingress.enabled }}
+
+No ingress is enabled. To reach the web platform locally:
+
+  kubectl port-forward svc/{{ include "runtz.frontendName" . }} 3000:{{ .Values.frontend.service.port }} -n {{ .Release.Namespace }}
+
+Then open http://localhost:3000 and create the admin user on first access.
+{{- else }}
+
+Web platform hosts:
+{{- range .Values.ingress.hosts }}
+  https://{{ .host }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.mongodb.enabled }}
+
+MongoDB persists to a StatefulSet PVC
+{{- if .Values.mongodb.persistence.storageClassName }} (storageClass {{ .Values.mongodb.persistence.storageClassName }})
+{{- else }} (cluster default storageClass)
+{{- end }}.
+{{- end }}
+
+Secrets (JWT_SECRET, RUNTZ_INGEST_TOKEN, ...) come from values.secrets.yaml or
+an existing Secret — see values.secrets.example.yaml in the chart sources.

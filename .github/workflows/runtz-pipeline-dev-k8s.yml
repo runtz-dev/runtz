@@ -1,0 +1,62 @@
+---
+name: runtz CI/CD Dev
+on:
+  push:
+    branches:
+      - dev
+
+env:
+  REGISTRY: registry-docker-registry.registry.svc.cluster.local:5000
+  # Public OAuth client id baked into the dev frontend bundle (NEXT_PUBLIC_*).
+  GOOGLE_CLIENT_ID: "724575650478-rvqpmrlvqljr50e111rvj1f96n43pp5s.apps.googleusercontent.com"
+
+jobs:
+  build-dev:
+    name: Build dev images
+    runs-on:
+      - runtz-runners
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-config-inline: |
+            [registry."registry-docker-registry.registry.svc.cluster.local:5000"]
+              http = true
+              insecure = true
+      - name: Build and push engine image
+        run: |
+          docker buildx build \
+            --push \
+            --tag ${REGISTRY}/runtz-engine:dev$GITHUB_SHA \
+            --build-arg LDFLAGS="-s -w -X github.com/runtz-dev/runtz/engine/internal/version.Version=dev$GITHUB_SHA" \
+            ./engine
+      - name: Build and push frontend image
+        run: |
+          docker buildx build \
+            --push \
+            --tag ${REGISTRY}/runtz-frontend:dev$GITHUB_SHA \
+            --build-arg NEXT_PUBLIC_GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
+            ./frontend
+
+  deploy-dev:
+    name: Deploy dev
+    runs-on:
+      - runtz-runners
+    needs: build-dev
+    container:
+      image: runtzdev/deploy-k8s:v1
+      credentials:
+        username: ${{ vars.DOCKER_LOGIN }}
+        password: ${{ secrets.DOCKER_PASS }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Deploy on dev environment
+        run: |
+          helm upgrade --install runtz ./helm/runtz \
+            -n dev \
+            -f helm/environments/dev/values.yaml \
+            --set "backend.image.tag=dev$GITHUB_SHA" \
+            --set "frontend.image.tag=dev$GITHUB_SHA"

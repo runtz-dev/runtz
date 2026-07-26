@@ -1,0 +1,4 @@
+# Deliberate fake secret: SAST scanner test fixture asserting that hardcoded
+# tokens are detected (cli/internal/sast/scan_test.go).
+97e9e1494efb5e46018d241e3cf8b8f792156782:cli/internal/sast/scan_test.go:generic-api-key:15
+cli/internal/sast/scan_test.go:generic-api-key:15

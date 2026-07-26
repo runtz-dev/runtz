@@ -1,0 +1,17 @@
+{{- if .Values.frontend.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "runtz.frontendName" . }}
+  labels:
+    {{- include "runtz.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+spec:
+  type: {{ .Values.frontend.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.frontend.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "runtz.componentSelectorLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+{{- end }}

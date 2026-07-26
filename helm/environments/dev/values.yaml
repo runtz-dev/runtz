@@ -1,0 +1,97 @@
+# runtz development environment (the runtz team's own staging).
+#
+# Mirrors prod (cloud mode) but on the internal registry and the
+# runtz-dev/engine-dev/mcp-dev.runtz.dev hostnames. Images are built and pushed by the dev pipeline
+# (.github/workflows/runtz-pipeline-dev-k8s.yml); the image tags are injected
+# at deploy time with --set, so they are intentionally left empty here.
+#
+# Non-secret overrides on top of helm/runtz/values.yaml. Secrets come from the
+# pre-created Kubernetes Secret runtz-engine-secrets (see helm/environments/
+# README.md and the secrets-helm repo), never from a local file.
+#
+#   helm upgrade --install runtz ./helm/runtz \
+#     -f helm/environments/dev/values.yaml \
+#     --set backend.image.tag="dev<sha>" \
+#     --set frontend.image.tag="dev<sha>"
+
+frontend:
+  image:
+    # Built with the dev NEXT_PUBLIC_* baked in and pushed to the in-cluster registry.
+    repository: registry-docker-registry.registry.svc.cluster.local:5000/runtz-frontend
+    tag: ""
+    pullPolicy: Always
+  env:
+    NEXT_PUBLIC_API_URL: ""
+    # Public OAuth client id (shipped to browsers). The runtz-dev.runtz.dev
+    # origin must be listed as an authorized JS origin on this Google client.
+    NEXT_PUBLIC_GOOGLE_CLIENT_ID: "724575650478-rvqpmrlvqljr50e111rvj1f96n43pp5s.apps.googleusercontent.com"
+    RUNTZ_BACKEND_URL: "https://engine-dev.runtz.dev"
+
+backend:
+  image:
+    repository: registry-docker-registry.registry.svc.cluster.local:5000/runtz-engine
+    tag: ""
+    pullPolicy: Always
+  env:
+    RUNTZ_DEPLOYMENT_MODE: cloud
+    RUNTZ_PUBLIC_URL: https://runtz-dev.runtz.dev
+    GOOGLE_CLIENT_ID: "724575650478-rvqpmrlvqljr50e111rvj1f96n43pp5s.apps.googleusercontent.com"
+    # Dev needs its own GitHub OAuth app (one callback URL per app). Left empty
+    # until that app exists; Google and email sign-in still work.
+    GITHUB_CLIENT_ID: ""
+    CORS_ALLOWED_ORIGINS: https://runtz-dev.runtz.dev
+    # Stripe test-mode price ids (non-secret). The test secret key and webhook
+    # secret live in the runtz-engine-secrets Secret.
+    STRIPE_PRICE_PRO_CLOUD: "price_1Tkt89JJ8Z2MDrZtx1K5X4GQ"
+    STRIPE_PRICE_ENTERPRISE_CLOUD: "price_1Tkt8AJJ8Z2MDrZtFtvD4wRi"
+    STRIPE_PRICE_PRO_SELF_HOSTED: "price_1Tkt8BJJ8Z2MDrZtws3fzzAZ"
+    STRIPE_PRICE_ENTERPRISE_SELF_HOSTED: "price_1Tkt8CJJ8Z2MDrZtG423eXWq"
+  secrets:
+    existingSecret: runtz-engine-secrets
+  ingress:
+    enabled: true
+    className: "cloudflare-tunnel"
+    hosts:
+      - host: engine-dev.runtz.dev
+        paths:
+          - path: /
+            pathType: Prefix
+
+mongodb:
+  persistence:
+    storageClassName: openebs-ssd
+    size: 5Gi
+
+ingress:
+  enabled: true
+  className: "cloudflare-tunnel"
+  hosts:
+    - host: runtz-dev.runtz.dev
+      paths:
+        # The landing app (runtz-dev/runtz.dev repo) owns /home and /legal on
+        # this host, same split as prod — see that repo's helm chart, which
+        # deploys the runtz-landing Service this ingress points at.
+        - path: /home/_next
+          pathType: Prefix
+          serviceName: runtz-landing
+          servicePort: 3000
+        - path: /home
+          pathType: Prefix
+          serviceName: runtz-landing
+          servicePort: 3000
+        - path: /legal
+          pathType: Prefix
+          serviceName: runtz-landing
+          servicePort: 3000
+        - path: /login
+          pathType: Prefix
+        - path: /app
+          pathType: Prefix
+        - path: /api
+          pathType: Prefix
+        - path: /playground
+          pathType: Prefix
+        - path: /_next
+          pathType: Prefix
+        - path: /
+          pathType: Prefix

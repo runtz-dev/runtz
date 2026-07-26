@@ -1,0 +1,172 @@
+# Default values for the runtz platform chart.
+#
+# These defaults deploy a self-contained, self-hosted runtz stack (engine,
+# frontend and MongoDB) using the public Docker Hub images.
+#
+# Required before installing: create a values.secrets.yaml from
+# values.secrets.example.yaml and set backend.secrets.jwtSecret and
+# backend.secrets.ingestToken (the engine refuses to start without them):
+#
+#   helm repo add runtz https://helm.runtz.dev
+#   helm install runtz runtz/runtz -f values.secrets.yaml
+
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  automount: false
+  annotations: {}
+  name: ""
+
+frontend:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: runtzdev/runtz-frontend
+    # Defaults to the chart appVersion when empty.
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+  env:
+    PORT: "3000"
+    HOSTNAME: "0.0.0.0"
+    # Keep empty to make the browser call the frontend at /api,
+    # which proxies to the engine through RUNTZ_BACKEND_URL.
+    NEXT_PUBLIC_API_URL: ""
+    NEXT_PUBLIC_GOOGLE_CLIENT_ID: ""
+    # Frontend server-side proxy target. Defaults to the in-cluster engine
+    # service when empty.
+    RUNTZ_BACKEND_URL: ""
+  extraEnv: []
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext: {}
+  securityContext: {}
+  resources: {}
+  livenessProbe:
+    httpGet:
+      path: /login
+      port: http
+  readinessProbe:
+    httpGet:
+      path: /login
+      port: http
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+backend:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: runtzdev/runtz-engine
+    # Defaults to the chart appVersion when empty.
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  env:
+    PORT: "8080"
+    # Defaults to the in-cluster MongoDB service when empty.
+    MONGODB_URI: ""
+    MONGODB_DATABASE: runtz
+    RUNTZ_DEPLOYMENT_MODE: self-hosted
+    RUNTZ_PUBLIC_URL: http://localhost:3000
+    GOOGLE_CLIENT_ID: ""
+    GITHUB_CLIENT_ID: ""
+    RESEND_FROM_EMAIL: "Runtz <login@runtz.dev>"
+    CORS_ALLOWED_ORIGINS: http://localhost:3000
+    # Stripe billing is only configured on the central/cloud engine.
+    # Self-hosted installations activate paid plans through
+    # https://engine.runtz.dev and can leave these empty.
+    STRIPE_PRICE_PRO_CLOUD: ""
+    STRIPE_PRICE_ENTERPRISE_CLOUD: ""
+    STRIPE_PRICE_PRO_SELF_HOSTED: ""
+    STRIPE_PRICE_ENTERPRISE_SELF_HOSTED: ""
+  secrets:
+    create: true
+    # Set to reuse a pre-created Kubernetes Secret instead of rendering one
+    # from values (the Secret must contain the keys used in
+    # templates/engine/deployment.yaml).
+    existingSecret: ""
+    # Secret values belong in values.secrets.yaml (see
+    # values.secrets.example.yaml) or in an existing Kubernetes Secret.
+  extraEnv: []
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext: {}
+  securityContext: {}
+  resources: {}
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: http
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: http
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts: []
+    # Example:
+    # hosts:
+    #   - host: engine.example.com
+    #     paths:
+    #       - path: /
+    #         pathType: Prefix
+    tls: []
+
+mongodb:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: mongo
+    tag: "7"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 27017
+    targetPort: 27017
+  persistence:
+    enabled: true
+    # Empty uses the cluster default StorageClass.
+    storageClassName: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+    retain: true
+  extraEnv: []
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext: {}
+  securityContext: {}
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts: []
+  # Example:
+  # hosts:
+  #   - host: runtz.example.com
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  tls: []

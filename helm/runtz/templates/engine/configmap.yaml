@@ -1,0 +1,22 @@
+{{- if .Values.backend.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "runtz.backendConfigMapName" . }}
+  labels:
+    {{- include "runtz.componentLabels" (dict "root" . "component" "backend") | nindent 4 }}
+data:
+  PORT: {{ .Values.backend.env.PORT | quote }}
+  MONGODB_URI: {{ default (printf "mongodb://%s:%v" (include "runtz.mongodbName" .) .Values.mongodb.service.port) .Values.backend.env.MONGODB_URI | quote }}
+  MONGODB_DATABASE: {{ .Values.backend.env.MONGODB_DATABASE | quote }}
+  RUNTZ_DEPLOYMENT_MODE: {{ .Values.backend.env.RUNTZ_DEPLOYMENT_MODE | quote }}
+  RUNTZ_PUBLIC_URL: {{ .Values.backend.env.RUNTZ_PUBLIC_URL | quote }}
+  GOOGLE_CLIENT_ID: {{ .Values.backend.env.GOOGLE_CLIENT_ID | quote }}
+  GITHUB_CLIENT_ID: {{ .Values.backend.env.GITHUB_CLIENT_ID | quote }}
+  RESEND_FROM_EMAIL: {{ .Values.backend.env.RESEND_FROM_EMAIL | quote }}
+  CORS_ALLOWED_ORIGINS: {{ .Values.backend.env.CORS_ALLOWED_ORIGINS | quote }}
+  STRIPE_PRICE_PRO_CLOUD: {{ .Values.backend.env.STRIPE_PRICE_PRO_CLOUD | quote }}
+  STRIPE_PRICE_ENTERPRISE_CLOUD: {{ .Values.backend.env.STRIPE_PRICE_ENTERPRISE_CLOUD | quote }}
+  STRIPE_PRICE_PRO_SELF_HOSTED: {{ .Values.backend.env.STRIPE_PRICE_PRO_SELF_HOSTED | quote }}
+  STRIPE_PRICE_ENTERPRISE_SELF_HOSTED: {{ .Values.backend.env.STRIPE_PRICE_ENTERPRISE_SELF_HOSTED | quote }}
+{{- end }}

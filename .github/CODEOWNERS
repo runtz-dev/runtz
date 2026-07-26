@@ -1,0 +1,15 @@
+# Default owners for everything in the repo. Pull requests require review from
+# the runtz core team before merging into develop or main.
+*                       @runtz-dev/core
+
+# Paid-plan licensing and security-sensitive config get extra scrutiny.
+/engine/internal/api/license.go   @runtz-dev/core
+/engine/internal/api/billing.go   @runtz-dev/core
+/engine/internal/config/config.go @runtz-dev/core
+/NOTICE                           @runtz-dev/core
+/LICENSE                          @runtz-dev/core
+
+# CI/CD and deployment.
+/.github/                 @runtz-dev/core
+/helm/                    @runtz-dev/core
+/scripts/                 @runtz-dev/core

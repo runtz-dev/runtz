@@ -21,7 +21,7 @@ import { useWorkspace } from "@/components/runtz/workspace-context"
 import { apiRequest, getStoredToken, type ApiKey } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
-const installCommand = "curl -fsSL https://get.runtz.dev | bash"
+const installCommand = "curl -fsSL https://runtz.dev/install.sh | bash"
 
 export default function OnboardingPage() {
   const router = useRouter()

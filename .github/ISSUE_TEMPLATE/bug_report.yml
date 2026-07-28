@@ -17,7 +17,7 @@ body:
         - Frontend (web platform)
         - Helm chart
         - Docker Compose / images
-        - Installer (get.runtz.dev)
+        - Installer (runtz.dev/install.sh)
         - Documentation
     validations:
       required: true

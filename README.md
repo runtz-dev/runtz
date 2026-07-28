@@ -46,7 +46,7 @@ Visible but not implemented yet:
 ## Install the CLI
 
 ```bash
-curl -fsSL https://get.runtz.dev | bash
+curl -fsSL https://runtz.dev/install.sh | bash
 runtz version
 ```
 

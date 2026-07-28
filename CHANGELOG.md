@@ -9,6 +9,13 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc2] - 2026-07-28
+
+### Changed
+
+- CLI installer moved from the standalone `get.runtz.dev` host to
+  `https://runtz.dev/install.sh`, served by the existing landing app.
+
 ## [1.0.0-rc1] - 2026-07-11
 
 First public release candidate.

@@ -82,8 +82,11 @@ ingress:
           servicePort: 3000
         # CLI installer (curl -fsSL https://runtz.dev/install.sh | bash); the
         # landing app's proxy 302-redirects it to the raw script on GitHub.
+        # pathType must be Prefix: the cloudflare-tunnel-ingress-controller
+        # does not support Exact and silently drops the whole Ingress's DNS
+        # record if any path uses it.
         - path: /install.sh
-          pathType: Exact
+          pathType: Prefix
           serviceName: runtz-landing
           servicePort: 3000
         - path: /login

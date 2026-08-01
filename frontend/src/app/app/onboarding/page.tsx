@@ -8,6 +8,7 @@ import {
   CircleIcon,
   CopyIcon,
   KeyRoundIcon,
+  ServerIcon,
   TerminalIcon,
 } from "lucide-react"
 
@@ -35,9 +36,11 @@ export default function OnboardingPage() {
     deploymentMode === "cloud"
       ? "https://engine.runtz.dev"
       : "http://localhost:8080"
-  const scanCommand = `runtz sca ./ --endpoint ${endpoint} --token ${
-    apiKey || "rtz_live_..."
-  }`
+  const tokenValue = apiKey || "rtz_live_..."
+  const scanCommand =
+    deploymentMode === "cloud"
+      ? `runtz host --token ${tokenValue}`
+      : `runtz host --endpoint ${endpoint} --token ${tokenValue}`
 
   async function createAPIKey() {
     const token = getStoredToken()
@@ -58,6 +61,7 @@ export default function OnboardingPage() {
             workspaceId: workspace.id,
             name: "Onboarding CLI key",
             scopes: ["ingest:write"],
+            expiresInDays: 90,
           },
         }
       )
@@ -118,11 +122,11 @@ export default function OnboardingPage() {
           first steps
         </p>
         <h1 className="mt-2 text-3xl font-semibold tracking-normal">
-          Run your first scan
+          Scan this machine
         </h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Generate a workspace key, install the CLI and scan your
-          repository&apos;s dependencies with Runtz.
+          Generate a workspace key, install the CLI and let it scan this
+          host&apos;s own OS packages with Runtz.
         </p>
       </div>
 
@@ -135,7 +139,7 @@ export default function OnboardingPage() {
               complete={Boolean(apiKey)}
               icon={KeyRoundIcon}
               title="Add an API key"
-              description="The key automatically identifies your workspace when the CLI submits a scan."
+              description="The key automatically identifies your workspace when the CLI submits a scan. It expires in 90 days."
             >
               {apiKey ? (
                 <InlineSecret
@@ -156,21 +160,24 @@ export default function OnboardingPage() {
               complete={Boolean(apiKey)}
               icon={TerminalIcon}
               title="Install the CLI"
-              description="The script installs the runtz binary to /usr/local/bin. Confirm with runtz version."
+              description="One command installs the runtz binary and puts it on your PATH."
             >
-              <CommandLine
-                value={installCommand}
-                copied={copied === "install"}
-                onCopy={() => copy(installCommand, "install")}
-              />
+              <div className="flex flex-col gap-2">
+                <CommandLine
+                  value={installCommand}
+                  copied={copied === "install"}
+                  onCopy={() => copy(installCommand, "install")}
+                />
+                <OSBadge />
+              </div>
             </OnboardingStep>
 
             <OnboardingStep
               active={Boolean(apiKey)}
               complete={false}
-              icon={TerminalIcon}
-              title="Run an SCA scan"
-              description="From the root of your repository, run the command below. The CLI discovers the supported manifests (package.json, requirements.txt, go.mod...) and the token already points to the right workspace."
+              icon={ServerIcon}
+              title="Scan this host"
+              description="Run it from anywhere on this machine. The CLI fingerprints the installed OS packages, matches them against known CVEs and sends the report straight to your workspace."
             >
               <CommandLine
                 value={scanCommand}
@@ -234,6 +241,29 @@ function OnboardingStep({
       </div>
       {children}
     </section>
+  )
+}
+
+function OSBadge() {
+  return (
+    <div className="inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+      <TerminalIcon className="size-3" />
+      <AppleIcon className="size-3" />
+      <span>Linux · macOS</span>
+    </div>
+  )
+}
+
+function AppleIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 384 512"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
+    </svg>
   )
 }
 

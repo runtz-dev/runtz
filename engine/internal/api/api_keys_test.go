@@ -1,6 +1,9 @@
 package api
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestGenerateAPIKeyFormatAndPrefix(t *testing.T) {
 	rawKey, prefix, err := generateAPIKey()
@@ -29,5 +32,24 @@ func TestAPIKeyAllowsScope(t *testing.T) {
 	}
 	if apiKeyAllowsScope(APIKey{Scopes: []string{"scan:read"}}, "ingest:write") {
 		t.Fatal("apiKeyAllowsScope allowed an unrelated scope")
+	}
+}
+
+func TestExpiresAtFromDays(t *testing.T) {
+	if got := expiresAtFromDays(time.Now(), 0); got != nil {
+		t.Fatalf("expected nil expiry for 0 days, got %v", got)
+	}
+	if got := expiresAtFromDays(time.Now(), -1); got != nil {
+		t.Fatalf("expected nil expiry for negative days, got %v", got)
+	}
+
+	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	got := expiresAtFromDays(from, 90)
+	if got == nil {
+		t.Fatal("expected a non-nil expiry for 90 days")
+	}
+	want := from.AddDate(0, 0, 90)
+	if !got.Equal(want) {
+		t.Fatalf("expiresAtFromDays() = %v, want %v", got, want)
 	}
 }

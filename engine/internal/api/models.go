@@ -45,6 +45,7 @@ type APIKey struct {
 	CreatedBy   bson.ObjectID `bson:"created_by" json:"createdBy"`
 	LastUsedAt  *time.Time    `bson:"last_used_at,omitempty" json:"lastUsedAt,omitempty"`
 	RevokedAt   *time.Time    `bson:"revoked_at,omitempty" json:"revokedAt,omitempty"`
+	ExpiresAt   *time.Time    `bson:"expires_at,omitempty" json:"expiresAt,omitempty"`
 	CreatedAt   time.Time     `bson:"created_at" json:"createdAt"`
 	UpdatedAt   time.Time     `bson:"updated_at" json:"updatedAt"`
 }
@@ -225,6 +226,7 @@ type publicAPIKey struct {
 	CreatedBy   string   `json:"createdBy"`
 	LastUsedAt  string   `json:"lastUsedAt,omitempty"`
 	RevokedAt   string   `json:"revokedAt,omitempty"`
+	ExpiresAt   string   `json:"expiresAt,omitempty"`
 	CreatedAt   string   `json:"createdAt"`
 	UpdatedAt   string   `json:"updatedAt"`
 }
@@ -288,6 +290,9 @@ func serializeAPIKey(apiKey APIKey) publicAPIKey {
 	}
 	if apiKey.RevokedAt != nil {
 		response.RevokedAt = apiKey.RevokedAt.Format(time.RFC3339)
+	}
+	if apiKey.ExpiresAt != nil {
+		response.ExpiresAt = apiKey.ExpiresAt.Format(time.RFC3339)
 	}
 
 	return response

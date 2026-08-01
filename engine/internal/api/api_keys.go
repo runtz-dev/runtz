@@ -63,9 +63,10 @@ func (s *Server) handleListAPIKeys(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	user, _ := currentUser(r.Context())
 	var request struct {
-		WorkspaceID string   `json:"workspaceId"`
-		Name        string   `json:"name"`
-		Scopes      []string `json:"scopes"`
+		WorkspaceID   string   `json:"workspaceId"`
+		Name          string   `json:"name"`
+		Scopes        []string `json:"scopes"`
+		ExpiresInDays int      `json:"expiresInDays"`
 	}
 	if !decodeJSON(w, r, &request) {
 		return
@@ -109,6 +110,7 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		CreatedBy:   user.ID,
 		CreatedAt:   now,
 		UpdatedAt:   now,
+		ExpiresAt:   expiresAtFromDays(now, request.ExpiresInDays),
 	}
 
 	if _, err := s.apiKeys.InsertOne(r.Context(), apiKey); err != nil {
@@ -221,10 +223,28 @@ func userCanAccessWorkspace(user User, workspaceID bson.ObjectID) bool {
 	return false
 }
 
+// expiresAtFromDays returns the expiry timestamp for a newly created key, or
+// nil when days is 0/negative (no expiration).
+func expiresAtFromDays(from time.Time, days int) *time.Time {
+	if days <= 0 {
+		return nil
+	}
+	expiresAt := from.AddDate(0, 0, days)
+	return &expiresAt
+}
+
 func activeAPIKeyFilter() bson.M {
-	return bson.M{"$or": []bson.M{
-		{"revoked_at": bson.M{"$exists": false}},
-		{"revoked_at": nil},
+	now := time.Now().UTC()
+	return bson.M{"$and": []bson.M{
+		{"$or": []bson.M{
+			{"revoked_at": bson.M{"$exists": false}},
+			{"revoked_at": nil},
+		}},
+		{"$or": []bson.M{
+			{"expires_at": bson.M{"$exists": false}},
+			{"expires_at": nil},
+			{"expires_at": bson.M{"$gt": now}},
+		}},
 	}}
 }
 

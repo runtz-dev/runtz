@@ -47,6 +47,7 @@ export type ApiKey = {
   createdBy: string
   lastUsedAt?: string
   revokedAt?: string
+  expiresAt?: string
   createdAt: string
   updatedAt: string
 }

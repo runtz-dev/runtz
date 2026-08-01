@@ -1,5 +1,14 @@
 name-template: '$RESOLVED_VERSION'
 tag-template: 'v$RESOLVED_VERSION'
+# We're on v1.0.0-rc.N until 1.0.0 ships; every real release so far is a
+# GitHub prerelease, and the /releases/latest API (which release-drafter
+# uses to find "the previous release") ignores prereleases entirely. Without
+# this the draft always resets to v0.1.0 with an empty changelog instead of
+# picking up from the last rc. Version numbers are still set by hand when
+# publishing (existing tags are "rcN"-style, not "rc.N", so auto-bumping
+# would compute a regression below the last rc) — this only fixes changelog
+# continuity.
+include-pre-releases: true
 categories:
   - title: 'Features'
     labels:

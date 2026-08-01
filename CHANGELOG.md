@@ -9,6 +9,18 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc4] - 2026-08-01
+
+### Changed
+
+- Onboarding now scans the host itself (`runtz host`) instead of running an
+  SCA scan, and only shows `--endpoint` for self-hosted deployments.
+
+### Added
+
+- API keys support an optional expiration; the onboarding key now expires
+  after 90 days.
+
 ## [1.0.0-rc2] - 2026-07-28
 
 ### Changed

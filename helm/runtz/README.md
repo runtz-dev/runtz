@@ -49,7 +49,7 @@ pre-created Kubernetes Secret containing the keys `JWT_SECRET`,
 | `backend.env.CORS_ALLOWED_ORIGINS` | `http://localhost:3000` | Comma-separated origins |
 | `backend.env.MONGODB_URI` | in-cluster MongoDB | Set to use an external MongoDB |
 | `backend.existingConfigMap` | `""` | Pre-created ConfigMap with extra engine variables; layered after (and winning over) the chart's own |
-| `mongodb.persistence.size` | `10Gi` | Data PVC size (immutable after install — see the resize note in `helm/environments/README.md`) |
+| `mongodb.persistence.size` | `10Gi` | Data PVC size. Set it before the first install: it lands in the StatefulSet's `volumeClaimTemplates`, which Kubernetes will not let an upgrade change |
 | `mongodb.enabled` | `true` | Deploy in-cluster MongoDB |
 | `mongodb.persistence.storageClassName` | cluster default | StorageClass for the data PVC |
 | `ingress.enabled` | `false` | Frontend ingress |

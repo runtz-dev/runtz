@@ -127,27 +127,40 @@ in `secrets-helm`, not this repository. Note that the cloudflare-tunnel ingress
 controller only supports `pathType: Prefix` — an `Exact` path silently drops the
 whole Ingress's DNS record.
 
-## Resizing the MongoDB volume
+## The MongoDB volume size is nominal here
 
-`mongodb.persistence.size` lands in the StatefulSet's `volumeClaimTemplates`,
-which Kubernetes treats as immutable — a `helm upgrade` that changes it fails
-with `Forbidden: updates to statefulset spec for fields other than 'replicas'`.
-Resize in three steps (the PVC keeps the data; the StorageClass must have
-`allowVolumeExpansion: true`):
+`mongodb.persistence.size` in both overlays matches what is already provisioned
+(dev 5Gi, prod 10Gi) and should stay that way. Two reasons:
+
+1. **It is not a limit.** `openebs-ssd` is OpenEBS LocalPV in hostpath mode —
+   the volume is a directory on the node's disk (`/data/ssd-wd/...`) with no
+   quota. Both MongoDBs already see the full 938G disk with ~890G free, so
+   asking for 500Gi would not give them a byte more than they have.
+2. **Changing it breaks the deploy.** The value lands in the StatefulSet's
+   `volumeClaimTemplates`, which Kubernetes treats as immutable, so
+   `helm upgrade` fails with `Forbidden: updates to statefulset spec for fields
+   other than 'replicas' ... are forbidden`. And the usual escape hatch —
+   orphan the StatefulSet, patch the PVC, redeploy — does not work either:
+   this StorageClass has `allowVolumeExpansion` unset and LocalPV hostpath
+   cannot expand in place.
+
+Making the number match a target would therefore mean recreating the volume:
 
 ```bash
-# 1. drop the StatefulSet object, keep the pod and the PVC
-kubectl -n <namespace> delete statefulset runtz-mongodb --cascade=orphan
-
-# 2. grow the existing claim
-kubectl -n <namespace> patch pvc data-runtz-mongodb-0 \
-  -p '{"spec":{"resources":{"requests":{"storage":"500Gi"}}}}'
-
-# 3. redeploy — the StatefulSet is recreated with the new size and adopts the pod
-helm upgrade --install runtz ... -f helm/environments/<env>/values.yaml
+# Data loss unless you dump and restore around it (reclaim policy is Delete)
+kubectl -n <ns> exec runtz-mongodb-0 -- mongodump --archive=/tmp/runtz.gz --gzip
+kubectl -n <ns> cp runtz-mongodb-0:/tmp/runtz.gz ./runtz.gz
+kubectl -n <ns> delete statefulset runtz-mongodb --cascade=orphan
+kubectl -n <ns> delete pod runtz-mongodb-0
+kubectl -n <ns> delete pvc data-runtz-mongodb-0
+helm upgrade --install runtz ... --set mongodb.persistence.size=<new size>
+kubectl -n <ns> cp ./runtz.gz runtz-mongodb-0:/tmp/runtz.gz
+kubectl -n <ns> exec runtz-mongodb-0 -- mongorestore --archive=/tmp/runtz.gz --gzip
 ```
 
-Shrinking a volume is not supported by Kubernetes; only grow.
+If you want a size that is actually **enforced**, that is a StorageClass
+decision (LVM- or ZFS-backed OpenEBS with `allowVolumeExpansion: true`), not a
+chart one.
 
 ## Fallback: local values.secrets.yaml
 

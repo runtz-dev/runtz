@@ -33,6 +33,8 @@ Until `1.0.0` ships, public builds are tagged as release candidates
   session goes straight to the app instead of asking for credentials again.
 - Sidebar: the wordmark (which already ends in the cursor block) no longer
   shows the mark tile beside it; the tile appears only when collapsed to icons.
+- Chart: the ingress examples are neutral (nginx, `example.com`) instead of our
+  own hostnames and ingress class.
 
 ## [1.0.0-rc4] - 2026-08-01
 

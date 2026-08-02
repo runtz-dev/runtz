@@ -53,10 +53,14 @@ backend:
 mongodb:
   persistence:
     storageClassName: openebs-ssd
-    # Growing this on a live release needs the StatefulSet recreated with
-    # --cascade=orphan first (volumeClaimTemplates are immutable) — see
-    # helm/environments/README.md.
-    size: 25Gi
+    # openebs-ssd is OpenEBS LocalPV (hostpath): the volume is a directory on the
+    # node disk with no quota, so this number is nominal — MongoDB can already
+    # grow into the whole 938G disk. The StorageClass has allowVolumeExpansion
+    # unset and volumeClaimTemplates are immutable, so changing it fails the
+    # upgrade with "updates to statefulset spec ... are forbidden" and the only
+    # way to make it match is recreating the volume. Keep it at the provisioned
+    # value — see helm/environments/README.md.
+    size: 5Gi
 
 # Routing is NOT part of this release. The hostnames and the cloudflare-tunnel
 # ingress class are specific to our cluster, so the Ingress objects live in the

@@ -9,6 +9,31 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+### Added
+
+- Settings → **Usage**: weekly (7-day) and monthly (30-day) counters of scans
+  sent, with a per-scan-type breakdown, backed by `GET /api/v1/usage`.
+- Account menu: shortcut back to the onboarding guide.
+- Chart: `backend.existingConfigMap` layers a pre-created ConfigMap of
+  non-secret engine variables (OAuth client ids, Stripe price ids) on top of
+  the chart's own, keeping deployment-specific config out of the repository.
+
+### Fixed
+
+- Billing read the subscription renewal date from `current_period_end` on the
+  subscription, which Stripe moved onto the subscription items in API version
+  `2025-03-31.basil`; both payload shapes are now handled, so the renewal date
+  shows up again.
+
+### Changed
+
+- Settings → Billing is now a single card: current plan, cycle and one upgrade
+  button wired to Stripe Checkout (plus the portal for paying customers).
+- Sessions last 7 days instead of 24 hours, and opening `/login` with a valid
+  session goes straight to the app instead of asking for credentials again.
+- Sidebar: the wordmark (which already ends in the cursor block) no longer
+  shows the mark tile beside it; the tile appears only when collapsed to icons.
+
 ## [1.0.0-rc4] - 2026-08-01
 
 ### Changed

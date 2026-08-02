@@ -52,19 +52,37 @@ type stripeCheckoutSession struct {
 }
 
 type stripeSubscription struct {
-	ID                string            `json:"id"`
+	ID string `json:"id"`
+	// Present up to API version 2025-02-24.acacia. From 2025-03-31.basil on,
+	// Stripe moved the billing period onto each item — see periodEnd().
+	CurrentPeriodEnd  int64             `json:"current_period_end"`
 	Customer          string            `json:"customer"`
 	Status            string            `json:"status"`
-	CurrentPeriodEnd  int64             `json:"current_period_end"`
 	CancelAtPeriodEnd bool              `json:"cancel_at_period_end"`
 	Metadata          map[string]string `json:"metadata"`
 	Items             struct {
 		Data []struct {
-			Price struct {
+			CurrentPeriodEnd int64 `json:"current_period_end"`
+			Price            struct {
 				ID string `json:"id"`
 			} `json:"price"`
 		} `json:"data"`
 	} `json:"items"`
+}
+
+// periodEnd is when the subscription renews, read from whichever shape the
+// payload uses: the subscription-level field on old API versions, or the
+// furthest item period on 2025-03-31.basil and later (our plans have a single
+// item, so the two agree).
+func (s stripeSubscription) periodEnd() int64 {
+	periodEnd := s.CurrentPeriodEnd
+	for _, item := range s.Items.Data {
+		if item.CurrentPeriodEnd > periodEnd {
+			periodEnd = item.CurrentPeriodEnd
+		}
+	}
+
+	return periodEnd
 }
 
 type stripeBillingPortalSession struct {
@@ -445,9 +463,8 @@ func (s *Server) storeStripeSubscription(ctx context.Context, subscription strip
 	if installationID != "" {
 		set["installation_id"] = installationID
 	}
-	if subscription.CurrentPeriodEnd > 0 {
-		periodEnd := time.Unix(subscription.CurrentPeriodEnd, 0).UTC()
-		set["current_period_end"] = periodEnd
+	if periodEnd := subscription.periodEnd(); periodEnd > 0 {
+		set["current_period_end"] = time.Unix(periodEnd, 0).UTC()
 	}
 
 	filter := bson.M{"stripe_subscription_id": subscription.ID}

@@ -46,6 +46,11 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "runtz.backendConfigMapName" . }}
+            {{- with .Values.backend.existingConfigMap }}
+            # Listed last on purpose: keys here win over the chart's ConfigMap.
+            - configMapRef:
+                name: {{ . }}
+            {{- end }}
           env:
             - name: JWT_SECRET
               valueFrom:

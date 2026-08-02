@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { RuntzWordmark } from "@/components/runtz/logo"
 import { ThemeToggle } from "@/components/runtz/theme-provider"
-import { apiRequest, storeToken } from "@/lib/api"
+import { apiRequest, clearToken, getStoredToken, storeToken } from "@/lib/api"
 import { DEFAULT_GOOGLE_CLIENT_ID } from "@/lib/google"
 import { cn } from "@/lib/utils"
 
@@ -101,6 +101,7 @@ export function SetupLogin() {
   const searchParams = useSearchParams()
   const nextPath = safeNextPath(searchParams.get("next"))
   const [status, setStatus] = React.useState<SetupStatusResponse | null>(null)
+  const [restoringSession, setRestoringSession] = React.useState(true)
 
   React.useEffect(() => {
     apiRequest<SetupStatusResponse>("/api/v1/setup/status")
@@ -109,6 +110,36 @@ export function SetupLogin() {
         setStatus({ configured: true, deploymentMode: "self-hosted" })
       )
   }, [])
+
+  // The session token lives in localStorage, so a second tab (or coming back
+  // from the landing page) is still signed in — send it straight to the app
+  // instead of asking for the credentials again. A token the engine rejects is
+  // dropped here so the form is shown.
+  React.useEffect(() => {
+    const token = getStoredToken()
+    if (!token) {
+      setRestoringSession(false)
+      return
+    }
+
+    let cancelled = false
+    apiRequest("/api/v1/me", { token })
+      .then(() => {
+        if (!cancelled) {
+          router.replace(nextPath)
+        }
+      })
+      .catch(() => {
+        clearToken()
+        if (!cancelled) {
+          setRestoringSession(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [nextPath, router])
 
   return (
     <div className="relative min-h-svh overflow-hidden bg-[#050912] text-[#eaf4ff]">
@@ -124,7 +155,7 @@ export function SetupLogin() {
               cursorClassName="bg-[#6db5ff]"
             />
           </div>
-          {!status ? (
+          {!status || restoringSession ? (
             <LoginSkeleton />
           ) : status.deploymentMode === "cloud" ? (
             <CloudLoginForm

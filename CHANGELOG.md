@@ -9,6 +9,8 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc5] - 2026-08-02
+
 ### Added
 
 - Settings → **Usage**: weekly (7-day) and monthly (30-day) counters of scans
@@ -80,5 +82,6 @@ First public release candidate.
 - The engine refuses to start with empty or placeholder `JWT_SECRET` /
   `RUNTZ_INGEST_TOKEN` values.
 
-[Unreleased]: https://github.com/runtz-dev/runtz/compare/v1.0.0-rc1...HEAD
+[Unreleased]: https://github.com/runtz-dev/runtz/compare/v1.0.0-rc5...HEAD
+[1.0.0-rc5]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc5
 [1.0.0-rc1]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc1

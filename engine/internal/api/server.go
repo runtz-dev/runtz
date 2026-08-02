@@ -97,6 +97,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/me", s.auth(http.HandlerFunc(s.handleMe)))
 	mux.Handle("PATCH /api/v1/me/onboarding", s.auth(http.HandlerFunc(s.handleCompleteOnboarding)))
 	mux.Handle("PATCH /api/v1/me/password", s.auth(http.HandlerFunc(s.handleChangePassword)))
+	mux.Handle("GET /api/v1/usage", s.auth(http.HandlerFunc(s.handleUsage)))
 	mux.Handle("GET /api/v1/workspaces", s.auth(http.HandlerFunc(s.handleListWorkspaces)))
 	mux.Handle("POST /api/v1/workspaces", s.adminOnly(http.HandlerFunc(s.handleCreateWorkspace)))
 	mux.Handle("GET /api/v1/api-keys", s.auth(http.HandlerFunc(s.handleListAPIKeys)))
@@ -1110,12 +1111,17 @@ func (s *Server) handleGetScanByType(w http.ResponseWriter, r *http.Request, sca
 	writeJSON(w, http.StatusOK, map[string]any{"scan": scan})
 }
 
+// sessionTokenTTL is how long a browser session stays signed in. The token is
+// kept in localStorage, so a short TTL means signing in again every day even
+// though the tab was never closed; a week is the balance we settled on.
+const sessionTokenTTL = 7 * 24 * time.Hour
+
 func (s *Server) issueToken(user User) (string, error) {
 	claims := jwt.MapClaims{
 		"sub":      user.ID.Hex(),
 		"username": user.Username,
 		"role":     user.Role,
-		"exp":      time.Now().UTC().Add(24 * time.Hour).Unix(),
+		"exp":      time.Now().UTC().Add(sessionTokenTTL).Unix(),
 		"iat":      time.Now().UTC().Unix(),
 	}
 

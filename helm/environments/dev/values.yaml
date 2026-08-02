@@ -16,15 +16,17 @@
 
 frontend:
   image:
-    # Built with the dev NEXT_PUBLIC_* baked in and pushed to the in-cluster registry.
+    # Built by the dev pipeline and pushed to the in-cluster registry. No
+    # NEXT_PUBLIC_* config is baked in: the engine serves it at runtime.
     repository: registry.local:5000/runtz-frontend
     tag: ""
     pullPolicy: Always
   env:
     NEXT_PUBLIC_API_URL: ""
-    # Public OAuth client id (shipped to browsers). The runtz-dev.runtz.dev
-    # origin must be listed as an authorized JS origin on this Google client.
-    NEXT_PUBLIC_GOOGLE_CLIENT_ID: "724575650478-rvqpmrlvqljr50e111rvj1f96n43pp5s.apps.googleusercontent.com"
+    # Left empty on purpose: the browser gets the Google client id at runtime
+    # from the engine (/api/v1/setup/status), which reads it from the
+    # runtz-engine-config ConfigMap. Nothing environment-specific is baked in.
+    NEXT_PUBLIC_GOOGLE_CLIENT_ID: ""
     RUNTZ_BACKEND_URL: "https://engine-dev.runtz.dev"
 
 backend:
@@ -35,72 +37,34 @@ backend:
   env:
     RUNTZ_DEPLOYMENT_MODE: cloud
     RUNTZ_PUBLIC_URL: https://runtz-dev.runtz.dev
-    GOOGLE_CLIENT_ID: "724575650478-rvqpmrlvqljr50e111rvj1f96n43pp5s.apps.googleusercontent.com"
-    # Dev needs its own GitHub OAuth app (one callback URL per app). Left empty
-    # until that app exists; Google and email sign-in still work.
-    GITHUB_CLIENT_ID: ""
     CORS_ALLOWED_ORIGINS: https://runtz-dev.runtz.dev
-    # Stripe test-mode price ids (non-secret). The test secret key and webhook
-    # secret live in the runtz-engine-secrets Secret.
-    STRIPE_PRICE_PRO_CLOUD: "price_1Tkt89JJ8Z2MDrZtx1K5X4GQ"
-    STRIPE_PRICE_ENTERPRISE_CLOUD: "price_1Tkt8AJJ8Z2MDrZtFtvD4wRi"
-    STRIPE_PRICE_PRO_SELF_HOSTED: "price_1Tkt8BJJ8Z2MDrZtws3fzzAZ"
-    STRIPE_PRICE_ENTERPRISE_SELF_HOSTED: "price_1Tkt8CJJ8Z2MDrZtG423eXWq"
+    # GOOGLE_CLIENT_ID, GITHUB_CLIENT_ID and the four STRIPE_PRICE_* ids are
+    # deployment config for our cloud only — they come from the
+    # runtz-engine-config ConfigMap below (secrets-helm/configmaps-dev.yaml),
+    # never from this repository. Dev is wired to the Stripe SANDBOX.
+  # Non-secret cloud config, applied to the cluster out of band.
+  existingConfigMap: runtz-engine-config
   secrets:
     existingSecret: runtz-engine-secrets
+  # The engine ingress (engine-dev.runtz.dev) lives in secrets-helm/ingress-dev.yaml.
   ingress:
-    enabled: true
-    className: "cloudflare-tunnel"
-    hosts:
-      - host: engine-dev.runtz.dev
-        paths:
-          - path: /
-            pathType: Prefix
+    enabled: false
 
 mongodb:
   persistence:
     storageClassName: openebs-ssd
+    # openebs-ssd is OpenEBS LocalPV (hostpath): the volume is a directory on the
+    # node disk with no quota, so this number is nominal — MongoDB can already
+    # grow into the whole 938G disk. The StorageClass has allowVolumeExpansion
+    # unset and volumeClaimTemplates are immutable, so changing it fails the
+    # upgrade with "updates to statefulset spec ... are forbidden" and the only
+    # way to make it match is recreating the volume. Keep it at the provisioned
+    # value — see helm/environments/README.md.
     size: 5Gi
 
+# Routing is NOT part of this release. The hostnames and the cloudflare-tunnel
+# ingress class are specific to our cluster, so the Ingress objects live in the
+# private secrets-helm folder (ingress-dev.yaml) and are applied with kubectl.
+# The chart ships generic ingress support that stays disabled here.
 ingress:
-  enabled: true
-  className: "cloudflare-tunnel"
-  hosts:
-    - host: runtz-dev.runtz.dev
-      paths:
-        # The landing app (runtz-dev/runtz.dev repo) owns /home and /legal on
-        # this host, same split as prod — see that repo's helm chart, which
-        # deploys the runtz-landing Service this ingress points at.
-        - path: /home/_next
-          pathType: Prefix
-          serviceName: runtz-landing
-          servicePort: 3000
-        - path: /home
-          pathType: Prefix
-          serviceName: runtz-landing
-          servicePort: 3000
-        - path: /legal
-          pathType: Prefix
-          serviceName: runtz-landing
-          servicePort: 3000
-        # CLI installer (curl -fsSL https://runtz.dev/install.sh | bash); the
-        # landing app's proxy 302-redirects it to the raw script on GitHub.
-        # pathType must be Prefix: the cloudflare-tunnel-ingress-controller
-        # does not support Exact and silently drops the whole Ingress's DNS
-        # record if any path uses it.
-        - path: /install.sh
-          pathType: Prefix
-          serviceName: runtz-landing
-          servicePort: 3000
-        - path: /login
-          pathType: Prefix
-        - path: /app
-          pathType: Prefix
-        - path: /api
-          pathType: Prefix
-        - path: /playground
-          pathType: Prefix
-        - path: /_next
-          pathType: Prefix
-        - path: /
-          pathType: Prefix
+  enabled: false

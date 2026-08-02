@@ -7,7 +7,6 @@ on:
 
 env:
   REGISTRY: registry-docker-registry.registry.svc.cluster.local:5000
-  GOOGLE_CLIENT_ID: "724575650478-rvqpmrlvqljr50e111rvj1f96n43pp5s.apps.googleusercontent.com"
 
 jobs:
   publish-images:
@@ -51,7 +50,6 @@ jobs:
           docker buildx build \
             --push \
             --tag ${REGISTRY}/runtz-frontend-cloud:${VERSION} \
-            --build-arg NEXT_PUBLIC_GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
             ./frontend
 
   publish-chart:

@@ -7,8 +7,6 @@ on:
 
 env:
   REGISTRY: registry-docker-registry.registry.svc.cluster.local:5000
-  # Public OAuth client id baked into the dev frontend bundle (NEXT_PUBLIC_*).
-  GOOGLE_CLIENT_ID: "724575650478-rvqpmrlvqljr50e111rvj1f96n43pp5s.apps.googleusercontent.com"
 
 jobs:
   build-dev:
@@ -37,7 +35,6 @@ jobs:
           docker buildx build \
             --push \
             --tag ${REGISTRY}/runtz-frontend:dev$GITHUB_SHA \
-            --build-arg NEXT_PUBLIC_GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
             ./frontend
 
   deploy-dev:

@@ -6,6 +6,7 @@ import * as React from "react"
 import {
   BoxesIcon,
   CodeIcon,
+  CompassIcon,
   ContainerIcon,
   KeyRoundIcon,
   LogOutIcon,
@@ -277,7 +278,10 @@ export function AppShell({
                     className="rounded-xl hover:bg-sidebar-accent data-active:bg-sidebar-accent"
                     render={<Link href={`${basePath}/overview`} />}
                   >
-                    <div className="flex size-8 items-center justify-center overflow-hidden rounded-xl">
+                    {/* The wordmark already ends in the cursor block, so the
+                        mark tile would repeat it: show the tile only when the
+                        sidebar is collapsed to icons. */}
+                    <div className="hidden size-8 items-center justify-center overflow-hidden rounded-xl group-data-[collapsible=icon]:flex">
                       <RuntzMark className="size-full" />
                     </div>
                     <div className="flex min-w-0 flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
@@ -359,6 +363,7 @@ export function AppShell({
                     user={user}
                     isPlayground={isPlayground}
                     onProfile={() => router.push("/app/settings")}
+                    onOnboarding={() => router.push("/app/onboarding")}
                     onLogout={logout}
                   />
                 </SidebarMenuItem>
@@ -419,11 +424,13 @@ function AccountMenu({
   user,
   isPlayground,
   onProfile,
+  onOnboarding,
   onLogout,
 }: {
   user: User
   isPlayground: boolean
   onProfile: () => void
+  onOnboarding: () => void
   onLogout: () => void
 }) {
   const [open, setOpen] = React.useState(false)
@@ -486,6 +493,20 @@ function AccountMenu({
             >
               <UserIcon className="size-4 text-[#1d5fc7] dark:text-[#6db5ff]" />
               Profile
+            </button>
+          )}
+          {isPlayground ? null : (
+            <button
+              type="button"
+              role="menuitem"
+              className="flex h-9 w-full items-center gap-2 rounded-xl px-3 text-sm text-[#102238] transition hover:bg-[#d8ebff] hover:text-[#071222] dark:text-[#c9dbf2] dark:hover:bg-[#172844] dark:hover:text-[#eaf4ff]"
+              onClick={() => {
+                setOpen(false)
+                onOnboarding()
+              }}
+            >
+              <CompassIcon className="size-4 text-[#1d5fc7] dark:text-[#6db5ff]" />
+              Onboarding
             </button>
           )}
           <button

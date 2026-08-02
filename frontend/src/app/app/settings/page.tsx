@@ -2,16 +2,17 @@
 
 import * as React from "react"
 import {
+  ActivityIcon,
+  ArrowUpRightIcon,
+  CalendarRangeIcon,
   CopyIcon,
   CreditCardIcon,
   CrownIcon,
-  FolderKanbanIcon,
   KeyRoundIcon,
   PlusIcon,
   RefreshCcwIcon,
   SendIcon,
   Share2Icon,
-  ShieldCheckIcon,
   UsersIcon,
 } from "lucide-react"
 
@@ -42,6 +43,7 @@ import {
   FieldSet,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Select,
   SelectContent,
@@ -61,7 +63,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { apiRequest, getStoredToken, type Entitlement, type User } from "@/lib/api"
 
-type SettingsTab = "profile" | "workspaces" | "billing" | "users"
+type SettingsTab = "profile" | "workspaces" | "usage" | "billing" | "users"
 
 export default function SettingsPage() {
   const { deploymentMode } = useWorkspace()
@@ -109,6 +111,7 @@ export default function SettingsPage() {
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="workspaces">Workspaces</TabsTrigger>
+          <TabsTrigger value="usage">Usage</TabsTrigger>
           <TabsTrigger value="billing">Billing</TabsTrigger>
           {isCloud ? null : <TabsTrigger value="users">Users</TabsTrigger>}
         </TabsList>
@@ -117,6 +120,9 @@ export default function SettingsPage() {
         </TabsContent>
         <TabsContent value="workspaces">
           <WorkspacesPanel />
+        </TabsContent>
+        <TabsContent value="usage">
+          <UsagePanel />
         </TabsContent>
         <TabsContent value="billing">
           <BillingPanel />
@@ -136,7 +142,12 @@ function defaultSettingsTab(isCloud: boolean): SettingsTab {
 }
 
 function isSettingsTab(value: string | null | undefined, isCloud: boolean): value is SettingsTab {
-  if (value === "profile" || value === "workspaces" || value === "billing") {
+  if (
+    value === "profile" ||
+    value === "workspaces" ||
+    value === "usage" ||
+    value === "billing"
+  ) {
     return true
   }
   return !isCloud && value === "users"
@@ -714,6 +725,219 @@ function UsersPanel() {
   )
 }
 
+type UsageWindow = {
+  total: number
+  byType: Record<string, number>
+  since: string
+}
+
+type UsageResponse = {
+  weekly: UsageWindow
+  monthly: UsageWindow
+  scanTypes: string[]
+  generatedAt: string
+}
+
+const SCAN_TYPE_LABELS: Record<string, string> = {
+  sca: "SCA",
+  sast: "SAST",
+  container: "Container",
+  host: "Host",
+  k8s: "Kubernetes",
+}
+
+const EMPTY_USAGE_WINDOW: UsageWindow = { total: 0, byType: {}, since: "" }
+
+function UsagePanel() {
+  const { selectedWorkspaceId } = useWorkspace()
+  const [usage, setUsage] = React.useState<UsageResponse | null>(null)
+  const [error, setError] = React.useState("")
+  const [pending, setPending] = React.useState(true)
+
+  const loadUsage = React.useCallback(async () => {
+    const token = getStoredToken()
+    if (!token) {
+      return
+    }
+
+    setPending(true)
+    setError("")
+    try {
+      const query =
+        selectedWorkspaceId && selectedWorkspaceId !== "all"
+          ? `?workspaceId=${encodeURIComponent(selectedWorkspaceId)}`
+          : ""
+      setUsage(await apiRequest<UsageResponse>(`/api/v1/usage${query}`, { token }))
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to load usage")
+    } finally {
+      setPending(false)
+    }
+  }, [selectedWorkspaceId])
+
+  React.useEffect(() => {
+    loadUsage()
+  }, [loadUsage])
+
+  const weekly = usage?.weekly ?? EMPTY_USAGE_WINDOW
+  const monthly = usage?.monthly ?? EMPTY_USAGE_WINDOW
+  const scanTypes = usage?.scanTypes ?? Object.keys(SCAN_TYPE_LABELS)
+  const busiestType = Math.max(
+    1,
+    ...scanTypes.map((scanType) => monthly.byType[scanType] ?? 0)
+  )
+
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        <UsageCounter
+          label="Last 7 days"
+          hint="Scans sent this week"
+          total={weekly.total}
+          since={weekly.since}
+          loading={pending && !usage}
+          icon={ActivityIcon}
+          highlight
+        />
+        <UsageCounter
+          label="Last 30 days"
+          hint="Scans sent this month"
+          total={monthly.total}
+          since={monthly.since}
+          loading={pending && !usage}
+          icon={CalendarRangeIcon}
+        />
+      </div>
+
+      <Card className="relative overflow-hidden">
+        <div aria-hidden="true" className="runtz-dot-map pointer-events-none absolute inset-0 opacity-[0.06]" />
+        <CardHeader className="relative">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle>Scans by type</CardTitle>
+              <CardDescription>
+                Counted from the ingested scans of the selected workspace.
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={loadUsage} disabled={pending}>
+              <RefreshCcwIcon data-icon="inline-start" />
+              Atualizar
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="relative grid gap-3">
+          {scanTypes.map((scanType) => (
+            <UsageTypeRow
+              key={scanType}
+              label={SCAN_TYPE_LABELS[scanType] ?? scanType}
+              weekly={weekly.byType[scanType] ?? 0}
+              monthly={monthly.byType[scanType] ?? 0}
+              busiest={busiestType}
+            />
+          ))}
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function UsageCounter({
+  label,
+  hint,
+  total,
+  since,
+  loading,
+  icon: Icon,
+  highlight = false,
+}: {
+  label: string
+  hint: string
+  total: number
+  since: string
+  loading: boolean
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
+  highlight?: boolean
+}) {
+  return (
+    <Card
+      className={`relative overflow-hidden ${
+        highlight ? "border-primary/30" : "border-border"
+      }`}
+    >
+      <div aria-hidden="true" className="runtz-dot-map pointer-events-none absolute inset-0 opacity-[0.08]" />
+      <CardHeader className="relative p-4 pb-0">
+        <div className="flex items-center justify-between gap-3">
+          <Badge variant={highlight ? "secondary" : "outline"}>{label}</Badge>
+          <div className="flex size-9 items-center justify-center rounded-xl border bg-background/70">
+            <Icon className="size-4 text-primary" />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="relative p-4 pt-3">
+        {loading ? (
+          <Skeleton className="h-12 w-24" />
+        ) : (
+          <p className="font-mono text-5xl font-semibold leading-none tracking-tight">
+            {total.toLocaleString("pt-BR")}
+          </p>
+        )}
+        <p className="mt-2 text-sm text-muted-foreground">{hint}</p>
+        {since ? (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Desde {formatDate(since)}
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
+  )
+}
+
+function UsageTypeRow({
+  label,
+  weekly,
+  monthly,
+  busiest,
+}: {
+  label: string
+  weekly: number
+  monthly: number
+  busiest: number
+}) {
+  // The track is scaled by the busiest scan type; the solid segment inside the
+  // month bar is the slice of those scans that arrived in the last 7 days.
+  const monthlyWidth = Math.round((monthly / busiest) * 100)
+  const weeklyWidth = monthly > 0 ? Math.round((weekly / monthly) * 100) : 0
+
+  return (
+    <div className="grid gap-2 rounded-lg border bg-background/55 p-3 sm:grid-cols-[120px_minmax(0,1fr)_auto] sm:items-center sm:gap-4">
+      <span className="text-sm font-medium">{label}</span>
+      <div
+        className="h-2 overflow-hidden rounded-full bg-muted"
+        role="img"
+        aria-label={`${label}: ${weekly} scans in the last 7 days, ${monthly} in the last 30 days`}
+      >
+        <div className="relative h-full rounded-full bg-primary/30" style={{ width: `${monthlyWidth}%` }}>
+          <div
+            className="absolute inset-y-0 left-0 rounded-full bg-primary"
+            style={{ width: `${weeklyWidth}%` }}
+          />
+        </div>
+      </div>
+      <div className="flex items-center gap-4 text-sm sm:justify-end">
+        <span className="font-mono">
+          <span className="text-muted-foreground">7d </span>
+          {weekly}
+        </span>
+        <span className="font-mono">
+          <span className="text-muted-foreground">30d </span>
+          {monthly}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 type BillingStatusResponse = {
   entitlement: Entitlement
   subscription?: {
@@ -891,6 +1115,13 @@ function BillingPanel() {
 
   const activeEntitlement = status?.entitlement ?? entitlement
   const isPaidPlan = activeEntitlement.plan === "pro" || activeEntitlement.plan === "enterprise"
+  // One upgrade path: free buys Pro, Pro buys Enterprise, Enterprise is the top.
+  const upgradePlan: "pro" | "enterprise" | null =
+    activeEntitlement.plan === "free"
+      ? "pro"
+      : activeEntitlement.plan === "pro"
+        ? "enterprise"
+        : null
   const renewalText = activeEntitlement.currentPeriodEnd
     ? `${activeEntitlement.cancelAtPeriodEnd ? "Encerra" : "Renova"} em ${formatDate(activeEntitlement.currentPeriodEnd)}`
     : activeEntitlement.plan === "free"
@@ -898,268 +1129,88 @@ function BillingPanel() {
       : "Renewal awaiting confirmation"
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-      <div className="grid content-start gap-4">
-        <Card className="relative overflow-hidden border-primary/25">
-          <div aria-hidden="true" className="runtz-dot-map pointer-events-none absolute inset-0 opacity-[0.08]" />
-          <CardHeader className="relative p-4">
-            <div className="flex min-w-0 items-start gap-3">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm shadow-primary/20">
-                <CrownIcon className="size-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <Badge variant="secondary">Current plan</Badge>
-                  <Badge variant="outline">{deploymentLabel(deploymentMode)}</Badge>
-                </div>
-                <CardTitle className="text-2xl leading-tight">
-                  {planLabel(activeEntitlement.plan)}
-                </CardTitle>
-                <CardDescription className="mt-1.5 text-sm leading-6">
-                  {planDescription(activeEntitlement.plan, deploymentMode)}
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="relative grid gap-2 px-4 pb-4 pt-0">
-            <BillingMetric label="Status" value={statusLabel(activeEntitlement.status)} />
-            <BillingMetric label="Ciclo" value={renewalText} />
-            <BillingMetric
-              label={deploymentMode === "self-hosted" ? "Installation" : "Subscription"}
-              value={
-                deploymentMode === "self-hosted"
-                  ? status?.instance?.installationId ??
-                    activeEntitlement.installationId ??
-                    "pending"
-                  : status?.subscription?.status
-                    ? statusLabel(status.subscription.status)
-                    : activeEntitlement.plan === "free"
-                      ? "no subscription"
-                      : "ativa"
-              }
-              mono={deploymentMode === "self-hosted"}
-            />
-            {deploymentMode === "cloud" && isPaidPlan ? (
-              <Button
-                className="mt-1 w-full"
-                variant="outline"
-                onClick={openPortal}
-                disabled={pending}
-              >
-                <CreditCardIcon data-icon="inline-start" />
-                Gerenciar assinatura
-              </Button>
-            ) : null}
-            {deploymentMode === "self-hosted" ? (
-              <div className="mt-1 grid gap-2 text-sm">
-                <BillingRow
-                  label="License"
-                  value={
-                    status?.instance?.licenseKeyPrefix ??
-                    activeEntitlement.licenseKeyPrefix ??
-                    (activeEntitlement.plan === "free" ? "not activated" : "Stripe Checkout")
-                  }
-                  mono
-                />
-                <BillingRow
-                  label="Heartbeat"
-                  value={
-                    status?.instance?.lastValidatedAt
-                      ? formatDate(status.instance.lastValidatedAt)
-                      : "not validated"
-                  }
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={refreshLicense}
-                  disabled={pending}
-                >
-                  <RefreshCcwIcon data-icon="inline-start" />
-                  Validate license
-                </Button>
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-
-        {error || message ? (
-          <div className="grid gap-2 rounded-xl border bg-background/55 p-3">
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
-            {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
-          </div>
-        ) : null}
-      </div>
-
-      <Card className="relative min-w-0 overflow-hidden border-primary/20">
+    <div className="grid max-w-xl content-start gap-4">
+      <Card className="relative overflow-hidden border-primary/25">
         <div aria-hidden="true" className="runtz-dot-map pointer-events-none absolute inset-0 opacity-[0.08]" />
-        <CardHeader className="relative gap-3 p-4 md:p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Badge className="w-fit">
-              <CrownIcon data-icon="inline-start" />
-              Runtz Pro / Enterprise
-            </Badge>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <ShieldCheckIcon className="size-4 text-primary" />
-              Free remains available in the initial workspace.
+        <CardHeader className="relative p-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm shadow-primary/20">
+              <CrownIcon className="size-5" />
             </div>
-          </div>
-          <div className="max-w-3xl">
-            <CardTitle className="text-2xl leading-tight md:text-3xl">
-              Create shared workspaces to work as a team.
-            </CardTitle>
-            <CardDescription className="mt-2 max-w-2xl text-sm leading-6">
-              Activate Pro or Enterprise to unlock advanced authentication,
-              smart alerts and team-ready workspaces.
-            </CardDescription>
+            <div className="min-w-0">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">Current plan</Badge>
+                <Badge variant="outline">{deploymentLabel(deploymentMode)}</Badge>
+              </div>
+              <CardTitle className="text-2xl leading-tight">
+                {planLabel(activeEntitlement.plan)}
+              </CardTitle>
+              <CardDescription className="mt-1.5 text-sm leading-6">
+                {planDescription(activeEntitlement.plan, deploymentMode)}
+              </CardDescription>
+            </div>
           </div>
         </CardHeader>
-        <CardContent className="relative grid gap-3 p-4 pt-0 md:grid-cols-2 md:p-5 md:pt-0">
-          {billingUpgradePlans(deploymentMode).map((plan) => (
-            <BillingPlanCard
-              key={plan.plan}
-              activePlan={activeEntitlement.plan}
-              pending={pending}
-              plan={plan}
-              onCheckout={startCheckout}
-            />
-          ))}
+        <CardContent className="relative grid gap-2 px-4 pb-4 pt-0">
+          <BillingMetric label="Status" value={statusLabel(activeEntitlement.status)} />
+          <BillingMetric label="Ciclo" value={renewalText} />
+          {deploymentMode === "self-hosted" ? (
+            <div className="grid gap-2 text-sm">
+              <BillingRow
+                label="Installation"
+                value={
+                  status?.instance?.installationId ??
+                  activeEntitlement.installationId ??
+                  "pending"
+                }
+                mono
+              />
+              <BillingRow
+                label="License"
+                value={
+                  status?.instance?.licenseKeyPrefix ??
+                  activeEntitlement.licenseKeyPrefix ??
+                  (activeEntitlement.plan === "free" ? "not activated" : "Stripe Checkout")
+                }
+                mono
+              />
+              <BillingRow
+                label="Heartbeat"
+                value={
+                  status?.instance?.lastValidatedAt
+                    ? formatDate(status.instance.lastValidatedAt)
+                    : "not validated"
+                }
+              />
+            </div>
+          ) : null}
+          {upgradePlan ? (
+            <Button className="mt-1 w-full" onClick={() => startCheckout(upgradePlan)} disabled={pending}>
+              <ArrowUpRightIcon data-icon="inline-start" />
+              {pending ? "Abrindo checkout..." : `Upgrade to ${planLabel(upgradePlan)}`}
+            </Button>
+          ) : null}
+          {deploymentMode === "cloud" && isPaidPlan ? (
+            <Button className="w-full" variant="outline" onClick={openPortal} disabled={pending}>
+              <CreditCardIcon data-icon="inline-start" />
+              Gerenciar assinatura
+            </Button>
+          ) : null}
+          {deploymentMode === "self-hosted" ? (
+            <Button type="button" variant="outline" onClick={refreshLicense} disabled={pending}>
+              <RefreshCcwIcon data-icon="inline-start" />
+              Validate license
+            </Button>
+          ) : null}
         </CardContent>
       </Card>
-    </div>
-  )
-}
 
-type BillingUpgradePlan = {
-  plan: "pro" | "enterprise"
-  title: string
-  price: string
-  description: string
-  features: string[]
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
-}
-
-function billingUpgradePlans(deploymentMode: string): BillingUpgradePlan[] {
-  return [
-    {
-      plan: "pro",
-      title: "Pro",
-      price: "$20/month",
-      description:
-        "Shared workspace with advanced auth, reports and smart alerts.",
-      icon: UsersIcon,
-      features:
-        deploymentMode === "self-hosted"
-          ? [
-              "Google e GitHub auth no self-hosted",
-              "Smart email reports",
-              "Smart alerts",
-              "AI Alert Agent in Slack threads",
-            ]
-          : [
-              "Workspace compartilhado",
-              "Smart email reports",
-              "Smart alerts",
-              "AI Alert Agent in Slack threads",
-            ],
-    },
-    {
-      plan: "enterprise",
-      title: "Enterprise",
-      price: "$99/month",
-      description:
-        "Multiple workspaces for teams, customers, environments and products.",
-      icon: FolderKanbanIcon,
-      features:
-        deploymentMode === "self-hosted"
-          ? [
-              "Everything in Pro",
-              "Multiple workspaces",
-              "1 self-hosted installation per license",
-              "Suporte dedicado no Slack",
-            ]
-          : [
-              "Everything in Pro",
-              "Multiple cloud workspaces",
-              "Organization by teams and products",
-              "Suporte dedicado no Slack",
-            ],
-    },
-  ]
-}
-
-function BillingPlanCard({
-  activePlan,
-  pending,
-  plan,
-  onCheckout,
-}: {
-  activePlan: Entitlement["plan"]
-  pending: boolean
-  plan: BillingUpgradePlan
-  onCheckout: (plan: "pro" | "enterprise") => void
-}) {
-  const Icon = plan.icon
-  const isCurrent = activePlan === plan.plan
-  const isIncluded = activePlan === "enterprise" && plan.plan === "pro"
-  const disabled = pending || isCurrent || isIncluded
-  const label = isCurrent
-    ? "Current plan"
-    : isIncluded
-      ? "Included in Enterprise"
-      : pending
-        ? "Abrindo checkout..."
-        : activePlan === "free"
-          ? `Ativar ${plan.title}`
-          : `Upgrade para ${plan.title}`
-
-  return (
-    <div
-      className={`relative flex min-h-[260px] flex-col overflow-hidden rounded-xl border bg-background/55 p-4 transition-colors ${
-        plan.plan === "enterprise"
-          ? "border-primary/35 shadow-sm shadow-primary/10"
-          : "border-border"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-background/70">
-            <Icon className="size-4 text-primary" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-semibold">{plan.title}</h3>
-              {isCurrent || isIncluded ? (
-                <Badge variant={isCurrent ? "default" : "secondary"}>
-                  {isCurrent ? "Current" : "Included"}
-                </Badge>
-              ) : null}
-            </div>
-            <p className="mt-1 text-sm leading-5 text-muted-foreground">
-              {plan.description}
-            </p>
-          </div>
+      {error || message ? (
+        <div className="grid gap-2 rounded-xl border bg-background/55 p-3">
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
         </div>
-        <p className="shrink-0 font-mono text-sm text-muted-foreground">
-          {plan.price}
-        </p>
-      </div>
-      <ul className="mt-4 grid gap-2 text-sm">
-        {plan.features.map((feature) => (
-          <li key={feature} className="flex gap-2">
-            <ShieldCheckIcon className="mt-0.5 size-4 shrink-0 text-primary" />
-            <span>{feature}</span>
-          </li>
-        ))}
-      </ul>
-      <Button
-        className="mt-auto w-full"
-        disabled={disabled}
-        onClick={() => onCheckout(plan.plan)}
-      >
-        <ShieldCheckIcon data-icon="inline-start" />
-        {label}
-      </Button>
+      ) : null}
     </div>
   )
 }

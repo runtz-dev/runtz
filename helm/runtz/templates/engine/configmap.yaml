@@ -11,12 +11,17 @@ data:
   MONGODB_DATABASE: {{ .Values.backend.env.MONGODB_DATABASE | quote }}
   RUNTZ_DEPLOYMENT_MODE: {{ .Values.backend.env.RUNTZ_DEPLOYMENT_MODE | quote }}
   RUNTZ_PUBLIC_URL: {{ .Values.backend.env.RUNTZ_PUBLIC_URL | quote }}
-  GOOGLE_CLIENT_ID: {{ .Values.backend.env.GOOGLE_CLIENT_ID | quote }}
-  GITHUB_CLIENT_ID: {{ .Values.backend.env.GITHUB_CLIENT_ID | quote }}
   RESEND_FROM_EMAIL: {{ .Values.backend.env.RESEND_FROM_EMAIL | quote }}
   CORS_ALLOWED_ORIGINS: {{ .Values.backend.env.CORS_ALLOWED_ORIGINS | quote }}
-  STRIPE_PRICE_PRO_CLOUD: {{ .Values.backend.env.STRIPE_PRICE_PRO_CLOUD | quote }}
-  STRIPE_PRICE_ENTERPRISE_CLOUD: {{ .Values.backend.env.STRIPE_PRICE_ENTERPRISE_CLOUD | quote }}
-  STRIPE_PRICE_PRO_SELF_HOSTED: {{ .Values.backend.env.STRIPE_PRICE_PRO_SELF_HOSTED | quote }}
-  STRIPE_PRICE_ENTERPRISE_SELF_HOSTED: {{ .Values.backend.env.STRIPE_PRICE_ENTERPRISE_SELF_HOSTED | quote }}
+  {{- /*
+    OAuth client ids and Stripe price ids are deployment-specific and, on our
+    own cloud, come from the pre-created ConfigMap in backend.existingConfigMap
+    (which is layered after this one). They are rendered here only when set, so
+    an empty value from values.yaml never shadows the external one.
+  */}}
+  {{- range $key := list "GOOGLE_CLIENT_ID" "GITHUB_CLIENT_ID" "STRIPE_PRICE_PRO_CLOUD" "STRIPE_PRICE_ENTERPRISE_CLOUD" "STRIPE_PRICE_PRO_SELF_HOSTED" "STRIPE_PRICE_ENTERPRISE_SELF_HOSTED" }}
+  {{- with get $.Values.backend.env $key }}
+  {{ $key }}: {{ . | quote }}
+  {{- end }}
+  {{- end }}
 {{- end }}

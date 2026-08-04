@@ -32,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Tooltip,
   TooltipContent,
@@ -944,6 +945,43 @@ export function CVETable({
         ))}
       </TableBody>
     </Table>
+  )
+}
+
+export function ScanDetailSkeleton() {
+  return (
+    <div
+      className="flex flex-col gap-3"
+      role="status"
+      aria-label="Carregando detalhes do scan"
+    >
+      <span className="sr-only">Carregando detalhes do scan</span>
+      {Array.from({ length: 5 }).map((_, index) => (
+        <div
+          key={index}
+          className="grid items-center gap-3 border-b pb-3 last:border-b-0 md:grid-cols-[1.2fr_0.35fr_0.55fr_0.8fr]"
+        >
+          <Skeleton className="h-5 w-3/4" />
+          <Skeleton className="h-5 w-12" />
+          <Skeleton className="h-5 w-24" />
+          <Skeleton className="h-5 w-full" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function ScanDetailError({ message }: { message: string }) {
+  return (
+    <Empty className="min-h-48 border" role="alert">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <ShieldAlertIcon />
+        </EmptyMedia>
+        <EmptyTitle>Não foi possível carregar os detalhes</EmptyTitle>
+        <EmptyDescription>{message}</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   )
 }
 

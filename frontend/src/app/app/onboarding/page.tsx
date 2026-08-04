@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useWorkspace } from "@/components/runtz/workspace-context"
-import { apiRequest, getStoredToken, type ApiKey } from "@/lib/api"
+import { apiRequest, type ApiKey } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 const installCommand = "curl -fsSL https://runtz.dev/install.sh | bash"
@@ -43,8 +43,7 @@ export default function OnboardingPage() {
       : `runtz host --endpoint ${endpoint} --token ${tokenValue}`
 
   async function createAPIKey() {
-    const token = getStoredToken()
-    if (!token || !workspace) {
+    if (!workspace) {
       setError("Initial workspace not found.")
       return
     }
@@ -56,7 +55,6 @@ export default function OnboardingPage() {
         "/api/v1/api-keys",
         {
           method: "POST",
-          token,
           body: {
             workspaceId: workspace.id,
             name: "Onboarding CLI key",
@@ -80,8 +78,7 @@ export default function OnboardingPage() {
   }
 
   async function completeOnboarding() {
-    const token = getStoredToken()
-    if (!token || !apiKey) {
+    if (!apiKey) {
       return
     }
 
@@ -90,7 +87,6 @@ export default function OnboardingPage() {
     try {
       await apiRequest("/api/v1/me/onboarding", {
         method: "PATCH",
-        token,
       })
       router.replace("/app/overview")
     } catch (error) {
@@ -100,14 +96,9 @@ export default function OnboardingPage() {
   }
 
   async function skipOnboarding() {
-    const token = getStoredToken()
-    if (!token) {
-      router.replace("/app/overview")
-      return
-    }
     setPending(true)
     try {
-      await apiRequest("/api/v1/me/onboarding", { method: "PATCH", token })
+      await apiRequest("/api/v1/me/onboarding", { method: "PATCH" })
     } catch {
       // best-effort: navigate regardless
     } finally {

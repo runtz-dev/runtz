@@ -3,8 +3,6 @@ package api
 import (
 	"testing"
 	"time"
-
-	"github.com/runtz-dev/runtz/engine/internal/config"
 )
 
 func TestNormalizeEmail(t *testing.T) {
@@ -84,24 +82,38 @@ func TestEmailLockoutRetryMinutes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := emailLockoutRetryMinutes(tt.lockedUntil, now); got != tt.want {
-				t.Fatalf("emailLockoutRetryMinutes() = %d, want %d", got, tt.want)
+			if got := lockoutRetryMinutes(tt.lockedUntil, now); got != tt.want {
+				t.Fatalf("lockoutRetryMinutes() = %d, want %d", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestHashEmailLoginCodeUsesEmailAndSecret(t *testing.T) {
+func TestEmailLoginCodeHashBindsEmailAndCode(t *testing.T) {
 	t.Parallel()
 
-	server := &Server{cfg: config.Config{JWTSecret: "first-secret"}}
-	hash := server.hashEmailLoginCode("user@example.com", "123456")
-	if hash == server.hashEmailLoginCode("other@example.com", "123456") {
-		t.Fatal("expected email to affect hash")
+	hash, err := hashEmailLoginCode("user@example.com", "123456")
+	if err != nil {
+		t.Fatalf("hashEmailLoginCode() error = %v", err)
 	}
 
-	otherServer := &Server{cfg: config.Config{JWTSecret: "second-secret"}}
-	if hash == otherServer.hashEmailLoginCode("user@example.com", "123456") {
-		t.Fatal("expected JWT secret to affect hash")
+	if !emailLoginCodeMatches(hash, "user@example.com", "123456") {
+		t.Fatal("the issued code did not verify against its own hash")
+	}
+	if emailLoginCodeMatches(hash, "other@example.com", "123456") {
+		t.Fatal("a code verified against a different email")
+	}
+	if emailLoginCodeMatches(hash, "user@example.com", "654321") {
+		t.Fatal("a wrong code verified")
+	}
+
+	// bcrypt salts, so the same input must not produce a reusable constant —
+	// two codes issued to the same address cannot be compared by their hashes.
+	second, err := hashEmailLoginCode("user@example.com", "123456")
+	if err != nil {
+		t.Fatalf("hashEmailLoginCode() error = %v", err)
+	}
+	if hash == second {
+		t.Fatal("expected salted hashes to differ")
 	}
 }

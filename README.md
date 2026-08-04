@@ -69,8 +69,6 @@ Uses the published images (`runtzdev/runtz-engine`, `runtzdev/runtz-frontend`):
 ```bash
 git clone https://github.com/runtz-dev/runtz
 cd runtz
-cp .env.example .env
-# fill JWT_SECRET (openssl rand -base64 32) and RUNTZ_INGEST_TOKEN (openssl rand -base64 24)
 docker compose up -d
 ```
 
@@ -105,10 +103,7 @@ automatically through the fixed central engine at `https://engine.runtz.dev`.
 helm repo add runtz https://helm.runtz.dev
 helm repo update
 
-cp helm/runtz/values.secrets.example.yaml values.secrets.yaml
-# fill jwtSecret and ingestToken
-
-helm install runtz runtz/runtz -f values.secrets.yaml
+helm install runtz runtz/runtz
 ```
 
 Non-secret config lives in the chart values and is rendered as ConfigMaps;
@@ -143,8 +138,7 @@ Backend engine:
 ```bash
 cd engine
 go test ./...
-JWT_SECRET=$(openssl rand -base64 32) RUNTZ_INGEST_TOKEN=$(openssl rand -base64 24) \
-  go run ./cmd/server
+go run ./cmd/server
 ```
 
 Frontend:

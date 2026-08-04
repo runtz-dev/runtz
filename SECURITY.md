@@ -32,9 +32,11 @@ fixes. After `1.0.0`, we will support the latest minor release.
 
 ## Scope notes
 
-- The Platform ships with secure-by-default settings: the engine refuses to
-  start with missing or placeholder `JWT_SECRET` / `RUNTZ_INGEST_TOKEN`
-  values. Reports about deployments that deliberately weaken these controls
-  are out of scope.
+- The Platform ships with secure-by-default settings and needs no operator
+  secrets at all: browser sessions, API keys and email login codes are issued
+  and stored by the engine, so there is no shared signing key or ingest token
+  to leak, default or forget to rotate. Sessions live in HttpOnly cookies and
+  are revocable server-side. Reports about deployments that deliberately weaken
+  these controls are out of scope.
 - Vulnerabilities in third-party dependencies should also be reported
   upstream; we still want to know so we can ship updated builds.

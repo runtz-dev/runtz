@@ -30,5 +30,7 @@ MongoDB persists to a StatefulSet PVC
 {{- end }}.
 {{- end }}
 
-Secrets (JWT_SECRET, RUNTZ_INGEST_TOKEN, ...) come from values.secrets.yaml or
-an existing Secret — see values.secrets.example.yaml in the chart sources.
+No secrets are needed to run: the engine issues and stores its own sessions,
+API keys and login codes. Optional integrations (OAuth, email login, Stripe)
+take their secrets from values.secrets.yaml or an existing Secret — see
+values.secrets.example.yaml in the chart sources.

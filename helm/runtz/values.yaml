@@ -3,12 +3,14 @@
 # These defaults deploy a self-contained, self-hosted runtz stack (engine,
 # frontend and MongoDB) using the public Docker Hub images.
 #
-# Required before installing: create a values.secrets.yaml from
-# values.secrets.example.yaml and set backend.secrets.jwtSecret and
-# backend.secrets.ingestToken (the engine refuses to start without them):
+# No secrets are required to install: the engine issues and stores its own
+# sessions, API keys and login codes.
 #
 #   helm repo add runtz https://helm.runtz.dev
-#   helm install runtz runtz/runtz -f values.secrets.yaml
+#   helm install runtz runtz/runtz
+#
+# Optional integrations (OAuth, email login, Stripe) still take secrets —
+# see values.secrets.example.yaml.
 
 nameOverride: ""
 fullnameOverride: ""

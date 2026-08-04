@@ -105,7 +105,7 @@ func (s *Server) handleCreateCheckoutSession(w http.ResponseWriter, r *http.Requ
 	}
 
 	if s.cfg.DeploymentMode == hostingSelfHosted {
-		user, ok := s.optionalUserFromBearer(r)
+		user, ok := s.optionalUserFromSession(r)
 		if !ok || user.Role != "admin" {
 			writeError(w, http.StatusForbidden, "admin role required")
 			return
@@ -151,7 +151,7 @@ func (s *Server) handleCreateCheckoutSession(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	user, hasUser := s.optionalUserFromBearer(r)
+	user, hasUser := s.optionalUserFromSession(r)
 	email := strings.ToLower(strings.TrimSpace(request.Email))
 	if email == "" && hasUser {
 		email = strings.ToLower(strings.TrimSpace(user.Email))
@@ -712,22 +712,14 @@ func parseStripeSignatureHeader(header string) map[string]string {
 	return values
 }
 
-func (s *Server) optionalUserFromBearer(r *http.Request) (User, bool) {
-	header := strings.TrimSpace(r.Header.Get("Authorization"))
-	if !strings.HasPrefix(header, "Bearer ") {
-		return User{}, false
-	}
-	userID, err := s.userIDFromToken(strings.TrimPrefix(header, "Bearer "))
-	if err != nil {
-		return User{}, false
-	}
-	objectID, err := bson.ObjectIDFromHex(userID)
-	if err != nil {
+func (s *Server) optionalUserFromSession(r *http.Request) (User, bool) {
+	rawToken := sessionTokenFromRequest(r)
+	if rawToken == "" {
 		return User{}, false
 	}
 
-	var user User
-	if err := s.users.FindOne(r.Context(), bson.M{"_id": objectID}).Decode(&user); err != nil {
+	user, err := s.userFromSession(r.Context(), rawToken)
+	if err != nil {
 		return User{}, false
 	}
 	return user, true

@@ -725,7 +725,6 @@ function UsersPanel() {
 
 type UsageWindow = {
   total: number
-  since: string
 }
 
 type UsageResponse = {
@@ -734,7 +733,7 @@ type UsageResponse = {
   generatedAt: string
 }
 
-const EMPTY_USAGE_WINDOW: UsageWindow = { total: 0, since: "" }
+const EMPTY_USAGE_WINDOW: UsageWindow = { total: 0 }
 
 function UsagePanel() {
   const { selectedWorkspaceId } = useWorkspace()
@@ -773,7 +772,7 @@ function UsagePanel() {
   const busiest = Math.max(1, weekly.total, monthly.total)
 
   return (
-    <Card className="relative overflow-hidden">
+    <Card className="relative max-w-xl overflow-hidden">
       <div aria-hidden="true" className="runtz-dot-map pointer-events-none absolute inset-0 opacity-[0.06]" />
       <CardHeader className="relative">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -792,17 +791,13 @@ function UsagePanel() {
       <CardContent className="relative grid gap-3">
         <UsageWindowRow
           label="Weekly"
-          hint="Last 7 days"
           total={weekly.total}
-          since={weekly.since}
           busiest={busiest}
           loading={pending && !usage}
         />
         <UsageWindowRow
           label="Monthly"
-          hint="Last 30 days"
           total={monthly.total}
-          since={monthly.since}
           busiest={busiest}
           loading={pending && !usage}
         />
@@ -814,16 +809,12 @@ function UsagePanel() {
 
 function UsageWindowRow({
   label,
-  hint,
   total,
-  since,
   busiest,
   loading,
 }: {
   label: string
-  hint: string
   total: number
-  since: string
   busiest: number
   loading: boolean
 }) {
@@ -831,17 +822,12 @@ function UsageWindowRow({
   const width = Math.round((total / busiest) * 100)
 
   return (
-    <div className="grid gap-2 rounded-lg border bg-background/55 p-3 sm:grid-cols-[120px_minmax(0,1fr)_auto] sm:items-center sm:gap-4">
-      <div>
-        <span className="text-sm font-medium">{label}</span>
-        <p className="text-xs text-muted-foreground">
-          {since ? `${hint} · desde ${formatDate(since)}` : hint}
-        </p>
-      </div>
+    <div className="grid gap-2 rounded-lg border bg-background/55 p-3 sm:grid-cols-[80px_minmax(0,1fr)_auto] sm:items-center sm:gap-4">
+      <span className="text-sm font-medium">{label}</span>
       <div
         className="h-2 overflow-hidden rounded-full bg-muted"
         role="img"
-        aria-label={`${label}: ${total} scans (${hint})`}
+        aria-label={`${label}: ${total} scans`}
       >
         <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
       </div>

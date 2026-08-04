@@ -70,14 +70,12 @@ func (s *Server) handleGoogleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := s.issueToken(user)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to issue token")
+	if err := s.startSession(w, r, user); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to start session")
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"token":      token,
 		"user":       serializeUser(user),
 		"workspaces": serializeWorkspaces(workspaces),
 	})

@@ -52,16 +52,6 @@ spec:
                 name: {{ . }}
             {{- end }}
           env:
-            - name: JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "runtz.backendSecretName" . }}
-                  key: JWT_SECRET
-            - name: RUNTZ_INGEST_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "runtz.backendSecretName" . }}
-                  key: RUNTZ_INGEST_TOKEN
             - name: RESEND_API_KEY
               valueFrom:
                 secretKeyRef:

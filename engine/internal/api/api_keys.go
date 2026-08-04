@@ -26,12 +26,12 @@ func (s *Server) handleListAPIKeys(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid workspace id")
 			return
 		}
-		if !userCanAccessWorkspace(user, workspaceID) {
+		if !s.userCanAccessWorkspace(user, workspaceID) {
 			writeError(w, http.StatusForbidden, "workspace access required")
 			return
 		}
 		filter["workspace_id"] = workspaceID
-	} else if user.Role != "admin" {
+	} else if !s.globalDataScope(user) {
 		filter["workspace_id"] = bson.M{"$in": user.WorkspaceIDs}
 	}
 
@@ -77,7 +77,7 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "workspaceId is required")
 		return
 	}
-	if !userCanAccessWorkspace(user, workspaceID) {
+	if !s.userCanAccessWorkspace(user, workspaceID) {
 		writeError(w, http.StatusForbidden, "workspace access required")
 		return
 	}
@@ -137,7 +137,7 @@ func (s *Server) handleRevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "api key not found")
 		return
 	}
-	if !userCanAccessWorkspace(user, apiKey.WorkspaceID) {
+	if !s.userCanAccessWorkspace(user, apiKey.WorkspaceID) {
 		writeError(w, http.StatusForbidden, "workspace access required")
 		return
 	}
@@ -157,24 +157,23 @@ func (s *Server) handleRevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"apiKey": serializeAPIKey(apiKey)})
 }
 
-func (s *Server) authenticateIngest(w http.ResponseWriter, r *http.Request) (*Workspace, bool) {
+// authenticateIngest resolves the workspace a scan may be written to. It is
+// always the workspace the API key belongs to — never one named in the request
+// body — so a key issued for one workspace cannot deposit findings in another.
+func (s *Server) authenticateIngest(w http.ResponseWriter, r *http.Request) (Workspace, bool) {
 	apiKeyValue := apiKeyFromRequest(r)
-	if apiKeyValue != "" {
-		workspace, err := s.workspaceFromAPIKey(r.Context(), apiKeyValue)
-		if err != nil {
-			writeError(w, http.StatusUnauthorized, "invalid api key")
-			return nil, false
-		}
-
-		return &workspace, true
+	if apiKeyValue == "" {
+		writeError(w, http.StatusUnauthorized, "api key required")
+		return Workspace{}, false
 	}
 
-	if s.cfg.IngestToken != "" && r.Header.Get("X-Runtz-Token") != s.cfg.IngestToken {
-		writeError(w, http.StatusUnauthorized, "invalid ingest token")
-		return nil, false
+	workspace, err := s.workspaceFromAPIKey(r.Context(), apiKeyValue)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid api key")
+		return Workspace{}, false
 	}
 
-	return nil, true
+	return workspace, true
 }
 
 func (s *Server) workspaceFromAPIKey(ctx context.Context, rawKey string) (Workspace, error) {
@@ -209,8 +208,19 @@ func (s *Server) workspaceFromAPIKey(ctx context.Context, rawKey string) (Worksp
 	return workspace, nil
 }
 
-func userCanAccessWorkspace(user User, workspaceID bson.ObjectID) bool {
-	if user.Role == "admin" {
+// globalDataScope reports whether user may read data outside the workspaces
+// they belong to. Only a self-hosted admin may: there the whole installation
+// belongs to one customer, and administering it means seeing all of it. In
+// cloud every workspace belongs to a different customer and its scans carry
+// that customer's source-code findings, so no role widens data access beyond
+// membership — not even admin. Administration itself (users, workspaces,
+// licensing) stays role-gated in both modes; see adminOnly.
+func (s *Server) globalDataScope(user User) bool {
+	return user.Role == "admin" && s.cfg.DeploymentMode != hostingCloud
+}
+
+func (s *Server) userCanAccessWorkspace(user User, workspaceID bson.ObjectID) bool {
+	if s.globalDataScope(user) {
 		return true
 	}
 

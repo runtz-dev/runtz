@@ -194,7 +194,6 @@ export type ContainerScan = PackageScan & {
 
 type RequestOptions = {
   method?: "GET" | "POST" | "PATCH"
-  token?: string | null
   body?: unknown
 }
 
@@ -211,11 +210,14 @@ export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {}
 ): Promise<T> {
+  // The session rides in an HttpOnly cookie the browser attaches on its own —
+  // there is no token for this code to read, store or forward, which is the
+  // point: a script injected into the dashboard cannot reach the credential.
   const response = await fetch(`${API_URL}${path}`, {
     method: options.method ?? "GET",
+    credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   })
@@ -231,20 +233,25 @@ export async function apiRequest<T>(
   return payload as T
 }
 
-export function getStoredToken() {
+// clearClientState drops the local UI preferences tied to a signed-in user.
+// The session itself is not here to clear — it is an HttpOnly cookie only the
+// engine can set or expire, which is why signing out has to go through the API.
+export function clearClientState() {
   if (typeof window === "undefined") {
-    return null
+    return
   }
 
-  return window.localStorage.getItem("runtz_token")
-}
-
-export function storeToken(token: string) {
-  window.localStorage.setItem("runtz_token", token)
-}
-
-export function clearToken() {
-  window.localStorage.removeItem("runtz_token")
   window.localStorage.removeItem("runtz_workspace_id")
   window.localStorage.removeItem("runtz_workspace_filter")
+}
+
+export async function signOut() {
+  try {
+    await apiRequest("/api/v1/auth/logout", { method: "POST" })
+  } catch {
+    // The local state has to go even if the engine is unreachable; the cookie
+    // expires on its own and the session row with it.
+  }
+
+  clearClientState()
 }

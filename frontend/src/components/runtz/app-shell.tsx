@@ -47,8 +47,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   apiRequest,
-  clearToken,
-  getStoredToken,
+  clearClientState,
+  signOut,
   type Entitlement,
   type User,
   type Workspace,
@@ -138,7 +138,7 @@ export function AppShell({
   const basePath = isPlayground ? "/playground" : "/app"
   const codeItems = React.useMemo(() => buildCodeItems(basePath), [basePath])
   const hostItems = React.useMemo(() => buildHostItems(basePath), [basePath])
-  const [token, setToken] = React.useState<string | null>(null)
+  const [authenticated, setAuthenticated] = React.useState(false)
   const [user, setUser] = React.useState<User | null>(null)
   const [workspaces, setWorkspaces] = React.useState<Workspace[]>([])
   const [deploymentMode, setDeploymentMode] =
@@ -159,14 +159,8 @@ export function AppShell({
       return
     }
 
-    const activeToken = getStoredToken()
-    if (!activeToken) {
-      return
-    }
-
     const response = await apiRequest<{ workspaces: Workspace[] }>(
-      "/api/v1/workspaces",
-      { token: activeToken }
+      "/api/v1/workspaces"
     )
     const workspaces = response.workspaces ?? []
     setWorkspaces(workspaces)
@@ -183,7 +177,7 @@ export function AppShell({
 
   React.useEffect(() => {
     if (isPlayground) {
-      setToken("playground")
+      setAuthenticated(true)
       setUser(PLAYGROUND_USER)
       setWorkspaces(PLAYGROUND_WORKSPACES)
       setEntitlement(FREE_SELF_HOSTED_ENTITLEMENT)
@@ -192,15 +186,11 @@ export function AppShell({
       return
     }
 
-    const activeToken = getStoredToken()
-    if (!activeToken) {
-      router.replace("/login")
-      return
-    }
-
-    setToken(activeToken)
-    apiRequest<MeResponse>("/api/v1/me", { token: activeToken })
+    // There is no token to inspect any more: whether the session cookie is
+    // still good is a question only the engine can answer, so ask it.
+    apiRequest<MeResponse>("/api/v1/me")
       .then((response) => {
+        setAuthenticated(true)
         setUser(response.user)
         setDeploymentMode(response.deploymentMode)
         setEntitlement(response.entitlement)
@@ -227,7 +217,7 @@ export function AppShell({
         }
       })
       .catch(() => {
-        clearToken()
+        clearClientState()
         router.replace("/login")
       })
       .finally(() => setLoading(false))
@@ -238,12 +228,12 @@ export function AppShell({
     window.localStorage.setItem(WORKSPACE_FILTER_KEY, workspaceId)
   }
 
-  function logout() {
-    clearToken()
+  async function logout() {
+    await signOut()
     router.replace("/login")
   }
 
-  if (loading || !token || !user) {
+  if (loading || !authenticated || !user) {
     return (
       <div className="flex min-h-svh items-center justify-center bg-background p-6">
         <div className="flex w-full max-w-sm flex-col gap-4">

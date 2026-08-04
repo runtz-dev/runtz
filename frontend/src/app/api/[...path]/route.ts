@@ -30,6 +30,18 @@ async function proxy(request: NextRequest, context: RouteContext) {
   responseHeaders.delete("content-encoding")
   responseHeaders.delete("content-length")
 
+  // Set-Cookie has to survive this hop intact — it is what carries the session.
+  // The Headers constructor folds repeated headers into a single comma-joined
+  // value, which corrupts cookies whose attributes contain commas (Expires) and
+  // merges separate cookies into one, so re-emit each one on its own line.
+  const setCookies = response.headers.getSetCookie?.() ?? []
+  if (setCookies.length > 0) {
+    responseHeaders.delete("set-cookie")
+    for (const cookie of setCookies) {
+      responseHeaders.append("set-cookie", cookie)
+    }
+  }
+
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,

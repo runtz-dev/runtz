@@ -9,10 +9,7 @@ and an optional in-cluster MongoDB.
 helm repo add runtz https://helm.runtz.dev
 helm repo update
 
-cp values.secrets.example.yaml values.secrets.yaml
-# fill jwtSecret and ingestToken (see the file's comments)
-
-helm install runtz runtz/runtz -f values.secrets.yaml
+helm install runtz runtz/runtz
 ```
 
 Without an ingress, reach the platform with a port-forward:
@@ -23,20 +20,17 @@ kubectl port-forward svc/runtz-frontend 3000:3000
 
 Open http://localhost:3000 and create the admin user on first access.
 
-## Required secrets
+## Secrets
 
-The engine refuses to start with empty or placeholder secrets:
-
-| Value | Generate with |
-| --- | --- |
-| `backend.secrets.jwtSecret` | `openssl rand -base64 32` |
-| `backend.secrets.ingestToken` | `openssl rand -base64 24` |
+None are required — the engine issues and stores its own sessions, API keys
+and login codes. Secrets only enable optional integrations: `resendApiKey`
+(email login), `githubClientSecret` (OAuth), `stripeSecretKey` /
+`stripeWebhookSecret` (billing) and `licensePrivateKey` (central engine only).
 
 Alternatively, set `backend.secrets.existingSecret` to the name of a
-pre-created Kubernetes Secret containing the keys `JWT_SECRET`,
-`RUNTZ_INGEST_TOKEN`, `RESEND_API_KEY`, `GITHUB_CLIENT_SECRET`,
-`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `RUNTZ_LICENSE_PRIVATE_KEY`
-(empty strings for unused ones).
+pre-created Kubernetes Secret containing the keys `RESEND_API_KEY`,
+`GITHUB_CLIENT_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and
+`RUNTZ_LICENSE_PRIVATE_KEY` (empty strings for unused ones).
 
 ## Common values
 

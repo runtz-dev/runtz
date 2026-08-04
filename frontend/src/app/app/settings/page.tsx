@@ -59,7 +59,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { apiRequest, getStoredToken, type Entitlement, type User } from "@/lib/api"
+import { apiRequest, type Entitlement, type User } from "@/lib/api"
 
 type SettingsTab = "profile" | "workspaces" | "usage" | "billing" | "users"
 
@@ -176,17 +176,12 @@ function WorkspacesPanel() {
 
   async function createWorkspace(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const token = getStoredToken()
-    if (!token) {
-      return
-    }
 
     setError("")
     setPending(true)
     try {
       await apiRequest("/api/v1/workspaces", {
         method: "POST",
-        token,
         body: { name },
       })
       setName("")
@@ -445,14 +440,8 @@ function UsersPanel() {
   const [pending, setPending] = React.useState(false)
 
   const loadUsers = React.useCallback(async () => {
-    const token = getStoredToken()
-    if (!token) {
-      return
-    }
 
-    const response = await apiRequest<{ users: User[] }>("/api/v1/users", {
-      token,
-    })
+    const response = await apiRequest<{ users: User[] }>("/api/v1/users")
     setUsers(response.users ?? [])
   }, [])
 
@@ -468,17 +457,12 @@ function UsersPanel() {
 
   async function createUser(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const token = getStoredToken()
-    if (!token) {
-      return
-    }
 
     setError("")
     setPending(true)
     try {
       await apiRequest("/api/v1/users", {
         method: "POST",
-        token,
         body: {
           username,
           password,
@@ -499,28 +483,19 @@ function UsersPanel() {
   }
 
   async function togglePasswordChange(user: User) {
-    const token = getStoredToken()
-    if (!token) {
-      return
-    }
 
     await apiRequest(`/api/v1/users/${user.id}`, {
       method: "PATCH",
-      token,
       body: { requirePasswordChange: !user.requirePasswordChange },
     })
     await loadUsers()
   }
 
   async function createInvite(user: User) {
-    const token = getStoredToken()
-    if (!token) {
-      return
-    }
 
     const response = await apiRequest<{ inviteLink: string }>(
       `/api/v1/users/${user.id}/invite`,
-      { method: "POST", token }
+      { method: "POST" }
     )
     setInviteLink(response.inviteLink)
   }
@@ -742,10 +717,6 @@ function UsagePanel() {
   const [pending, setPending] = React.useState(true)
 
   const loadUsage = React.useCallback(async () => {
-    const token = getStoredToken()
-    if (!token) {
-      return
-    }
 
     setPending(true)
     setError("")
@@ -754,7 +725,7 @@ function UsagePanel() {
         selectedWorkspaceId && selectedWorkspaceId !== "all"
           ? `?workspaceId=${encodeURIComponent(selectedWorkspaceId)}`
           : ""
-      setUsage(await apiRequest<UsageResponse>(`/api/v1/usage${query}`, { token }))
+      setUsage(await apiRequest<UsageResponse>(`/api/v1/usage${query}`))
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to load usage")
     } finally {
@@ -867,13 +838,7 @@ function BillingPanel() {
   const activatedSessionRef = React.useRef("")
 
   const loadStatus = React.useCallback(async () => {
-    const token = getStoredToken()
-    if (!token) {
-      return
-    }
-    const response = await apiRequest<BillingStatusResponse>("/api/v1/billing/status", {
-      token,
-    })
+    const response = await apiRequest<BillingStatusResponse>("/api/v1/billing/status")
     setStatus(response)
   }, [])
 
@@ -890,17 +855,12 @@ function BillingPanel() {
     }
     activatedSessionRef.current = sessionId
 
-    const token = getStoredToken()
-    if (!token) {
-      return
-    }
 
     setPending(true)
     setError("")
     setMessage("Activating license after payment confirmation...")
     apiRequest("/api/v1/license/checkout/activate", {
       method: "POST",
-      token,
       body: { sessionId },
     })
       .then(() => {
@@ -943,17 +903,12 @@ function BillingPanel() {
   }, [loadStatus])
 
   async function startCheckout(plan: "pro" | "enterprise") {
-    const token = getStoredToken()
-    if (!token) {
-      return
-    }
     setError("")
     setMessage("")
     setPending(true)
     try {
       const response = await apiRequest<{ url: string }>("/api/v1/billing/checkout", {
         method: "POST",
-        token,
         body: {
           plan,
           deploymentMode,
@@ -975,16 +930,11 @@ function BillingPanel() {
   }
 
   async function openPortal() {
-    const token = getStoredToken()
-    if (!token) {
-      return
-    }
     setError("")
     setPending(true)
     try {
       const response = await apiRequest<{ url: string }>("/api/v1/billing/portal", {
         method: "POST",
-        token,
         body: { returnUrl: window.location.origin + "/app/settings?tab=billing" },
       })
       window.location.assign(response.url)
@@ -996,17 +946,12 @@ function BillingPanel() {
   }
 
   async function refreshLicense() {
-    const token = getStoredToken()
-    if (!token) {
-      return
-    }
     setMessage("")
     setError("")
     setPending(true)
     try {
       await apiRequest("/api/v1/license/refresh", {
         method: "POST",
-        token,
       })
       setMessage("Heartbeat validated with the central engine.")
       await loadStatus()
@@ -1214,10 +1159,6 @@ function SelfHostedProfilePanel() {
 
   async function changePassword(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const token = getStoredToken()
-    if (!token) {
-      return
-    }
 
     setMessage("")
     setError("")
@@ -1225,7 +1166,6 @@ function SelfHostedProfilePanel() {
     try {
       await apiRequest("/api/v1/me/password", {
         method: "PATCH",
-        token,
         body: { currentPassword, newPassword },
       })
       setCurrentPassword("")

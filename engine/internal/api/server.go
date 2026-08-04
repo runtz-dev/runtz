@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -14,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/runtz-dev/runtz/engine/internal/config"
 	"github.com/runtz-dev/runtz/engine/internal/version"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -32,7 +30,8 @@ type Server struct {
 	apiKeys              *mongo.Collection
 	scans                *mongo.Collection
 	emailCodes           *mongo.Collection
-	emailLockouts        *mongo.Collection
+	loginLockouts        *mongo.Collection
+	sessions             *mongo.Collection
 	billingSubscriptions *mongo.Collection
 	instanceState        *mongo.Collection
 
@@ -65,7 +64,8 @@ func New(ctx context.Context, cfg config.Config) (*Server, error) {
 		apiKeys:              db.Collection("api_keys"),
 		scans:                db.Collection("scans"),
 		emailCodes:           db.Collection("email_login_codes"),
-		emailLockouts:        db.Collection("email_login_lockouts"),
+		loginLockouts:        db.Collection("login_lockouts"),
+		sessions:             db.Collection("sessions"),
 		billingSubscriptions: db.Collection("billing_subscriptions"),
 		instanceState:        db.Collection("instance_state"),
 	}
@@ -94,6 +94,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/auth/github", s.handleGitHubLogin)
 	mux.HandleFunc("POST /api/v1/auth/email/request", s.handleRequestEmailLogin)
 	mux.HandleFunc("POST /api/v1/auth/email/verify", s.handleVerifyEmailLogin)
+	mux.HandleFunc("POST /api/v1/auth/logout", s.handleLogout)
 	mux.Handle("GET /api/v1/me", s.auth(http.HandlerFunc(s.handleMe)))
 	mux.Handle("PATCH /api/v1/me/onboarding", s.auth(http.HandlerFunc(s.handleCompleteOnboarding)))
 	mux.Handle("PATCH /api/v1/me/password", s.auth(http.HandlerFunc(s.handleChangePassword)))
@@ -207,9 +208,26 @@ func (s *Server) ensureIndexes(ctx context.Context) error {
 		return fmt.Errorf("create email login code indexes: %w", err)
 	}
 
-	_, err = s.emailLockouts.Indexes().CreateMany(ctx, []mongo.IndexModel{
+	_, err = s.sessions.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{
-			Keys:    bson.D{{Key: "email", Value: 1}},
+			Keys:    bson.D{{Key: "token_hash", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		},
+		{Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "created_at", Value: -1}}},
+		{
+			// Mongo reaps expired sessions on its own, so nothing has to sweep
+			// the collection and a signed-out week-old row cannot linger.
+			Keys:    bson.D{{Key: "expires_at", Value: 1}},
+			Options: options.Index().SetExpireAfterSeconds(0),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create session indexes: %w", err)
+	}
+
+	_, err = s.loginLockouts.Indexes().CreateMany(ctx, []mongo.IndexModel{
+		{
+			Keys:    bson.D{{Key: "key", Value: 1}},
 			Options: options.Index().SetUnique(true),
 		},
 		{
@@ -218,7 +236,7 @@ func (s *Server) ensureIndexes(ctx context.Context) error {
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("create email login lockout indexes: %w", err)
+		return fmt.Errorf("create login lockout indexes: %w", err)
 	}
 
 	_, err = s.billingSubscriptions.Indexes().CreateMany(ctx, []mongo.IndexModel{
@@ -265,7 +283,7 @@ func (s *Server) withCORS(next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Runtz-Token, X-Runtz-API-Key")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Runtz-API-Key")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
 		}
 
@@ -294,27 +312,15 @@ func (s *Server) originAllowed(origin string) bool {
 
 func (s *Server) auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		header := strings.TrimSpace(r.Header.Get("Authorization"))
-		if !strings.HasPrefix(header, "Bearer ") {
-			writeError(w, http.StatusUnauthorized, "missing bearer token")
+		rawToken := sessionTokenFromRequest(r)
+		if rawToken == "" {
+			writeError(w, http.StatusUnauthorized, "missing session")
 			return
 		}
 
-		userID, err := s.userIDFromToken(strings.TrimPrefix(header, "Bearer "))
+		user, err := s.userFromSession(r.Context(), rawToken)
 		if err != nil {
-			writeError(w, http.StatusUnauthorized, "invalid bearer token")
-			return
-		}
-
-		objectID, err := bson.ObjectIDFromHex(userID)
-		if err != nil {
-			writeError(w, http.StatusUnauthorized, "invalid token subject")
-			return
-		}
-
-		var user User
-		if err := s.users.FindOne(r.Context(), bson.M{"_id": objectID}).Decode(&user); err != nil {
-			writeError(w, http.StatusUnauthorized, "user not found")
+			writeError(w, http.StatusUnauthorized, "invalid session")
 			return
 		}
 
@@ -439,14 +445,12 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := s.issueToken(user)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to issue token")
+	if err := s.startSession(w, r, user); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to start session")
 		return
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]any{
-		"token":     token,
 		"user":      serializeUser(user),
 		"workspace": serializeWorkspace(workspace),
 	})
@@ -466,22 +470,44 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	username := strings.TrimSpace(request.Username)
+	lockoutKey := passwordLockoutKey(username)
+
+	lockedUntil, err := s.loginLocked(r.Context(), lockoutKey)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to verify credentials")
+		return
+	}
+	if !lockedUntil.IsZero() {
+		writeLockoutError(w, lockedUntil, "passwords")
+		return
+	}
+
+	// The lookup miss and the password mismatch share one branch and one
+	// message so the response does not reveal whether the username exists.
 	var user User
-	err := s.users.FindOne(r.Context(), bson.M{"username": strings.TrimSpace(request.Username)}).Decode(&user)
+	err = s.users.FindOne(r.Context(), bson.M{"username": username}).Decode(&user)
 	if err != nil || bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(request.Password)) != nil {
+		if lockErr := s.registerFailedLogin(
+			r.Context(), lockoutKey, time.Now().UTC(), maxPasswordLoginAttempts, passwordLoginLockoutTTL,
+		); lockErr != nil {
+			slog.Warn("failed to record login failure", "error", lockErr)
+		}
 		writeError(w, http.StatusUnauthorized, "invalid username or password")
 		return
 	}
 
-	token, err := s.issueToken(user)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to issue token")
+	if err := s.clearLoginFailures(r.Context(), lockoutKey); err != nil {
+		slog.Warn("failed to clear login failures", "error", err)
+	}
+
+	if err := s.startSession(w, r, user); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to start session")
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"token": token,
-		"user":  serializeUser(user),
+		"user": serializeUser(user),
 	})
 }
 
@@ -764,12 +790,15 @@ func (s *Server) handleCreateInvite(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleIngestSCA(w http.ResponseWriter, r *http.Request) {
-	authWorkspace, ok := s.authenticateIngest(w, r)
+	workspace, ok := s.authenticateIngest(w, r)
 	if !ok {
 		return
 	}
 
 	var request struct {
+		// workspaceId/workspace are accepted and ignored: the workspace comes
+		// from the API key. They stay in the struct because decodeJSON rejects
+		// unknown fields, and older CLI versions still send them.
 		WorkspaceID     string          `json:"workspaceId"`
 		Workspace       string          `json:"workspace"`
 		ProjectName     string          `json:"projectName"`
@@ -786,18 +815,6 @@ func (s *Server) handleIngestSCA(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(request.ProjectName) == "" {
 		writeError(w, http.StatusBadRequest, "projectName is required")
 		return
-	}
-
-	var workspace Workspace
-	if authWorkspace != nil {
-		workspace = *authWorkspace
-	} else {
-		resolved, err := s.resolveWorkspace(r.Context(), request.WorkspaceID, request.Workspace)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		workspace = resolved
 	}
 
 	now := time.Now().UTC()
@@ -838,12 +855,15 @@ func (s *Server) handleIngestK8s(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleIngestFindingsScan(w http.ResponseWriter, r *http.Request, scanType string) {
-	authWorkspace, ok := s.authenticateIngest(w, r)
+	workspace, ok := s.authenticateIngest(w, r)
 	if !ok {
 		return
 	}
 
 	var request struct {
+		// workspaceId/workspace are accepted and ignored: the workspace comes
+		// from the API key. They stay in the struct because decodeJSON rejects
+		// unknown fields, and older CLI versions still send them.
 		WorkspaceID      string    `json:"workspaceId"`
 		Workspace        string    `json:"workspace"`
 		ProjectName      string    `json:"projectName"`
@@ -866,18 +886,6 @@ func (s *Server) handleIngestFindingsScan(w http.ResponseWriter, r *http.Request
 	projectName := strings.TrimSpace(request.ProjectName)
 	if projectName == "" {
 		projectName = targetName
-	}
-
-	var workspace Workspace
-	if authWorkspace != nil {
-		workspace = *authWorkspace
-	} else {
-		resolved, err := s.resolveWorkspace(r.Context(), request.WorkspaceID, request.Workspace)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		workspace = resolved
 	}
 
 	now := time.Now().UTC()
@@ -923,12 +931,15 @@ func (s *Server) handleIngestContainer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleIngestPackageScan(w http.ResponseWriter, r *http.Request, scanType string) {
-	authWorkspace, ok := s.authenticateIngest(w, r)
+	workspace, ok := s.authenticateIngest(w, r)
 	if !ok {
 		return
 	}
 
 	var request struct {
+		// workspaceId/workspace are accepted and ignored: the workspace comes
+		// from the API key. They stay in the struct because decodeJSON rejects
+		// unknown fields, and older CLI versions still send them.
 		WorkspaceID     string          `json:"workspaceId"`
 		Workspace       string          `json:"workspace"`
 		TargetName      string          `json:"targetName"`
@@ -960,18 +971,6 @@ func (s *Server) handleIngestPackageScan(w http.ResponseWriter, r *http.Request,
 	if targetName == "" {
 		writeError(w, http.StatusBadRequest, "targetName is required")
 		return
-	}
-
-	var workspace Workspace
-	if authWorkspace != nil {
-		workspace = *authWorkspace
-	} else {
-		resolved, err := s.resolveWorkspace(r.Context(), request.WorkspaceID, request.Workspace)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		workspace = resolved
 	}
 
 	now := time.Now().UTC()
@@ -1041,12 +1040,12 @@ func (s *Server) handleListScansByType(w http.ResponseWriter, r *http.Request, s
 			writeError(w, http.StatusBadRequest, "invalid workspace id")
 			return
 		}
-		if !userCanAccessWorkspace(user, workspaceID) {
+		if !s.userCanAccessWorkspace(user, workspaceID) {
 			writeError(w, http.StatusForbidden, "workspace access required")
 			return
 		}
 		filter["workspace_id"] = workspaceID
-	} else if user.Role != "admin" {
+	} else if !s.globalDataScope(user) {
 		filter["workspace_id"] = bson.M{"$in": user.WorkspaceIDs}
 	}
 
@@ -1103,7 +1102,7 @@ func (s *Server) handleGetScanByType(w http.ResponseWriter, r *http.Request, sca
 		writeError(w, http.StatusNotFound, "scan not found")
 		return
 	}
-	if !userCanAccessWorkspace(user, scan.WorkspaceID) {
+	if !s.userCanAccessWorkspace(user, scan.WorkspaceID) {
 		writeError(w, http.StatusForbidden, "workspace access required")
 		return
 	}
@@ -1111,52 +1110,9 @@ func (s *Server) handleGetScanByType(w http.ResponseWriter, r *http.Request, sca
 	writeJSON(w, http.StatusOK, map[string]any{"scan": scan})
 }
 
-// sessionTokenTTL is how long a browser session stays signed in. The token is
-// kept in localStorage, so a short TTL means signing in again every day even
-// though the tab was never closed; a week is the balance we settled on.
-const sessionTokenTTL = 7 * 24 * time.Hour
-
-func (s *Server) issueToken(user User) (string, error) {
-	claims := jwt.MapClaims{
-		"sub":      user.ID.Hex(),
-		"username": user.Username,
-		"role":     user.Role,
-		"exp":      time.Now().UTC().Add(sessionTokenTTL).Unix(),
-		"iat":      time.Now().UTC().Unix(),
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(s.cfg.JWTSecret))
-}
-
-func (s *Server) userIDFromToken(rawToken string) (string, error) {
-	token, err := jwt.Parse(rawToken, func(token *jwt.Token) (any, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("unexpected signing method")
-		}
-
-		return []byte(s.cfg.JWTSecret), nil
-	})
-	if err != nil || !token.Valid {
-		return "", errors.New("invalid token")
-	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return "", errors.New("invalid claims")
-	}
-
-	subject, err := claims.GetSubject()
-	if err != nil || subject == "" {
-		return "", errors.New("missing subject")
-	}
-
-	return subject, nil
-}
-
 func (s *Server) getVisibleWorkspaces(ctx context.Context, user User) ([]Workspace, error) {
 	filter := bson.M{}
-	if user.Role != "admin" {
+	if !s.globalDataScope(user) {
 		filter["_id"] = bson.M{"$in": user.WorkspaceIDs}
 	}
 
@@ -1212,55 +1168,6 @@ func (s *Server) getAllWorkspaces(ctx context.Context) ([]Workspace, error) {
 	}
 
 	return workspaces, nil
-}
-
-func (s *Server) resolveWorkspace(ctx context.Context, rawID, nameOrSlug string) (Workspace, error) {
-	if rawID != "" {
-		workspaceID, err := bson.ObjectIDFromHex(rawID)
-		if err != nil {
-			return Workspace{}, errors.New("invalid workspace id")
-		}
-
-		var workspace Workspace
-		if err := s.workspaces.FindOne(ctx, bson.M{"_id": workspaceID}).Decode(&workspace); err != nil {
-			return Workspace{}, errors.New("workspace not found")
-		}
-
-		return workspace, nil
-	}
-
-	value := strings.TrimSpace(nameOrSlug)
-	if value != "" {
-		var workspace Workspace
-		filter := bson.M{"$or": []bson.M{{"slug": slugify(value)}, {"name": value}}}
-		if err := s.workspaces.FindOne(ctx, filter).Decode(&workspace); err == nil {
-			return workspace, nil
-		}
-
-		now := time.Now().UTC()
-		workspace = Workspace{
-			ID:        bson.NewObjectID(),
-			Name:      value,
-			Slug:      slugify(value),
-			CreatedAt: now,
-			UpdatedAt: now,
-		}
-		if _, err := s.workspaces.InsertOne(ctx, workspace); err != nil {
-			return Workspace{}, errors.New("workspace not found and could not be created")
-		}
-
-		return workspace, nil
-	}
-
-	workspaces, err := s.getAllWorkspaces(ctx)
-	if err != nil {
-		return Workspace{}, errors.New("failed to resolve workspace")
-	}
-	if len(workspaces) != 1 {
-		return Workspace{}, errors.New("workspace must be provided when multiple workspaces exist")
-	}
-
-	return workspaces[0], nil
 }
 
 func buildSummary(dependencies []Dependency, vulnerabilities []Vulnerability) ScanSummary {

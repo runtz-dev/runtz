@@ -9,6 +9,42 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+### Removed
+
+- **Breaking:** `JWT_SECRET` and `RUNTZ_INGEST_TOKEN` no longer exist. Both
+  `docker compose up -d` and `helm install` now run with no secrets at all —
+  browser sessions, API keys and email login codes are issued and stored by the
+  engine. Existing deployments can drop both variables; they are ignored.
+- **Breaking:** the ingest endpoints (`POST /api/v1/ingest/*`) require an API
+  key. Set `RUNTZ_TOKEN` in CI to an `rtz_...` key created in **Settings → API
+  keys**. The workspace now always comes from the key, so `workspaceId` /
+  `workspace` in the request body are accepted and ignored — a key issued for
+  one workspace can no longer write into another.
+
+### Added
+
+- `POST /api/v1/auth/logout` ends a session server-side; signing out now
+  actually revokes, rather than only forgetting the token client-side.
+- Password login is rate limited: ten wrong passwords lock the username for an
+  hour, reusing the lockout that already guarded email login codes.
+
+### Changed
+
+- **Breaking:** browser sessions moved from a JWT in `localStorage` to an
+  opaque token in an `HttpOnly`, `SameSite=Lax` cookie, stored as a SHA-256
+  hash in a new `sessions` collection with a TTL index. Script injected into
+  the dashboard can no longer read the session, and a leaked session can be
+  revoked. Everyone is signed out once on upgrade.
+- In cloud mode the `admin` role no longer widens access to data. It still
+  gates administration (users, workspaces, licensing), but scans, workspaces,
+  usage and API keys stay scoped to the workspaces a user belongs to, so one
+  tenant's source-code findings are not reachable from another.
+- Email login codes are hashed with bcrypt instead of HMAC-SHA256, which
+  removed the last use of `JWT_SECRET` while keeping a six-digit code
+  impractical to reverse from a database dump.
+- The compose file no longer publishes MongoDB on `27017`; only the backend
+  reaches it, over the compose network.
+
 ## [1.0.0-rc5] - 2026-08-02
 
 ### Added

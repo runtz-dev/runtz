@@ -2,9 +2,7 @@
 
 import * as React from "react"
 import {
-  ActivityIcon,
   ArrowUpRightIcon,
-  CalendarRangeIcon,
   CopyIcon,
   CreditCardIcon,
   CrownIcon,
@@ -727,26 +725,16 @@ function UsersPanel() {
 
 type UsageWindow = {
   total: number
-  byType: Record<string, number>
   since: string
 }
 
 type UsageResponse = {
   weekly: UsageWindow
   monthly: UsageWindow
-  scanTypes: string[]
   generatedAt: string
 }
 
-const SCAN_TYPE_LABELS: Record<string, string> = {
-  sca: "SCA",
-  sast: "SAST",
-  container: "Container",
-  host: "Host",
-  k8s: "Kubernetes",
-}
-
-const EMPTY_USAGE_WINDOW: UsageWindow = { total: 0, byType: {}, since: "" }
+const EMPTY_USAGE_WINDOW: UsageWindow = { total: 0, since: "" }
 
 function UsagePanel() {
   const { selectedWorkspaceId } = useWorkspace()
@@ -781,158 +769,88 @@ function UsagePanel() {
 
   const weekly = usage?.weekly ?? EMPTY_USAGE_WINDOW
   const monthly = usage?.monthly ?? EMPTY_USAGE_WINDOW
-  const scanTypes = usage?.scanTypes ?? Object.keys(SCAN_TYPE_LABELS)
-  const busiestType = Math.max(
-    1,
-    ...scanTypes.map((scanType) => monthly.byType[scanType] ?? 0)
-  )
+  // Weekly scans are a subset of the monthly ones, so the month is the track.
+  const busiest = Math.max(1, weekly.total, monthly.total)
 
   return (
-    <div className="grid gap-4">
-      <div className="grid gap-4 md:grid-cols-2">
-        <UsageCounter
-          label="Last 7 days"
-          hint="Scans sent this week"
-          total={weekly.total}
-          since={weekly.since}
-          loading={pending && !usage}
-          icon={ActivityIcon}
-          highlight
-        />
-        <UsageCounter
-          label="Last 30 days"
-          hint="Scans sent this month"
-          total={monthly.total}
-          since={monthly.since}
-          loading={pending && !usage}
-          icon={CalendarRangeIcon}
-        />
-      </div>
-
-      <Card className="relative overflow-hidden">
-        <div aria-hidden="true" className="runtz-dot-map pointer-events-none absolute inset-0 opacity-[0.06]" />
-        <CardHeader className="relative">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle>Scans by type</CardTitle>
-              <CardDescription>
-                Counted from the ingested scans of the selected workspace.
-              </CardDescription>
-            </div>
-            <Button variant="outline" size="sm" onClick={loadUsage} disabled={pending}>
-              <RefreshCcwIcon data-icon="inline-start" />
-              Atualizar
-            </Button>
+    <Card className="relative overflow-hidden">
+      <div aria-hidden="true" className="runtz-dot-map pointer-events-none absolute inset-0 opacity-[0.06]" />
+      <CardHeader className="relative">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <CardTitle>Scans sent</CardTitle>
+            <CardDescription>
+              Counted from the ingested scans of the selected workspace.
+            </CardDescription>
           </div>
-        </CardHeader>
-        <CardContent className="relative grid gap-3">
-          {scanTypes.map((scanType) => (
-            <UsageTypeRow
-              key={scanType}
-              label={SCAN_TYPE_LABELS[scanType] ?? scanType}
-              weekly={weekly.byType[scanType] ?? 0}
-              monthly={monthly.byType[scanType] ?? 0}
-              busiest={busiestType}
-            />
-          ))}
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-
-function UsageCounter({
-  label,
-  hint,
-  total,
-  since,
-  loading,
-  icon: Icon,
-  highlight = false,
-}: {
-  label: string
-  hint: string
-  total: number
-  since: string
-  loading: boolean
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
-  highlight?: boolean
-}) {
-  return (
-    <Card
-      className={`relative overflow-hidden ${
-        highlight ? "border-primary/30" : "border-border"
-      }`}
-    >
-      <div aria-hidden="true" className="runtz-dot-map pointer-events-none absolute inset-0 opacity-[0.08]" />
-      <CardHeader className="relative p-4 pb-0">
-        <div className="flex items-center justify-between gap-3">
-          <Badge variant={highlight ? "secondary" : "outline"}>{label}</Badge>
-          <div className="flex size-9 items-center justify-center rounded-xl border bg-background/70">
-            <Icon className="size-4 text-primary" />
-          </div>
+          <Button variant="outline" size="sm" onClick={loadUsage} disabled={pending}>
+            <RefreshCcwIcon data-icon="inline-start" />
+            Atualizar
+          </Button>
         </div>
       </CardHeader>
-      <CardContent className="relative p-4 pt-3">
-        {loading ? (
-          <Skeleton className="h-12 w-24" />
-        ) : (
-          <p className="font-mono text-5xl font-semibold leading-none tracking-tight">
-            {total.toLocaleString("pt-BR")}
-          </p>
-        )}
-        <p className="mt-2 text-sm text-muted-foreground">{hint}</p>
-        {since ? (
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Desde {formatDate(since)}
-          </p>
-        ) : null}
+      <CardContent className="relative grid gap-3">
+        <UsageWindowRow
+          label="Weekly"
+          hint="Last 7 days"
+          total={weekly.total}
+          since={weekly.since}
+          busiest={busiest}
+          loading={pending && !usage}
+        />
+        <UsageWindowRow
+          label="Monthly"
+          hint="Last 30 days"
+          total={monthly.total}
+          since={monthly.since}
+          busiest={busiest}
+          loading={pending && !usage}
+        />
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </CardContent>
     </Card>
   )
 }
 
-function UsageTypeRow({
+function UsageWindowRow({
   label,
-  weekly,
-  monthly,
+  hint,
+  total,
+  since,
   busiest,
+  loading,
 }: {
   label: string
-  weekly: number
-  monthly: number
+  hint: string
+  total: number
+  since: string
   busiest: number
+  loading: boolean
 }) {
-  // The track is scaled by the busiest scan type; the solid segment inside the
-  // month bar is the slice of those scans that arrived in the last 7 days.
-  const monthlyWidth = Math.round((monthly / busiest) * 100)
-  const weeklyWidth = monthly > 0 ? Math.round((weekly / monthly) * 100) : 0
+  // Both bars share the same track so the week reads as a slice of the month.
+  const width = Math.round((total / busiest) * 100)
 
   return (
     <div className="grid gap-2 rounded-lg border bg-background/55 p-3 sm:grid-cols-[120px_minmax(0,1fr)_auto] sm:items-center sm:gap-4">
-      <span className="text-sm font-medium">{label}</span>
+      <div>
+        <span className="text-sm font-medium">{label}</span>
+        <p className="text-xs text-muted-foreground">
+          {since ? `${hint} · desde ${formatDate(since)}` : hint}
+        </p>
+      </div>
       <div
         className="h-2 overflow-hidden rounded-full bg-muted"
         role="img"
-        aria-label={`${label}: ${weekly} scans in the last 7 days, ${monthly} in the last 30 days`}
+        aria-label={`${label}: ${total} scans (${hint})`}
       >
-        <div className="relative h-full rounded-full bg-primary/30" style={{ width: `${monthlyWidth}%` }}>
-          <div
-            className="absolute inset-y-0 left-0 rounded-full bg-primary"
-            style={{ width: `${weeklyWidth}%` }}
-          />
-        </div>
+        <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
       </div>
-      <div className="flex items-center gap-4 text-sm sm:justify-end">
-        <span className="font-mono">
-          <span className="text-muted-foreground">7d </span>
-          {weekly}
-        </span>
-        <span className="font-mono">
-          <span className="text-muted-foreground">30d </span>
-          {monthly}
-        </span>
+      <div className="text-sm sm:justify-self-end">
+        {loading ? (
+          <Skeleton className="h-5 w-10" />
+        ) : (
+          <span className="font-mono">{total.toLocaleString("pt-BR")}</span>
+        )}
       </div>
     </div>
   )

@@ -6,13 +6,16 @@ import { ArrowLeftIcon, RadarIcon } from "lucide-react"
 import * as React from "react"
 
 import {
-  CVETable,
   DashboardSummaryGrid,
   LatestScansCard,
   MetricCard,
+  ScanDetailError,
+  ScanDetailSkeleton,
   VulnerabilityTrendChart,
 } from "@/components/runtz/sca-components"
+import { PackageVulnerabilityExplorer } from "@/components/runtz/package-vulnerability-explorer"
 import { usePlatform } from "@/components/runtz/platform-context"
+import { useScanDetail } from "@/components/runtz/use-scan-detail"
 import { useSCAScans } from "@/components/runtz/use-sca-scans"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -47,6 +50,7 @@ export default function SCAProjectPage() {
   )
   const latestScan = projectScans[0]
   const latestSummary = latestScan?.summary
+  const scanDetail = useScanDetail("sca", latestScan)
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6">
@@ -141,7 +145,17 @@ export default function SCAProjectPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <CVETable vulnerabilities={latestScan.vulnerabilities} />
+                {scanDetail.loading ? (
+                  <ScanDetailSkeleton />
+                ) : scanDetail.error ? (
+                  <ScanDetailError message={scanDetail.error} />
+                ) : scanDetail.scan ? (
+                  <PackageVulnerabilityExplorer
+                    vulnerabilities={scanDetail.scan.vulnerabilities ?? []}
+                    targetKind="application"
+                    targetName={projectName}
+                  />
+                ) : null}
               </CardContent>
             </Card>
 

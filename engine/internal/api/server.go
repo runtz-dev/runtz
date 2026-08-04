@@ -190,7 +190,8 @@ func (s *Server) ensureIndexes(ctx context.Context) error {
 
 	_, err = s.scans.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: bson.D{{Key: "created_at", Value: -1}}},
-		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "type", Value: 1}}},
+		{Keys: bson.D{{Key: "type", Value: 1}, {Key: "created_at", Value: -1}}},
+		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "type", Value: 1}, {Key: "created_at", Value: -1}}},
 		{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "source", Value: 1}, {Key: "type", Value: 1}, {Key: "created_at", Value: -1}}},
 	})
 	if err != nil {
@@ -1049,10 +1050,22 @@ func (s *Server) handleListScansByType(w http.ResponseWriter, r *http.Request, s
 		filter["workspace_id"] = bson.M{"$in": user.WorkspaceIDs}
 	}
 
+	// List views only need scan metadata and the precomputed summary. Excluding
+	// the result arrays is especially important for host scans, where a single
+	// inventory may contain thousands of packages and CVEs. The full document
+	// remains available from GET /api/v1/scans/{type}/{id}.
 	cursor, err := s.scans.Find(
 		r.Context(),
 		filter,
-		options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}}).SetLimit(50),
+		options.Find().
+			SetProjection(bson.M{
+				"dependencies":    0,
+				"packages":        0,
+				"findings":        0,
+				"vulnerabilities": 0,
+			}).
+			SetSort(bson.D{{Key: "created_at", Value: -1}}).
+			SetLimit(50),
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list scans")
@@ -1097,8 +1110,26 @@ func (s *Server) handleGetScanByType(w http.ResponseWriter, r *http.Request, sca
 		return
 	}
 
+	findOptions := options.FindOne()
+	if r.URL.Query().Get("view") == "results" {
+		projection := bson.M{
+			"dependencies": 0,
+			"packages":     0,
+		}
+		if scanType == "sast" || scanType == "k8s" {
+			projection["vulnerabilities"] = 0
+		} else {
+			projection["findings"] = 0
+		}
+		findOptions.SetProjection(projection)
+	}
+
 	var scan Scan
-	if err := s.scans.FindOne(r.Context(), bson.M{"_id": scanID, "type": scanType}).Decode(&scan); err != nil {
+	if err := s.scans.FindOne(
+		r.Context(),
+		bson.M{"_id": scanID, "type": scanType},
+		findOptions,
+	).Decode(&scan); err != nil {
 		writeError(w, http.StatusNotFound, "scan not found")
 		return
 	}

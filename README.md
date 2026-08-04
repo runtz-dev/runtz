@@ -194,6 +194,12 @@ follow `1.0.0-rc1 → 1.0.0-rc2 → ... → 1.0.0`, then regular semver
 - `GET /api/v1/scans/k8s`
 - `GET /api/v1/scans/k8s/{id}`
 
+Scan collection endpoints return lightweight metadata and the precomputed
+summary for dashboards. Use the corresponding `/{id}` endpoint when the full
+dependencies, packages, vulnerabilities or findings payload is needed. Detail
+views may request `/{id}?view=results` to receive only the finding/CVE result
+array without the scanned inventory.
+
 ## Community
 
 - [Contributing](CONTRIBUTING.md)

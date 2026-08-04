@@ -6,14 +6,17 @@ import { ArrowLeftIcon, ContainerIcon } from "lucide-react"
 import * as React from "react"
 
 import {
-  CVETable,
   DashboardSummaryGrid,
   LatestScansCard,
   MetricCard,
+  ScanDetailError,
+  ScanDetailSkeleton,
   VulnerabilityTrendChart,
 } from "@/components/runtz/sca-components"
+import { PackageVulnerabilityExplorer } from "@/components/runtz/package-vulnerability-explorer"
 import { usePlatform } from "@/components/runtz/platform-context"
 import { usePackageScans } from "@/components/runtz/use-package-scans"
+import { useScanDetail } from "@/components/runtz/use-scan-detail"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -51,6 +54,7 @@ export default function ContainerDetailPage() {
   )
   const latestScan = imageScans[0]
   const latestSummary = latestScan?.summary
+  const scanDetail = useScanDetail("container", latestScan)
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6">
@@ -145,7 +149,20 @@ export default function ContainerDetailPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <CVETable vulnerabilities={latestScan.vulnerabilities} />
+                {scanDetail.loading ? (
+                  <ScanDetailSkeleton />
+                ) : scanDetail.error ? (
+                  <ScanDetailError message={scanDetail.error} />
+                ) : scanDetail.scan ? (
+                  <PackageVulnerabilityExplorer
+                    vulnerabilities={scanDetail.scan.vulnerabilities ?? []}
+                    targetKind="container"
+                    targetName={imageName}
+                    osName={latestScan.osName}
+                    osVersion={latestScan.osVersion}
+                    packageManager={latestScan.packageManager}
+                  />
+                ) : null}
               </CardContent>
             </Card>
 

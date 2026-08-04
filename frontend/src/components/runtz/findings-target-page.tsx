@@ -12,10 +12,13 @@ import {
   DashboardSummaryGrid,
   LatestScansCard,
   MetricCard,
+  ScanDetailError,
+  ScanDetailSkeleton,
   VulnerabilityTrendChart,
 } from "@/components/runtz/sca-components"
 import { usePlatform } from "@/components/runtz/platform-context"
 import { useFindingScans } from "@/components/runtz/use-finding-scans"
+import { useScanDetail } from "@/components/runtz/use-scan-detail"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -79,15 +82,16 @@ export function FindingsTargetPage({
   )
   const latestScan = targetScans[0]
   const latestSummary = latestScan?.summary
+  const scanDetail = useScanDetail(scanType, latestScan)
   const latestFindings = React.useMemo(
     () =>
-      latestScan
-        ? (latestScan.findings ?? []).map((finding) => ({
-            scan: latestScan,
+      scanDetail.scan
+        ? (scanDetail.scan.findings ?? []).map((finding) => ({
+            scan: scanDetail.scan!,
             finding,
           }))
         : [],
-    [latestScan]
+    [scanDetail.scan]
   )
   const unit = inspectedLabel(scanType)
 
@@ -207,16 +211,30 @@ export function FindingsTargetPage({
           <VulnerabilityTrendChart scans={targetScans} />
 
           <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
-            <FindingsTable
-              scans={[latestScan]}
-              findings={visibleFindings}
-              title="Findings encontrados"
-              description={
-                disabledCategories.size > 0
-                  ? `Exibindo ${visibleFindings.length} de ${latestFindings.length} findings · Último scan em ${formatDate(latestScan.createdAt)}`
-                  : `Último scan em ${formatDate(latestScan.createdAt)}`
-              }
-            />
+            {scanDetail.loading ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Findings encontrados</CardTitle>
+                  <CardDescription>Carregando o último scan…</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ScanDetailSkeleton />
+                </CardContent>
+              </Card>
+            ) : scanDetail.error ? (
+              <ScanDetailError message={scanDetail.error} />
+            ) : scanDetail.scan ? (
+              <FindingsTable
+                scans={[scanDetail.scan]}
+                findings={visibleFindings}
+                title="Findings encontrados"
+                description={
+                  disabledCategories.size > 0
+                    ? `Exibindo ${visibleFindings.length} de ${latestFindings.length} findings · Último scan em ${formatDate(latestScan.createdAt)}`
+                    : `Último scan em ${formatDate(latestScan.createdAt)}`
+                }
+              />
+            ) : null}
 
             <div className="flex flex-col gap-6">
               <ScanTypeFilter

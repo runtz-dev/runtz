@@ -4,7 +4,7 @@ import * as React from "react"
 
 import { usePlatform } from "@/components/runtz/platform-context"
 import { useWorkspace } from "@/components/runtz/workspace-context"
-import { apiRequest, getStoredToken, type FindingsScan } from "@/lib/api"
+import { apiRequest, type FindingsScan } from "@/lib/api"
 import {
   loadPlaygroundScans,
   playgroundScansOfType,
@@ -37,12 +37,6 @@ export function useFindingScans(scanType: "sast" | "k8s") {
       return
     }
 
-    const token = getStoredToken()
-    if (!token) {
-      setScans([])
-      setLoading(false)
-      return
-    }
 
     setLoading(true)
     setError("")
@@ -51,7 +45,7 @@ export function useFindingScans(scanType: "sast" | "k8s") {
         ? `/api/v1/scans/${scanType}?workspaceId=${selectedWorkspaceId}`
         : `/api/v1/scans/${scanType}`
 
-    apiRequest<{ scans: FindingsScan[] }>(path, { token })
+    apiRequest<{ scans: FindingsScan[] }>(path)
       .then((response) => {
         setScans(response.scans ?? [])
       })

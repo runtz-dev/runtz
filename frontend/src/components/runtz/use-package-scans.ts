@@ -4,7 +4,7 @@ import * as React from "react"
 
 import { usePlatform } from "@/components/runtz/platform-context"
 import { useWorkspace } from "@/components/runtz/workspace-context"
-import { apiRequest, getStoredToken, type PackageScan } from "@/lib/api"
+import { apiRequest, type PackageScan } from "@/lib/api"
 import {
   loadPlaygroundScans,
   playgroundScansOfType,
@@ -37,12 +37,6 @@ export function usePackageScans(scanType: "host" | "container") {
       return
     }
 
-    const token = getStoredToken()
-    if (!token) {
-      setScans([])
-      setLoading(false)
-      return
-    }
 
     setLoading(true)
     setError("")
@@ -51,7 +45,7 @@ export function usePackageScans(scanType: "host" | "container") {
         ? `/api/v1/scans/${scanType}?workspaceId=${selectedWorkspaceId}`
         : `/api/v1/scans/${scanType}`
 
-    apiRequest<{ scans: PackageScan[] }>(path, { token })
+    apiRequest<{ scans: PackageScan[] }>(path)
       .then((response) => {
         setScans(response.scans ?? [])
       })

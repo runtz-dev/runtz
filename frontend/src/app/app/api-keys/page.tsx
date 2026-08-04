@@ -44,7 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { apiRequest, getStoredToken, type ApiKey } from "@/lib/api"
+import { apiRequest, type ApiKey } from "@/lib/api"
 
 const ALL_WORKSPACES = "all"
 
@@ -62,17 +62,12 @@ export default function APIKeysPage() {
     selectedWorkspaceId !== ALL_WORKSPACES ? selectedWorkspaceId : ""
 
   const loadAPIKeys = React.useCallback(async () => {
-    const token = getStoredToken()
-    if (!token) {
-      return
-    }
 
     const query = effectiveWorkspaceId
       ? `?workspaceId=${encodeURIComponent(effectiveWorkspaceId)}`
       : ""
     const response = await apiRequest<{ apiKeys: ApiKey[] }>(
-      `/api/v1/api-keys${query}`,
-      { token }
+      `/api/v1/api-keys${query}`
     )
     setAPIKeys(response.apiKeys ?? [])
   }, [effectiveWorkspaceId])
@@ -94,8 +89,7 @@ export default function APIKeysPage() {
 
   async function createAPIKey(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const token = getStoredToken()
-    if (!token || !workspaceId) {
+    if (!workspaceId) {
       return
     }
 
@@ -106,7 +100,6 @@ export default function APIKeysPage() {
         "/api/v1/api-keys",
         {
           method: "POST",
-          token,
           body: { workspaceId, name, scopes: ["ingest:write"] },
         }
       )
@@ -122,17 +115,12 @@ export default function APIKeysPage() {
   }
 
   async function revokeAPIKey(apiKey: ApiKey) {
-    const token = getStoredToken()
-    if (!token) {
-      return
-    }
 
     setError("")
     setPending(true)
     try {
       await apiRequest(`/api/v1/api-keys/${apiKey.id}/revoke`, {
         method: "PATCH",
-        token,
       })
       await loadAPIKeys()
     } catch (error) {

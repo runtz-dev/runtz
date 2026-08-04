@@ -4,7 +4,7 @@ import * as React from "react"
 
 import { usePlatform } from "@/components/runtz/platform-context"
 import { useWorkspace } from "@/components/runtz/workspace-context"
-import { apiRequest, getStoredToken, type SCAScan } from "@/lib/api"
+import { apiRequest, type SCAScan } from "@/lib/api"
 import {
   loadPlaygroundScans,
   playgroundScansOfType,
@@ -35,12 +35,6 @@ export function useSCAScans() {
       return
     }
 
-    const token = getStoredToken()
-    if (!token) {
-      setScans([])
-      setLoading(false)
-      return
-    }
 
     const path =
       selectedWorkspaceId && selectedWorkspaceId !== "all"
@@ -48,7 +42,7 @@ export function useSCAScans() {
         : "/api/v1/scans/sca"
 
     setLoading(true)
-    apiRequest<{ scans: SCAScan[] }>(path, { token })
+    apiRequest<{ scans: SCAScan[] }>(path)
       .then((response) => {
         setScans(response.scans ?? [])
         setError("")

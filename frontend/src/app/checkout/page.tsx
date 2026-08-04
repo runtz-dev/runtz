@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { ApiError, apiRequest, clearToken, getStoredToken } from "@/lib/api"
+import { ApiError, apiRequest, clearClientState } from "@/lib/api"
 import type { Entitlement, User, Workspace } from "@/lib/api"
 import type { DeploymentMode } from "@/components/runtz/workspace-context"
 
@@ -93,15 +93,8 @@ function CheckoutFlow() {
     async function start() {
       const plan = normalizePlan(params.get("plan"))
       const deploymentMode = normalizeDeploymentMode(params.get("deploymentMode"))
-      const token = getStoredToken()
-
-      if (!token) {
-        router.replace(`/login?next=${encodeURIComponent(currentPathWithSearch())}`)
-        return
-      }
-
       try {
-        const response = await apiRequest<MeResponse>("/api/v1/me", { token })
+        const response = await apiRequest<MeResponse>("/api/v1/me")
         if (cancelled) {
           return
         }
@@ -153,7 +146,6 @@ function CheckoutFlow() {
 
         const checkout = await apiRequest<{ url: string }>("/api/v1/billing/checkout", {
           method: "POST",
-          token,
           body: {
             plan,
             deploymentMode,
@@ -169,7 +161,7 @@ function CheckoutFlow() {
         }
 
         if (error instanceof ApiError && error.status === 401) {
-          clearToken()
+          clearClientState()
           router.replace(`/login?next=${encodeURIComponent(currentPathWithSearch())}`)
           return
         }

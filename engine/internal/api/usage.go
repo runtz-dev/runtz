@@ -35,12 +35,12 @@ func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid workspace id")
 			return
 		}
-		if !userCanAccessWorkspace(user, workspaceID) {
+		if !s.userCanAccessWorkspace(user, workspaceID) {
 			writeError(w, http.StatusForbidden, "workspace access required")
 			return
 		}
 		filter["workspace_id"] = workspaceID
-	} else if user.Role != "admin" {
+	} else if !s.globalDataScope(user) {
 		filter["workspace_id"] = bson.M{"$in": user.WorkspaceIDs}
 	}
 

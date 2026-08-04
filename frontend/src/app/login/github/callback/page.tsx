@@ -12,11 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { apiRequest, storeToken } from "@/lib/api"
-
-type AuthResponse = {
-  token: string
-}
+import { apiRequest } from "@/lib/api"
 
 function safeNextPath(value: string | null) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
@@ -57,15 +53,14 @@ function GitHubCallback() {
       return
     }
 
-    apiRequest<AuthResponse>("/api/v1/auth/github", {
+    apiRequest("/api/v1/auth/github", {
       method: "POST",
       body: {
         code,
         redirectUri: `${window.location.origin}/login/github/callback`,
       },
     })
-      .then((response) => {
-        storeToken(response.token)
+      .then(() => {
         router.replace(nextPath)
       })
       .catch((requestError) => {

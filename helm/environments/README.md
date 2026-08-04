@@ -57,13 +57,13 @@ kubectl -n <namespace> rollout restart deployment runtz-backend
 
 ## Recommended: secrets as a Kubernetes Secret
 
-The engine Deployment reads **all seven keys** from the Secret — every key
-must exist (use an empty string for features you don't use):
+The engine Deployment reads **all five keys** from the Secret — every key
+must exist (use an empty string for features you don't use). None of them are
+required to run: sessions, API keys and login codes are issued and stored by
+the engine itself.
 
 | Key | Purpose | How to obtain |
 | --- | --- | --- |
-| `JWT_SECRET` | Session tokens (required) | `openssl rand -base64 32` |
-| `RUNTZ_INGEST_TOKEN` | Shared ingest token (required) | `openssl rand -base64 24` |
 | `RESEND_API_KEY` | Email sign-in codes / invites | Resend dashboard |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth login | GitHub OAuth app settings |
 | `STRIPE_SECRET_KEY` | Billing (central engine only) | Stripe dashboard → API keys |
@@ -73,8 +73,6 @@ must exist (use an empty string for features you don't use):
 ```bash
 kubectl create secret generic runtz-engine-secrets \
   --namespace <namespace> \
-  --from-literal=JWT_SECRET="$(openssl rand -base64 32)" \
-  --from-literal=RUNTZ_INGEST_TOKEN="$(openssl rand -base64 24)" \
   --from-literal=RESEND_API_KEY="re_..." \
   --from-literal=GITHUB_CLIENT_SECRET="..." \
   --from-literal=STRIPE_SECRET_KEY="sk_live_..." \

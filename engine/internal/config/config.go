@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"strings"
 )
@@ -25,8 +24,6 @@ type Config struct {
 	Port                            string
 	MongoURI                        string
 	MongoDatabase                   string
-	JWTSecret                       string
-	IngestToken                     string
 	DeploymentMode                  string
 	PublicURL                       string
 	GoogleClientID                  string
@@ -50,8 +47,6 @@ func Load() Config {
 		Port:                            getEnv("PORT", "8080"),
 		MongoURI:                        getEnv("MONGODB_URI", "mongodb://localhost:27017"),
 		MongoDatabase:                   getEnv("MONGODB_DATABASE", "runtz"),
-		JWTSecret:                       getEnv("JWT_SECRET", ""),
-		IngestToken:                     getEnv("RUNTZ_INGEST_TOKEN", ""),
 		DeploymentMode:                  normalizeDeploymentMode(getEnv("RUNTZ_DEPLOYMENT_MODE", "self-hosted")),
 		PublicURL:                       strings.TrimRight(getEnv("RUNTZ_PUBLIC_URL", "http://localhost:3000"), "/"),
 		GoogleClientID:                  getEnv("GOOGLE_CLIENT_ID", ""),
@@ -73,36 +68,11 @@ func Load() Config {
 	}
 }
 
-// weakSecrets are placeholder values that previously shipped as defaults or in
-// example files. They must never authenticate a real deployment.
-var weakSecrets = map[string]bool{
-	"change-me-in-production":     true,
-	"change-me-before-sharing":    true,
-	"change-me-before-production": true,
-	"dev-ingest-token":            true,
-}
-
-const (
-	minJWTSecretLength   = 32
-	minIngestTokenLength = 16
-)
-
-// Validate rejects configurations that would run the engine with missing or
-// well-known placeholder credentials. It is meant to be called once at startup.
+// Validate is kept as the startup hook for configuration checks. It has no
+// secrets left to police: sessions, API keys and login codes are all issued
+// and stored by the engine itself, so there is nothing an operator can set
+// weakly or forget to set.
 func (c Config) Validate() error {
-	if c.JWTSecret == "" || weakSecrets[c.JWTSecret] {
-		return fmt.Errorf("JWT_SECRET must be set to a strong random value; generate one with: openssl rand -base64 32")
-	}
-	if len(c.JWTSecret) < minJWTSecretLength {
-		return fmt.Errorf("JWT_SECRET must be at least %d characters; generate one with: openssl rand -base64 32", minJWTSecretLength)
-	}
-	if c.IngestToken == "" || weakSecrets[c.IngestToken] {
-		return fmt.Errorf("RUNTZ_INGEST_TOKEN must be set to a strong random value; generate one with: openssl rand -base64 24")
-	}
-	if len(c.IngestToken) < minIngestTokenLength {
-		return fmt.Errorf("RUNTZ_INGEST_TOKEN must be at least %d characters; generate one with: openssl rand -base64 24", minIngestTokenLength)
-	}
-
 	return nil
 }
 

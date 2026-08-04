@@ -3,10 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +19,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -30,7 +28,7 @@ const (
 	// maxEmailLoginAttempts wrong guesses kill the code (see the "attempts"
 	// filter in handleVerifyEmailLogin) and, on the same guess that reaches
 	// the limit, lock the email out of requesting or verifying any code for
-	// emailLoginLockoutTTL — see lockEmailLogin.
+	// emailLoginLockoutTTL — see lockLogin.
 	maxEmailLoginAttempts = 10
 	emailLoginLockoutTTL  = time.Hour
 )
@@ -43,18 +41,6 @@ type emailLoginCode struct {
 	CreatedAt time.Time     `bson:"created_at"`
 	ExpiresAt time.Time     `bson:"expires_at"`
 	UsedAt    *time.Time    `bson:"used_at,omitempty"`
-}
-
-// emailLoginLockout is deliberately its own collection, separate from
-// emailLoginCode: requesting a fresh code deletes prior unused codes and
-// their attempt counts (see handleRequestEmailLogin), so a per-code counter
-// alone cannot stop someone from just asking for a new code every ten
-// guesses. The lockout row survives that and blocks both endpoints for
-// emailLoginLockoutTTL, keyed by email rather than by any one code.
-type emailLoginLockout struct {
-	ID          bson.ObjectID `bson:"_id,omitempty"`
-	Email       string        `bson:"email"`
-	LockedUntil time.Time     `bson:"locked_until"`
 }
 
 func (s *Server) handleRequestEmailLogin(w http.ResponseWriter, r *http.Request) {
@@ -80,13 +66,13 @@ func (s *Server) handleRequestEmailLogin(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	lockedUntil, err := s.emailLoginLocked(r.Context(), email)
+	lockedUntil, err := s.loginLocked(r.Context(), emailLockoutKey(email))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to prepare login email")
 		return
 	}
 	if !lockedUntil.IsZero() {
-		writeEmailLockoutError(w, lockedUntil)
+		writeLockoutError(w, lockedUntil, "codes")
 		return
 	}
 
@@ -115,10 +101,16 @@ func (s *Server) handleRequestEmailLogin(w http.ResponseWriter, r *http.Request)
 		"used_at": bson.M{"$exists": false},
 	})
 
+	codeHash, err := hashEmailLoginCode(email, code)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to prepare login email")
+		return
+	}
+
 	loginCode := emailLoginCode{
 		ID:        bson.NewObjectID(),
 		Email:     email,
-		CodeHash:  s.hashEmailLoginCode(email, code),
+		CodeHash:  codeHash,
 		CreatedAt: now,
 		ExpiresAt: now.Add(emailLoginCodeTTL),
 	}
@@ -157,13 +149,13 @@ func (s *Server) handleVerifyEmailLogin(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	lockedUntil, err := s.emailLoginLocked(r.Context(), email)
+	lockedUntil, err := s.loginLocked(r.Context(), emailLockoutKey(email))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to verify login code")
 		return
 	}
 	if !lockedUntil.IsZero() {
-		writeEmailLockoutError(w, lockedUntil)
+		writeLockoutError(w, lockedUntil, "codes")
 		return
 	}
 
@@ -190,7 +182,7 @@ func (s *Server) handleVerifyEmailLogin(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if loginCode.CodeHash != s.hashEmailLoginCode(email, code) {
+	if !emailLoginCodeMatches(loginCode.CodeHash, email, code) {
 		// FindOneAndUpdate (not UpdateOne) so the post-increment count comes
 		// back atomically: two concurrent wrong guesses must not both read a
 		// stale count and both miss crossing the lockout threshold.
@@ -202,7 +194,7 @@ func (s *Server) handleVerifyEmailLogin(w http.ResponseWriter, r *http.Request) 
 			options.FindOneAndUpdate().SetReturnDocument(options.After),
 		).Decode(&afterAttempt)
 		if incErr == nil && afterAttempt.Attempts >= maxEmailLoginAttempts {
-			if lockErr := s.lockEmailLogin(r.Context(), email, now); lockErr != nil {
+			if lockErr := s.lockLogin(r.Context(), emailLockoutKey(email), now, emailLoginLockoutTTL); lockErr != nil {
 				slog.Warn("failed to lock email login after repeated wrong codes", "error", lockErr)
 			}
 		}
@@ -230,14 +222,12 @@ func (s *Server) handleVerifyEmailLogin(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "failed to sign in with email")
 		return
 	}
-	token, err := s.issueToken(user)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to issue token")
+	if err := s.startSession(w, r, user); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to start session")
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"token":      token,
 		"user":       serializeUser(user),
 		"workspaces": serializeWorkspaces(workspaces),
 	})
@@ -333,64 +323,6 @@ func (s *Server) findOrCreateEmailUser(ctx context.Context, email string) (User,
 	return user, workspaces, nil
 }
 
-// emailLoginLocked returns the lockout's expiry if email is currently locked
-// out of the login-code endpoints, or the zero Time if it is not. It checks
-// the expiry itself rather than trusting that a matching document means an
-// active lockout, since the TTL index that removes expired lockouts runs on
-// a background sweep and is not instantaneous.
-func (s *Server) emailLoginLocked(ctx context.Context, email string) (time.Time, error) {
-	var lockout emailLoginLockout
-	err := s.emailLockouts.FindOne(ctx, bson.M{"email": email}).Decode(&lockout)
-	if errors.Is(err, mongo.ErrNoDocuments) {
-		return time.Time{}, nil
-	}
-	if err != nil {
-		return time.Time{}, err
-	}
-	if !time.Now().UTC().Before(lockout.LockedUntil) {
-		return time.Time{}, nil
-	}
-	return lockout.LockedUntil, nil
-}
-
-// lockEmailLogin locks email out of the login-code endpoints until
-// now+emailLoginLockoutTTL. Upserted (rather than inserted) so a repeat
-// offender within the same lockout window simply extends it instead of
-// erroring on the unique email index.
-func (s *Server) lockEmailLogin(ctx context.Context, email string, now time.Time) error {
-	_, err := s.emailLockouts.UpdateOne(
-		ctx,
-		bson.M{"email": email},
-		bson.M{
-			"$set": bson.M{"locked_until": now.Add(emailLoginLockoutTTL)},
-			"$setOnInsert": bson.M{
-				"_id":   bson.NewObjectID(),
-				"email": email,
-			},
-		},
-		options.UpdateOne().SetUpsert(true),
-	)
-	return err
-}
-
-// emailLockoutRetryMinutes formats the remaining lockout duration for the
-// error message. Rounded to the nearest minute, and never below one, so the
-// message never claims "try again in 0 minutes" while still locked.
-func emailLockoutRetryMinutes(lockedUntil, now time.Time) int {
-	minutes := int(lockedUntil.Sub(now).Round(time.Minute).Minutes())
-	if minutes < 1 {
-		return 1
-	}
-	return minutes
-}
-
-func writeEmailLockoutError(w http.ResponseWriter, lockedUntil time.Time) {
-	minutes := emailLockoutRetryMinutes(lockedUntil, time.Now().UTC())
-	writeError(w, http.StatusTooManyRequests, fmt.Sprintf(
-		"too many incorrect codes; try again in %d minute(s)", minutes,
-	))
-}
-
 func normalizeEmail(value string) (string, error) {
 	value = strings.ToLower(strings.TrimSpace(value))
 	address, err := mail.ParseAddress(value)
@@ -410,10 +342,23 @@ func generateEmailLoginCode() (string, error) {
 	return fmt.Sprintf("%06d", value.Int64()), nil
 }
 
-func (s *Server) hashEmailLoginCode(email, code string) string {
-	hasher := hmac.New(sha256.New, []byte(s.cfg.JWTSecret))
-	_, _ = hasher.Write([]byte(email + ":" + code))
-	return hex.EncodeToString(hasher.Sum(nil))
+// hashEmailLoginCode hashes a login code for storage. bcrypt — and not the
+// fast SHA-256 used for session and API key tokens — because this credential is
+// six digits: a leaked database of fast hashes would be reversed instantly by
+// walking all 10^6, while bcrypt makes that cost hours against a code that
+// lives ten minutes and dies after maxEmailLoginAttempts guesses. The email is
+// mixed in so a hash cannot be replayed against a different address.
+func hashEmailLoginCode(email, code string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(email+":"+code), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+
+	return string(hash), nil
+}
+
+func emailLoginCodeMatches(storedHash, email, code string) bool {
+	return bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(email+":"+code)) == nil
 }
 
 func (s *Server) sendLoginCode(ctx context.Context, email, code string) error {

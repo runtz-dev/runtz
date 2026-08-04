@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { RuntzWordmark } from "@/components/runtz/logo"
 import { ThemeToggle } from "@/components/runtz/theme-provider"
-import { apiRequest, clearToken, getStoredToken, storeToken } from "@/lib/api"
+import { apiRequest, clearClientState } from "@/lib/api"
 import { DEFAULT_GOOGLE_CLIENT_ID } from "@/lib/google"
 import { cn } from "@/lib/utils"
 
@@ -111,26 +111,20 @@ export function SetupLogin() {
       )
   }, [])
 
-  // The session token lives in localStorage, so a second tab (or coming back
-  // from the landing page) is still signed in — send it straight to the app
-  // instead of asking for the credentials again. A token the engine rejects is
-  // dropped here so the form is shown.
+  // A second tab (or coming back from the landing page) may still hold a
+  // valid session cookie — ask the engine and send it straight to the app
+  // instead of asking for credentials again. A rejected session falls through
+  // to the form.
   React.useEffect(() => {
-    const token = getStoredToken()
-    if (!token) {
-      setRestoringSession(false)
-      return
-    }
-
     let cancelled = false
-    apiRequest("/api/v1/me", { token })
+    apiRequest("/api/v1/me")
       .then(() => {
         if (!cancelled) {
           router.replace(nextPath)
         }
       })
       .catch(() => {
-        clearToken()
+        clearClientState()
         if (!cancelled) {
           setRestoringSession(false)
         }
@@ -212,11 +206,10 @@ function CloudLoginForm({
     setError("")
     setPending(true)
     try {
-      const response = await apiRequest<AuthResponse>("/api/v1/auth/google", {
+      await apiRequest<AuthResponse>("/api/v1/auth/google", {
         method: "POST",
         body: { credential },
       })
-      storeToken(response.token)
       onAuthenticated()
     } catch (error) {
       setError(
@@ -249,11 +242,10 @@ function CloudLoginForm({
     setError("")
     setPending(true)
     try {
-      const response = await apiRequest<AuthResponse>("/api/v1/auth/email/verify", {
+      await apiRequest<AuthResponse>("/api/v1/auth/email/verify", {
         method: "POST",
         body: { email, code },
       })
-      storeToken(response.token)
       onAuthenticated()
     } catch (error) {
       setError(error instanceof Error ? error.message : "Invalid code")
@@ -569,11 +561,10 @@ function SelfHostedLoginForm({
     setError("")
     setPending(true)
     try {
-      const response = await apiRequest<AuthResponse>("/api/v1/auth/login", {
+      await apiRequest<AuthResponse>("/api/v1/auth/login", {
         method: "POST",
         body: { username, password },
       })
-      storeToken(response.token)
       onAuthenticated()
     } catch (error) {
       setError(error instanceof Error ? error.message : "Sign-in failed")
@@ -635,11 +626,10 @@ function SetupForm({ onConfigured }: { onConfigured: () => void }) {
     setError("")
     setPending(true)
     try {
-      const response = await apiRequest<AuthResponse>("/api/v1/setup", {
+      await apiRequest<AuthResponse>("/api/v1/setup", {
         method: "POST",
         body: { username, password, workspaceName },
       })
-      storeToken(response.token)
       onConfigured()
     } catch (error) {
       setError(error instanceof Error ? error.message : "Setup failed")

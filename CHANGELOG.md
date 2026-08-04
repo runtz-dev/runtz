@@ -9,6 +9,13 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc8] - 2026-08-04
+
+Supersedes `1.0.0-rc7`, which was tagged but never produced its own artifacts:
+the version files still read `1.0.0-rc5`, so that build overwrote the
+`1.0.0-rc5` images and chart instead of publishing new ones. `1.0.0-rc8` is the
+first build of this work under its own version.
+
 ### Removed
 
 - **Breaking:** `JWT_SECRET` and `RUNTZ_INGEST_TOKEN` no longer exist. Both
@@ -118,6 +125,7 @@ First public release candidate.
 - The engine refuses to start with empty or placeholder `JWT_SECRET` /
   `RUNTZ_INGEST_TOKEN` values.
 
-[Unreleased]: https://github.com/runtz-dev/runtz/compare/v1.0.0-rc5...HEAD
+[Unreleased]: https://github.com/runtz-dev/runtz/compare/v1.0.0-rc8...HEAD
+[1.0.0-rc8]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc8
 [1.0.0-rc5]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc5
 [1.0.0-rc1]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc1

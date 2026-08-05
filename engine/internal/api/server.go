@@ -830,8 +830,8 @@ func (s *Server) handleIngestSCA(w http.ResponseWriter, r *http.Request) {
 		Status:          "completed",
 		ScannerVersion:  request.ScannerVersion,
 		Summary:         buildSummary(request.Dependencies, request.Vulnerabilities),
-		Dependencies:    request.Dependencies,
-		Vulnerabilities: request.Vulnerabilities,
+		Dependencies:    orEmpty(request.Dependencies),
+		Vulnerabilities: orEmpty(request.Vulnerabilities),
 		CreatedAt:       now,
 	}
 
@@ -996,7 +996,7 @@ func (s *Server) handleIngestPackageScan(w http.ResponseWriter, r *http.Request,
 		ScannerVersion:  request.ScannerVersion,
 		Summary:         buildPackageSummary(request.Packages, request.Vulnerabilities),
 		Packages:        request.Packages,
-		Vulnerabilities: request.Vulnerabilities,
+		Vulnerabilities: orEmpty(request.Vulnerabilities),
 		CreatedAt:       now,
 	}
 
@@ -1271,6 +1271,18 @@ func buildFindingSummary(totalScanned int, findings []Finding) ScanSummary {
 	}
 
 	return summary
+}
+
+// orEmpty turns a nil slice into an empty one so it is stored — and later
+// served — as [] instead of null. Scanners legitimately send no results at
+// all: macOS host scans never carry vulnerabilities because OSV has no feed
+// for Homebrew, and Go marshals a nil slice as null. Clients then have to
+// guard every read, and the one that forgets crashes on .length.
+func orEmpty[T any](values []T) []T {
+	if values == nil {
+		return []T{}
+	}
+	return values
 }
 
 func firstNonEmpty(values ...string) string {

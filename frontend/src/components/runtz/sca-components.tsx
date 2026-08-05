@@ -4,7 +4,6 @@ import * as React from "react"
 import {
   ActivityIcon,
   ChartSplineIcon,
-  ExternalLinkIcon,
   PackageIcon,
   ShieldAlertIcon,
 } from "lucide-react"
@@ -24,14 +23,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Tooltip,
@@ -39,7 +30,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import type { ScanSummary, Vulnerability } from "@/lib/api"
+import type { ScanSummary } from "@/lib/api"
 import type { TrendScan } from "@/lib/dashboard"
 import {
   countSeverity,
@@ -866,85 +857,6 @@ export function SeverityBadge({ severity }: { severity: string }) {
     <Badge variant="outline" className={meta.badgeClassName}>
       {severity || "unknown"}
     </Badge>
-  )
-}
-
-export function CVETable({
-  vulnerabilities,
-}: {
-  vulnerabilities: Vulnerability[]
-}) {
-  if (vulnerabilities.length === 0) {
-    return (
-      <Empty className="min-h-48 border">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <ShieldAlertIcon />
-          </EmptyMedia>
-          <EmptyTitle>No vulnerabilities found</EmptyTitle>
-          <EmptyDescription>
-            The latest scan returned no advisories for the identified versions.
-          </EmptyDescription>
-        </EmptyHeader>
-      </Empty>
-    )
-  }
-
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Pacote</TableHead>
-          <TableHead>ID</TableHead>
-          <TableHead>Severidade</TableHead>
-          <TableHead>Version</TableHead>
-          <TableHead>Fix</TableHead>
-          <TableHead>Resumo</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {vulnerabilities.map((vulnerability) => (
-          <TableRow key={`${vulnerability.packageName}-${vulnerability.id}`}>
-            <TableCell className="font-medium">
-              <div className="flex min-w-40 flex-col gap-1">
-                <span>
-                  {vulnerability.installedPackage || vulnerability.packageName}
-                </span>
-                {vulnerability.sourcePackage &&
-                vulnerability.sourcePackage !== vulnerability.installedPackage ? (
-                  <span className="text-xs font-normal text-muted-foreground">
-                    source: {vulnerability.sourcePackage}
-                  </span>
-                ) : null}
-              </div>
-            </TableCell>
-            <TableCell>
-              {vulnerability.advisoryUrl ? (
-                <a
-                  className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
-                  href={vulnerability.advisoryUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {vulnerability.id}
-                  <ExternalLinkIcon />
-                </a>
-              ) : (
-                vulnerability.id
-              )}
-            </TableCell>
-            <TableCell>
-              <SeverityBadge severity={vulnerability.severity} />
-            </TableCell>
-            <TableCell>{vulnerability.installedVersion || "-"}</TableCell>
-            <TableCell>{vulnerability.firstPatchedVersion || "-"}</TableCell>
-            <TableCell className="min-w-72 whitespace-normal">
-              {vulnerability.summary}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
   )
 }
 

@@ -67,7 +67,7 @@ export default function ContainerDetailPage() {
             nativeButton={false}
           >
             <ArrowLeftIcon data-icon="inline-start" />
-            Imagens
+            Images
           </Button>
         </div>
         <div className="flex flex-col gap-2">
@@ -89,7 +89,7 @@ export default function ContainerDetailPage() {
       {error ? (
         <Card>
           <CardHeader>
-            <CardTitle>Erro</CardTitle>
+            <CardTitle>Error</CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
         </Card>
@@ -143,9 +143,9 @@ export default function ContainerDetailPage() {
           <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
             <Card>
               <CardHeader>
-                <CardTitle>CVEs encontradas</CardTitle>
+                <CardTitle>CVEs found</CardTitle>
                 <CardDescription>
-                  Último scan em {formatDate(latestScan.createdAt)}
+                  Latest scan on {formatDate(latestScan.createdAt)}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -169,7 +169,7 @@ export default function ContainerDetailPage() {
             <div className="flex flex-col gap-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Imagem</CardTitle>
+                  <CardTitle>Image</CardTitle>
                   <CardDescription>
                     {latestScan.osName || latestScan.osId || "-"}
                   </CardDescription>

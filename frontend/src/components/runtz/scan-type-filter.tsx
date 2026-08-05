@@ -48,7 +48,7 @@ const scanTypeCatalog: Record<"sast" | "k8s", Record<string, ScanTypeInfo>> = {
         "TLS certificate verification disabled in network calls.",
     },
     cryptography: {
-      label: "Criptografia fraca",
+      label: "Weak cryptography",
       description:
         "Weak hash functions such as MD5 and SHA-1 in security-sensitive contexts.",
     },
@@ -82,7 +82,7 @@ const scanTypeCatalog: Record<"sast" | "k8s", Record<string, ScanTypeInfo>> = {
     resilience: {
       label: "Resilience",
       description:
-        "Requests/limits e probes ausentes, que aumentam o raio de dano de incidentes.",
+        "Missing requests, limits, and probes that increase the blast radius of incidents.",
     },
   },
 }
@@ -116,7 +116,7 @@ export function ScanTypeFilter({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <SlidersHorizontalIcon className="size-4 text-primary" />
-          Tipos de scan
+          Scan types
         </CardTitle>
         <CardDescription>
           Filter findings by check type. All are enabled by default.
@@ -149,7 +149,7 @@ export function ScanTypeFilter({
                   </span>
                   <Tooltip>
                     <TooltipTrigger
-                      aria-label={`Sobre ${info.label}`}
+                      aria-label={`About ${info.label}`}
                       className="flex shrink-0 items-center text-muted-foreground outline-none hover:text-foreground focus-visible:text-foreground"
                     >
                       <InfoIcon className="size-3.5" />
@@ -166,7 +166,7 @@ export function ScanTypeFilter({
                   <Switch
                     checked={enabled}
                     onCheckedChange={(checked) => onToggle(category, checked)}
-                    aria-label={`Exibir findings de ${info.label}`}
+                    aria-label={`Show ${info.label} findings`}
                   />
                 </div>
               </div>

@@ -207,8 +207,8 @@ function WorkspacesPanel() {
     <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
       <Card>
         <CardHeader>
-          <CardTitle>Novo workspace</CardTitle>
-          <CardDescription>Crie ambientes para separar resultados.</CardDescription>
+          <CardTitle>New workspace</CardTitle>
+          <CardDescription>Create environments to separate results.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={createWorkspace}>
@@ -229,7 +229,7 @@ function WorkspacesPanel() {
               ) : null}
               <Button type="submit" disabled={pending}>
                 <PlusIcon data-icon="inline-start" />
-                Criar workspace
+                Create workspace
               </Button>
             </FieldGroup>
           </form>
@@ -239,15 +239,15 @@ function WorkspacesPanel() {
       <Card>
         <CardHeader>
           <CardTitle>Workspaces</CardTitle>
-          <CardDescription>{workspaces.length} cadastrados</CardDescription>
+          <CardDescription>{workspaces.length} registered</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
+                <TableHead>Name</TableHead>
                 <TableHead>Slug</TableHead>
-                <TableHead>Criado em</TableHead>
+                <TableHead>Created</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -281,7 +281,7 @@ function SelfHostedWorkspacesLimitPanel() {
           </div>
           <Button variant="outline" onClick={openBillingTab}>
             <PlusIcon data-icon="inline-start" />
-            Criar outro workspace
+            Create another workspace
           </Button>
         </div>
       </CardHeader>
@@ -290,10 +290,10 @@ function SelfHostedWorkspacesLimitPanel() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
+                <TableHead>Name</TableHead>
                 <TableHead>Slug</TableHead>
-                <TableHead>Criado em</TableHead>
-                <TableHead>Plano</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>Plan</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -303,7 +303,7 @@ function SelfHostedWorkspacesLimitPanel() {
                   <TableCell>{workspace.slug}</TableCell>
                   <TableCell>{formatDate(workspace.createdAt)}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">workspace inicial</Badge>
+                    <Badge variant="outline">initial workspace</Badge>
                   </TableCell>
                 </TableRow>
               ))}
@@ -341,9 +341,9 @@ function CloudWorkspacesPanel() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome</TableHead>
+                  <TableHead>Name</TableHead>
                   <TableHead>Slug</TableHead>
-                  <TableHead>Tipo</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -353,7 +353,7 @@ function CloudWorkspacesPanel() {
                     <TableCell className="font-medium">{workspace.name}</TableCell>
                     <TableCell>{workspace.slug}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">workspace inicial</Badge>
+                      <Badge variant="outline">initial workspace</Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end">
@@ -363,7 +363,7 @@ function CloudWorkspacesPanel() {
                           onClick={() => setShareUpgradeOpen(true)}
                         >
                           <Share2Icon data-icon="inline-start" />
-                          Compartilhar workspace
+                          Share workspace
                         </Button>
                       </div>
                     </TableCell>
@@ -608,11 +608,11 @@ function UsersPanel() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <CardTitle>Users</CardTitle>
-              <CardDescription>{users.length} cadastrados</CardDescription>
+              <CardDescription>{users.length} registered</CardDescription>
             </div>
             <Button variant="outline" size="sm" onClick={() => loadUsers()}>
               <RefreshCcwIcon data-icon="inline-start" />
-              Atualizar
+              Refresh
             </Button>
           </div>
         </CardHeader>
@@ -678,7 +678,7 @@ function UsersPanel() {
       <Dialog open={Boolean(inviteLink)} onOpenChange={(open) => !open && setInviteLink("")}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Link de convite</DialogTitle>
+            <DialogTitle>Invitation link</DialogTitle>
             <DialogDescription>
               Link generated for the selected user.
             </DialogDescription>
@@ -999,7 +999,7 @@ function BillingPanel() {
         ? "enterprise"
         : null
   const renewalText = activeEntitlement.currentPeriodEnd
-    ? `${activeEntitlement.cancelAtPeriodEnd ? "Encerra" : "Renova"} em ${formatDate(activeEntitlement.currentPeriodEnd)}`
+    ? `${activeEntitlement.cancelAtPeriodEnd ? "Ends" : "Renews"} on ${formatDate(activeEntitlement.currentPeriodEnd)}`
     : activeEntitlement.plan === "free"
       ? "No active renewal"
       : "Renewal awaiting confirmation"
@@ -1029,7 +1029,7 @@ function BillingPanel() {
         </CardHeader>
         <CardContent className="relative grid gap-2 px-4 pb-4 pt-0">
           <BillingMetric label="Status" value={statusLabel(activeEntitlement.status)} />
-          <BillingMetric label="Ciclo" value={renewalText} />
+          <BillingMetric label="Billing cycle" value={renewalText} />
           {deploymentMode === "self-hosted" ? (
             <div className="grid gap-2 text-sm">
               <BillingRow
@@ -1063,13 +1063,13 @@ function BillingPanel() {
           {upgradePlan ? (
             <Button className="mt-1 w-full" onClick={() => startCheckout(upgradePlan)} disabled={pending}>
               <ArrowUpRightIcon data-icon="inline-start" />
-              {pending ? "Abrindo checkout..." : `Upgrade to ${planLabel(upgradePlan)}`}
+              {pending ? "Opening checkout..." : `Upgrade to ${planLabel(upgradePlan)}`}
             </Button>
           ) : null}
           {deploymentMode === "cloud" && isPaidPlan ? (
             <Button className="w-full" variant="outline" onClick={openPortal} disabled={pending}>
               <CreditCardIcon data-icon="inline-start" />
-              Gerenciar assinatura
+              Manage subscription
             </Button>
           ) : null}
           {deploymentMode === "self-hosted" ? (
@@ -1160,11 +1160,11 @@ function CloudProfilePanel() {
       <CardContent>
         <FieldGroup>
           <Field>
-            <FieldLabel htmlFor="profile-name">Nome</FieldLabel>
+            <FieldLabel htmlFor="profile-name">Name</FieldLabel>
             <Input id="profile-name" value={name} readOnly />
           </Field>
           <Field>
-            <FieldLabel htmlFor="profile-email">E-mail</FieldLabel>
+            <FieldLabel htmlFor="profile-email">Email</FieldLabel>
             <Input id="profile-email" type="email" value={currentUser.email ?? ""} readOnly />
           </Field>
           <div className="flex items-start gap-3 rounded-lg border bg-muted/35 p-3 text-sm text-muted-foreground">
@@ -1301,7 +1301,7 @@ function planDescription(plan: string, deploymentMode: string) {
 }
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat("pt-BR", {
+  return new Intl.DateTimeFormat("en-US", {
     dateStyle: "short",
     timeStyle: "short",
   }).format(new Date(value))

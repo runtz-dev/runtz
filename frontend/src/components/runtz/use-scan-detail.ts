@@ -54,7 +54,7 @@ export function useScanDetail<TScan extends Scan>(
           setError(
             requestError instanceof Error
               ? requestError.message
-              : "Falha ao carregar os detalhes do scan"
+              : "Failed to load scan details"
           )
         }
       })

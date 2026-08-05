@@ -77,7 +77,7 @@ export default function ContainersPage() {
       {error ? (
         <Card>
           <CardHeader>
-            <CardTitle>Erro</CardTitle>
+            <CardTitle>Error</CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
         </Card>
@@ -93,9 +93,9 @@ export default function ContainersPage() {
         <>
           <DashboardSummaryGrid summary={severitySummary}>
             <MetricCard
-              title="Imagens"
+              title="Images"
               value={totals.targets}
-              description="imagens diferentes"
+              description="distinct images"
             />
             <MetricCard
               title="Scans"
@@ -124,15 +124,14 @@ export default function ContainersPage() {
                 </EmptyMedia>
                 <EmptyTitle>No images scanned</EmptyTitle>
                 <EmptyDescription>
-                  Execute o CLI de container apontando para o backend para
-                  preencher este painel.
+                  Run the container CLI against the engine to populate this panel.
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>
           ) : (
             <Card>
               <CardHeader>
-                <CardTitle>Imagens</CardTitle>
+                <CardTitle>Images</CardTitle>
                 <CardDescription>
                   Click an image name to see the CVE list from its latest
                   scan.
@@ -142,12 +141,12 @@ export default function ContainersPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Imagem</TableHead>
-                      <TableHead>Vulnerabilidades</TableHead>
-                      <TableHead>Pacotes</TableHead>
+                      <TableHead>Image</TableHead>
+                      <TableHead>Vulnerabilities</TableHead>
+                      <TableHead>Packages</TableHead>
                       <TableHead>OS</TableHead>
                       <TableHead>Scans</TableHead>
-                      <TableHead>Último scan</TableHead>
+                      <TableHead>Latest scan</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

@@ -365,9 +365,9 @@ func (s *Server) sendLoginCode(ctx context.Context, email, code string) error {
 	payload := map[string]any{
 		"from":    s.cfg.ResendFromEmail,
 		"to":      []string{email},
-		"subject": "Seu código de acesso da Runtz",
+		"subject": "Your Runtz access code",
 		"html": fmt.Sprintf(
-			`<p>Use o código abaixo para acessar a Runtz:</p><p style="font-size: 24px; font-weight: 700; letter-spacing: 4px">%s</p><p>Ele expira em 10 minutos.</p>`,
+			`<p>Use the code below to sign in to Runtz:</p><p style="font-size: 24px; font-weight: 700; letter-spacing: 4px">%s</p><p>It expires in 10 minutes.</p>`,
 			html.EscapeString(code),
 		),
 	}

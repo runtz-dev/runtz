@@ -209,7 +209,7 @@ function SeverityTooltip({
 
   return (
     <Tooltip>
-      <TooltipTrigger render={children} aria-label={`${label}, ${value} vulnerabilidades`} />
+      <TooltipTrigger render={children} aria-label={`${label}, ${value} vulnerabilities`} />
       <TooltipContent>
         <span className="font-semibold">{label}</span>
         <span className="opacity-70">· {value} CVEs</span>
@@ -228,7 +228,7 @@ export function SeverityCard({
   return (
     <Card className={className}>
       <CardHeader>
-        <CardTitle>Vulnerabilidades</CardTitle>
+        <CardTitle>Vulnerabilities</CardTitle>
         <CardDescription>Distribution by severity.</CardDescription>
       </CardHeader>
       <CardContent>
@@ -248,7 +248,7 @@ const TREND_SERIES = [
   { key: "high", label: "High", color: "#ff9a62" },
   { key: "medium", label: "Medium", color: "#ffd166" },
   { key: "low", label: "Low", color: "#6db5ff" },
-  { key: "unknown", label: "Desconhecida", color: "#8fa0b7" },
+  { key: "unknown", label: "Unknown", color: "#8fa0b7" },
 ] as const
 
 // Render order bottom to top so critical is the topmost visual layer.
@@ -279,7 +279,7 @@ function VulnerabilityChart({ scans }: { scans: TrendScan[] }) {
               Vulnerability trend
             </CardTitle>
             <CardDescription>
-              Severidades encontradas nos scans recebidos por dia.
+              Severities found in scans received each day.
             </CardDescription>
           </div>
           <TrendPeriodSelector
@@ -420,9 +420,9 @@ function DailyScansChart({ scans }: { scans: TrendScan[] }) {
           <div>
             <CardTitle className="flex items-center gap-2">
               <ChartSplineIcon className="size-4 text-primary" />
-              Scans/dia
+              Scans per day
             </CardTitle>
-            <CardDescription>Scans enviados por dia.</CardDescription>
+            <CardDescription>Scans submitted each day.</CardDescription>
           </div>
           <TrendPeriodSelector
             period={period}
@@ -736,7 +736,7 @@ function buildTrendChart(scans: TrendScan[], period: TrendPeriod) {
         key: day.key,
         x: x(index),
         textAnchor: index === days.length - 1 ? "end" as const : "middle" as const,
-        label: new Intl.DateTimeFormat("pt-BR", {
+        label: new Intl.DateTimeFormat("en-US", {
           day: "2-digit",
           month: "2-digit",
         }).format(day.date),
@@ -785,7 +785,7 @@ function buildDailyScansChart(scans: TrendScan[], period: TrendPeriod) {
     top,
     bottom,
     totalScans,
-    dailyAverage: (totalScans / period).toLocaleString("pt-BR", {
+    dailyAverage: (totalScans / period).toLocaleString("en-US", {
       maximumFractionDigits: 1,
     }),
     gridLines: Array.from({ length: 5 }, (_, index) => {
@@ -817,7 +817,7 @@ function buildDailyScansChart(scans: TrendScan[], period: TrendPeriod) {
         key: day.key,
         x: x(index),
         textAnchor: index === days.length - 1 ? "end" as const : "middle" as const,
-        label: new Intl.DateTimeFormat("pt-BR", {
+        label: new Intl.DateTimeFormat("en-US", {
           day: "2-digit",
           month: "2-digit",
         }).format(day.date),
@@ -835,7 +835,7 @@ function chartTooltipX(pointX: number, left: number, width: number) {
 }
 
 function formatChartTooltipDate(date: Date) {
-  return new Intl.DateTimeFormat("pt-BR", {
+  return new Intl.DateTimeFormat("en-US", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -865,9 +865,9 @@ export function ScanDetailSkeleton() {
     <div
       className="flex flex-col gap-3"
       role="status"
-      aria-label="Carregando detalhes do scan"
+      aria-label="Loading scan details"
     >
-      <span className="sr-only">Carregando detalhes do scan</span>
+      <span className="sr-only">Loading scan details</span>
       {Array.from({ length: 5 }).map((_, index) => (
         <div
           key={index}
@@ -890,7 +890,7 @@ export function ScanDetailError({ message }: { message: string }) {
         <EmptyMedia variant="icon">
           <ShieldAlertIcon />
         </EmptyMedia>
-        <EmptyTitle>Não foi possível carregar os detalhes</EmptyTitle>
+        <EmptyTitle>Could not load scan details</EmptyTitle>
         <EmptyDescription>{message}</EmptyDescription>
       </EmptyHeader>
     </Empty>
@@ -924,7 +924,7 @@ export function LatestScansCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Últimos scans</CardTitle>
+        <CardTitle>Latest scans</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>

@@ -258,7 +258,7 @@ function CloudLoginForm({
     <Card className={authCardClassName}>
       <div aria-hidden="true" className="runtz-dot-map pointer-events-none absolute inset-0 z-0 opacity-[0.18]" />
       <CardHeader className="relative z-10">
-        <CardTitle className="text-xl font-bold">Acesse a Runtz</CardTitle>
+        <CardTitle className="text-xl font-bold">Sign in to Runtz</CardTitle>
         <CardDescription className="text-[#b8cbe4]">
           Sign in without a password. We will email you a code.
         </CardDescription>
@@ -281,18 +281,18 @@ function CloudLoginForm({
             </div>
             <div className="my-1 flex items-center gap-3 text-xs text-[#9fb4cf]">
               <div className="h-px flex-1 bg-[#6db5ff]/18" />
-              <span>ou continue com e-mail</span>
+              <span>or continue with email</span>
               <div className="h-px flex-1 bg-[#6db5ff]/18" />
             </div>
             <form onSubmit={requestCode}>
               <FieldGroup>
                 <Field>
-                  <FieldLabel htmlFor="login-email">E-mail</FieldLabel>
+                  <FieldLabel htmlFor="login-email">Email</FieldLabel>
                   <Input
                     id="login-email"
                     type="email"
                     autoComplete="email"
-                    placeholder="voce@empresa.com"
+                    placeholder="you@company.com"
                     className={authInputClassName}
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
@@ -316,7 +316,7 @@ function CloudLoginForm({
                   Code sent
                 </div>
                 <p className="mt-2 text-sm text-[#b8cbe4]">
-                  Confira a caixa de entrada de <strong>{email}</strong>.
+                  Check the inbox for <strong>{email}</strong>.
                 </p>
               </div>
               <Field>
@@ -344,7 +344,7 @@ function CloudLoginForm({
                 className={authButtonClassName}
                 disabled={pending || code.length !== 6}
               >
-                Entrar
+                Sign in
                 <ArrowRightIcon data-icon="inline-end" />
               </Button>
               <Button
@@ -358,7 +358,7 @@ function CloudLoginForm({
                 }}
               >
                 <ArrowLeftIcon data-icon="inline-start" />
-                Usar outro e-mail
+                Use another email
               </Button>
             </FieldGroup>
           </form>
@@ -474,7 +474,7 @@ function GoogleSignInButton({
         shape: "pill",
         text: "continue_with",
         logo_alignment: "left",
-        locale: "pt_BR",
+        locale: "en_US",
         width,
       })
       setReady(true)
@@ -605,7 +605,7 @@ function SelfHostedLoginForm({
           </Field>
           <LoginError message={error} />
           <Button type="submit" className={authButtonClassName} disabled={pending}>
-            Entrar
+            Sign in
             <ArrowRightIcon data-icon="inline-end" />
           </Button>
         </FieldGroup>
@@ -682,7 +682,7 @@ function SetupForm({ onConfigured }: { onConfigured: () => void }) {
           </Field>
           <LoginError message={error} />
           <Button type="submit" className={authButtonClassName} disabled={pending}>
-            Criar admin
+            Create admin
             <ArrowRightIcon data-icon="inline-end" />
           </Button>
         </FieldGroup>

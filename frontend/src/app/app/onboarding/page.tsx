@@ -135,7 +135,7 @@ export default function OnboardingPage() {
               ) : (
                 <Button onClick={createAPIKey} disabled={pending || !workspace}>
                   <KeyRoundIcon data-icon="inline-start" />
-                  Gerar API key
+                  Generate API key
                 </Button>
               )}
             </OnboardingStep>

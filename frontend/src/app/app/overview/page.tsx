@@ -112,7 +112,7 @@ export default function OverviewPage() {
       {error ? (
         <Card>
           <CardHeader>
-            <CardTitle>Erro ao carregar parte do overview</CardTitle>
+            <CardTitle>Failed to load part of the overview</CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
         </Card>
@@ -127,10 +127,10 @@ export default function OverviewPage() {
       ) : (
         <>
           <DashboardSummaryGrid summary={totals}>
-            <MetricCard title="Assets" value={assets} description="apps, imagens, hosts e k8s" />
+            <MetricCard title="Assets" value={assets} description="apps, images, hosts, and K8s" />
             <MetricCard title="Scans" value={scans.length} description="runs received" />
             <MetricCard
-              title="Vulnerabilidades"
+              title="Vulnerabilities"
               value={totals.vulnerabilities}
               description="across the latest scans per asset"
             />
@@ -180,7 +180,7 @@ export default function OverviewPage() {
               href={`${basePath}/k8s`}
               icon={ShipWheelIcon}
               title="K8s scanning"
-              description="Postura de manifests"
+              description="Manifest posture"
               assets={k8sTargets.length}
               scans={k8s.scans.length}
             />

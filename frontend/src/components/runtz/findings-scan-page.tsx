@@ -72,7 +72,7 @@ export function FindingsScanPage({
   description,
   targetTitle,
   targetDescription,
-  targetColumnTitle = "Alvo",
+  targetColumnTitle = "Target",
   targetListDescription,
   inspectedTitle,
   emptyTitle,
@@ -109,7 +109,7 @@ export function FindingsScanPage({
       {error ? (
         <Card>
           <CardHeader>
-            <CardTitle>Erro</CardTitle>
+            <CardTitle>Error</CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
         </Card>
@@ -164,7 +164,7 @@ export function FindingsScanPage({
                 <CardTitle>{targetTitle}</CardTitle>
                 <CardDescription>
                   {targetListDescription ??
-                    `Últimos reports recebidos por ${commandLabel}.`}
+                    `Latest reports received from ${commandLabel}.`}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -175,7 +175,7 @@ export function FindingsScanPage({
                       <TableHead>Findings</TableHead>
                       <TableHead>{inspectedTitle}</TableHead>
                       <TableHead>Scans</TableHead>
-                      <TableHead>Último scan</TableHead>
+                      <TableHead>Latest scan</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -235,7 +235,7 @@ export function FindingsScanPage({
 export function FindingsTable({
   scans,
   findings,
-  title = "Últimos findings",
+  title = "Latest findings",
   description,
 }: {
   scans: FindingsScan[]
@@ -249,16 +249,16 @@ export function FindingsTable({
         <CardTitle>{title}</CardTitle>
         <CardDescription>
           {description ??
-            `${scans.length} scans recebidos, mostrando os findings mais recentes.`}
+            `${scans.length} scans received, showing the latest findings.`}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Severidade</TableHead>
+              <TableHead>Severity</TableHead>
               <TableHead>Finding</TableHead>
-              <TableHead>Local</TableHead>
+              <TableHead>Location</TableHead>
               <TableHead>Remediation</TableHead>
             </TableRow>
           </TableHeader>

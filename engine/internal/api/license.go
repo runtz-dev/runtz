@@ -33,7 +33,7 @@ const (
 
 func centralEngineReachabilityError(err error) error {
 	return fmt.Errorf(
-		"Para ativar ou validar Pro/Enterprise, esta instalacao precisa ter conexao com %s. Tente novamente quando a URL estiver acessivel. Detalhe tecnico: %v",
+		"To activate or validate Pro/Enterprise, this installation must be able to connect to %s. Try again when the URL is reachable. Technical details: %v",
 		centralEngineURL,
 		err,
 	)

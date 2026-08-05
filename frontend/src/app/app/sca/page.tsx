@@ -67,7 +67,7 @@ export default function SCAPage() {
       {error ? (
         <Card>
           <CardHeader>
-            <CardTitle>Erro</CardTitle>
+            <CardTitle>Error</CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
         </Card>
@@ -83,9 +83,9 @@ export default function SCAPage() {
         <>
           <DashboardSummaryGrid summary={severitySummary}>
             <MetricCard
-              title="Apps scanneadas"
+              title="Scanned apps"
               value={totals.apps}
-              description="projetos diferentes"
+              description="distinct projects"
             />
             <MetricCard
               title="Scans"
@@ -114,8 +114,7 @@ export default function SCAPage() {
                 </EmptyMedia>
                 <EmptyTitle>No apps scanned</EmptyTitle>
                 <EmptyDescription>
-                  Execute o CLI apontando para o backend local para preencher este
-                  painel.
+                  Run the CLI against the local engine to populate this panel.
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>
@@ -132,10 +131,10 @@ export default function SCAPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>App</TableHead>
-                      <TableHead>Vulnerabilidades</TableHead>
+                      <TableHead>Vulnerabilities</TableHead>
                       <TableHead>Dependencies</TableHead>
                       <TableHead>Scans</TableHead>
-                      <TableHead>Último scan</TableHead>
+                      <TableHead>Latest scan</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

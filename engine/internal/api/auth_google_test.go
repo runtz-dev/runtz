@@ -26,9 +26,9 @@ func TestWorkspaceDefaultsForEmail(t *testing.T) {
 		},
 		{
 			name:          "company compound suffix",
-			email:         "sec@empresa.com.br",
+			email:         "sec@company.com.br",
 			username:      "sec",
-			workspaceName: "empresa",
+			workspaceName: "company",
 			workspaceKind: "company",
 		},
 	}

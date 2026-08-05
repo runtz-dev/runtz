@@ -809,7 +809,16 @@ function UsageWindowRow({
 
   return (
     <div className="grid gap-2">
-      <p className="text-sm font-medium">{label}</p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium">{label}</p>
+        {loading ? (
+          <Skeleton className="h-4 w-16" />
+        ) : (
+          <span className="text-xs font-medium tabular-nums text-muted-foreground">
+            {total}/{limit}
+          </span>
+        )}
+      </div>
       {loading ? (
         <Skeleton className="h-2 w-full rounded-full" />
       ) : (

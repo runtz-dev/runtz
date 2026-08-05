@@ -10,7 +10,6 @@ import {
   PlusIcon,
   RefreshCcwIcon,
   SearchIcon,
-  ShieldCheckIcon,
   Trash2Icon,
   TriangleAlertIcon,
 } from "lucide-react"
@@ -284,7 +283,7 @@ export default function APIKeysPage() {
                 <Badge variant="secondary">{apiKeys.length}</Badge>
               </div>
               <CardDescription className="mt-1">
-                Keys are scoped to one workspace and have scan sending access.
+                Keys are scoped to one workspace.
               </CardDescription>
             </div>
             <div className="flex w-full gap-2 lg:max-w-md">
@@ -369,7 +368,6 @@ export default function APIKeysPage() {
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="pl-4">Name</TableHead>
                   <TableHead>Token</TableHead>
-                  <TableHead>Permission</TableHead>
                   <TableHead>Last used</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead className="w-14 pr-4 text-right">
@@ -380,14 +378,14 @@ export default function APIKeysPage() {
               <TableBody>
               {loading ? (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={6} className="h-36 text-center text-muted-foreground">
+                  <TableCell colSpan={5} className="h-36 text-center text-muted-foreground">
                     Loading API keys...
                   </TableCell>
                 </TableRow>
               ) : null}
               {!loading && filteredAPIKeys.length === 0 ? (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={6} className="p-0 whitespace-normal">
+                  <TableCell colSpan={5} className="p-0 whitespace-normal">
                     <APIKeysEmptyState hasQuery={Boolean(query)} />
                   </TableCell>
                 </TableRow>
@@ -412,12 +410,6 @@ export default function APIKeysPage() {
                         <code className="rounded-md bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
                           {apiKey.prefix}...
                         </code>
-                      </TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center gap-1.5 text-sm">
-                          <ShieldCheckIcon className="size-4 text-emerald-500" />
-                          Sending access
-                        </span>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {apiKey.lastUsedAt

@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 import {
@@ -13,6 +14,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Card,
   CardContent,
@@ -31,6 +33,7 @@ export default function OnboardingPage() {
   const [copied, setCopied] = React.useState("")
   const [error, setError] = React.useState("")
   const [pending, setPending] = React.useState(false)
+  const [hideOnboarding, setHideOnboarding] = React.useState(false)
   const workspace = workspaces[0]
   const endpoint =
     deploymentMode === "cloud"
@@ -77,32 +80,23 @@ export default function OnboardingPage() {
     window.setTimeout(() => setCopied(""), 1800)
   }
 
-  async function completeOnboarding() {
-    if (!apiKey) {
+  async function leaveOnboarding(requireAPIKey: boolean) {
+    if (requireAPIKey && !apiKey) {
       return
     }
 
     setPending(true)
     setError("")
     try {
-      await apiRequest("/api/v1/me/onboarding", {
-        method: "PATCH",
-      })
+      if (hideOnboarding) {
+        await apiRequest("/api/v1/me/onboarding", {
+          method: "PATCH",
+        })
+      }
       router.replace("/app/overview")
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to complete onboarding")
       setPending(false)
-    }
-  }
-
-  async function skipOnboarding() {
-    setPending(true)
-    try {
-      await apiRequest("/api/v1/me/onboarding", { method: "PATCH" })
-    } catch {
-      // best-effort: navigate regardless
-    } finally {
-      router.replace("/app/overview")
     }
   }
 
@@ -167,14 +161,23 @@ export default function OnboardingPage() {
               active={Boolean(apiKey)}
               complete={false}
               icon={ServerIcon}
-              title="Scan this host"
-              description="Run it from anywhere on this machine. The CLI fingerprints the installed OS packages, matches them against known CVEs and sends the report straight to your workspace."
+              title="Scan your host"
             >
-              <CommandLine
-                value={scanCommand}
-                copied={copied === "scan"}
-                onCopy={() => copy(scanCommand, "scan")}
-              />
+              <div className="flex flex-col gap-3">
+                <CommandLine
+                  value={scanCommand}
+                  copied={copied === "scan"}
+                  onCopy={() => copy(scanCommand, "scan")}
+                />
+                <Button
+                  variant="outline"
+                  className="w-fit"
+                  render={<Link href="/app/hosts" />}
+                >
+                  Access host scanning page
+                  <ArrowRightIcon data-icon="inline-end" />
+                </Button>
+              </div>
             </OnboardingStep>
           </div>
 
@@ -184,14 +187,29 @@ export default function OnboardingPage() {
             </p>
           ) : null}
 
-          <div className="mt-8 flex items-center justify-between border-t pt-5">
-            <Button variant="ghost" onClick={skipOnboarding} disabled={pending} className="text-muted-foreground">
-              Pular por agora
-            </Button>
-            <Button onClick={completeOnboarding} disabled={pending || !apiKey}>
-              Ir para o Overview
-              <ArrowRightIcon data-icon="inline-end" />
-            </Button>
+          <div className="mt-8 flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+              <Checkbox
+                checked={hideOnboarding}
+                onCheckedChange={(checked) => setHideOnboarding(Boolean(checked))}
+                disabled={pending}
+              />
+              Don&apos;t show onboarding again
+            </label>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button
+                variant="ghost"
+                onClick={() => leaveOnboarding(false)}
+                disabled={pending}
+                className="text-muted-foreground"
+              >
+                Skip for now
+              </Button>
+              <Button onClick={() => leaveOnboarding(true)} disabled={pending || !apiKey}>
+                Go to Overview
+                <ArrowRightIcon data-icon="inline-end" />
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -211,7 +229,7 @@ function OnboardingStep({
   complete: boolean
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
   title: string
-  description: string
+  description?: string
   children: React.ReactNode
 }) {
   return (
@@ -226,9 +244,11 @@ function OnboardingStep({
       </div>
       <div>
         <h2 className="text-lg font-semibold">{title}</h2>
-        <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-          {description}
-        </p>
+        {description ? (
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+            {description}
+          </p>
+        ) : null}
       </div>
       {children}
     </section>

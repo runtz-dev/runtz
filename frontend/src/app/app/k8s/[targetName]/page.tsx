@@ -13,8 +13,8 @@ export default function KubernetesTargetPage() {
       backLabel="Clusters K8s"
       targetTitle="Cluster"
       targetScope="for this cluster"
-      description="Findings encontrados in the latest scan Kubernetes deste cluster."
-      inspectedTitle="Recursos"
+      description="Findings from this cluster's latest Kubernetes scan."
+      inspectedTitle="Resources"
       emptyTitle="Cluster not found"
       emptyDescription="No Kubernetes scans for this cluster in the selected workspace."
       icon={ShipWheelIcon}

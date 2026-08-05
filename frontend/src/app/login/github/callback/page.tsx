@@ -93,7 +93,7 @@ function CallbackCard({ error = "" }: { error?: string }) {
               href="/login"
               className="flex h-9 w-full items-center justify-center rounded-full bg-[#6db5ff] px-3 text-sm font-bold text-[#071222] transition hover:bg-[#9fd6ff]"
             >
-              Voltar para o login
+              Back to sign in
             </Link>
           ) : (
             <LoaderCircleIcon className="size-6 animate-spin text-[#6db5ff]" aria-label="Loading" />

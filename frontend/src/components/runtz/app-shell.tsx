@@ -463,7 +463,7 @@ function AccountMenu({
         >
           <div className="px-3 py-2">
             <div className="text-xs font-medium uppercase tracking-wide text-[#1d5fc7] dark:text-[#6db5ff]">
-              Conta
+              Account
             </div>
             <div className="mt-1 truncate text-sm font-semibold">
               {user.username}

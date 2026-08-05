@@ -118,7 +118,7 @@ export function formatDate(value: string) {
     return "-"
   }
 
-  return new Intl.DateTimeFormat("pt-BR", {
+  return new Intl.DateTimeFormat("en-US", {
     dateStyle: "short",
     timeStyle: "short",
   }).format(date)

@@ -161,7 +161,7 @@ export function FindingsTargetPage({
       {error ? (
         <Card>
           <CardHeader>
-            <CardTitle>Erro</CardTitle>
+            <CardTitle>Error</CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
         </Card>
@@ -214,8 +214,8 @@ export function FindingsTargetPage({
             {scanDetail.loading ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>Findings encontrados</CardTitle>
-                  <CardDescription>Carregando o último scan…</CardDescription>
+                  <CardTitle>Findings found</CardTitle>
+                  <CardDescription>Loading the latest scan…</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ScanDetailSkeleton />
@@ -227,11 +227,11 @@ export function FindingsTargetPage({
               <FindingsTable
                 scans={[scanDetail.scan]}
                 findings={visibleFindings}
-                title="Findings encontrados"
+                title="Findings found"
                 description={
                   disabledCategories.size > 0
-                    ? `Exibindo ${visibleFindings.length} de ${latestFindings.length} findings · Último scan em ${formatDate(latestScan.createdAt)}`
-                    : `Último scan em ${formatDate(latestScan.createdAt)}`
+                    ? `Showing ${visibleFindings.length} of ${latestFindings.length} findings · Latest scan on ${formatDate(latestScan.createdAt)}`
+                    : `Latest scan on ${formatDate(latestScan.createdAt)}`
                 }
               />
             ) : null}
@@ -251,7 +251,7 @@ export function FindingsTargetPage({
                 </CardHeader>
                 <CardContent className="flex flex-col gap-2 text-sm">
                   <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Fonte</span>
+                    <span className="text-muted-foreground">Source</span>
                     <span className="truncate text-right">
                       {latestScan.source || "-"}
                     </span>

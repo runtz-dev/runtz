@@ -85,7 +85,7 @@ export default function SCAProjectPage() {
       {error ? (
         <Card>
           <CardHeader>
-            <CardTitle>Erro</CardTitle>
+            <CardTitle>Error</CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
         </Card>
@@ -139,9 +139,9 @@ export default function SCAProjectPage() {
           <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
             <Card>
               <CardHeader>
-                <CardTitle>CVEs encontradas</CardTitle>
+                <CardTitle>CVEs found</CardTitle>
                 <CardDescription>
-                  Último scan em {formatDate(latestScan.createdAt)}
+                  Latest scan on {formatDate(latestScan.createdAt)}
                 </CardDescription>
               </CardHeader>
               <CardContent>

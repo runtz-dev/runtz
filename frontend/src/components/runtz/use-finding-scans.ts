@@ -29,7 +29,7 @@ export function useFindingScans(scanType: "sast" | "k8s") {
           setError(
             error instanceof Error
               ? error.message
-              : `Falha ao carregar ${scanType}`
+              : `Failed to load ${scanType}`
           )
           setScans([])
         })
@@ -53,7 +53,7 @@ export function useFindingScans(scanType: "sast" | "k8s") {
         setError(
           error instanceof Error
             ? error.message
-            : `Falha ao carregar ${scanType}`
+            : `Failed to load ${scanType}`
         )
         setScans([])
       })

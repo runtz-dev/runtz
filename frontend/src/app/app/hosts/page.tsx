@@ -77,7 +77,7 @@ export default function HostsPage() {
       {error ? (
         <Card>
           <CardHeader>
-            <CardTitle>Erro</CardTitle>
+            <CardTitle>Error</CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
         </Card>
@@ -95,7 +95,7 @@ export default function HostsPage() {
             <MetricCard
               title="Hosts"
               value={totals.targets}
-              description="hostnames diferentes"
+              description="distinct hostnames"
             />
             <MetricCard
               title="Scans"
@@ -124,8 +124,7 @@ export default function HostsPage() {
                 </EmptyMedia>
                 <EmptyTitle>No hosts scanned</EmptyTitle>
                 <EmptyDescription>
-                  Execute o CLI de host apontando para o backend para preencher
-                  este painel.
+                  Run the host CLI against the engine to populate this panel.
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>
@@ -142,11 +141,11 @@ export default function HostsPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Hostname</TableHead>
-                      <TableHead>Vulnerabilidades</TableHead>
-                      <TableHead>Pacotes</TableHead>
+                      <TableHead>Vulnerabilities</TableHead>
+                      <TableHead>Packages</TableHead>
                       <TableHead>OS</TableHead>
                       <TableHead>Scans</TableHead>
-                      <TableHead>Último scan</TableHead>
+                      <TableHead>Latest scan</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

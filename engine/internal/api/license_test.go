@@ -111,7 +111,7 @@ func TestCentralEngineReachabilityErrorIsActionable(t *testing.T) {
 	message := err.Error()
 	for _, want := range []string{
 		"https://engine.runtz.dev",
-		"precisa ter conexao",
+		"must be able to connect",
 		"network unreachable",
 	} {
 		if !strings.Contains(message, want) {

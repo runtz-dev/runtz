@@ -14,7 +14,7 @@ export default function SASTTargetPage() {
       targetTitle="App"
       targetScope="for this app"
       description="Findings from this app's latest SAST scan."
-      inspectedTitle="Arquivos"
+      inspectedTitle="Files"
       emptyTitle="App not found"
       emptyDescription="No SAST scans for this app in the selected workspace."
       icon={CodeIcon}

@@ -33,3 +33,37 @@ func TestUsageWindowsAreRolling(t *testing.T) {
 		t.Fatal("the monthly window must be wider than the weekly one")
 	}
 }
+
+func TestUsageLimitsForPlan(t *testing.T) {
+	tests := []struct {
+		plan string
+		want scanUsageLimits
+	}{
+		{plan: planFree, want: scanUsageLimits{Weekly: 2_500, Monthly: 10_000}},
+		{plan: planPro, want: scanUsageLimits{Weekly: 1_000_000, Monthly: 1_000_000}},
+		{plan: planEnterprise, want: scanUsageLimits{Weekly: 1_000_000, Monthly: 1_000_000}},
+	}
+
+	for _, test := range tests {
+		if got := usageLimitsForPlan(test.plan); got != test.want {
+			t.Fatalf("usageLimitsForPlan(%q) = %+v, want %+v", test.plan, got, test.want)
+		}
+	}
+}
+
+func TestScanUsageLimitErrorAtBoundary(t *testing.T) {
+	limits := usageLimitsForPlan(planFree)
+	if err := scanUsageLimitError(limits.Weekly-1, limits.Monthly-1, limits); err != nil {
+		t.Fatalf("usage below both limits should be accepted: %v", err)
+	}
+
+	weeklyErr := scanUsageLimitError(limits.Weekly, limits.Monthly-1, limits)
+	if weeklyErr == nil || weeklyErr.Error() != "weekly scan limit reached (2,500); upgrade your plan or wait for older scans to leave the usage window" {
+		t.Fatalf("unexpected weekly limit error: %v", weeklyErr)
+	}
+
+	monthlyErr := scanUsageLimitError(0, limits.Monthly, limits)
+	if monthlyErr == nil || monthlyErr.Error() != "monthly scan limit reached (10,000); upgrade your plan or wait for older scans to leave the usage window" {
+		t.Fatalf("unexpected monthly limit error: %v", monthlyErr)
+	}
+}

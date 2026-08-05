@@ -165,7 +165,8 @@ follow `1.0.0-rc1 → 1.0.0-rc2 → ... → 1.0.0`, then regular semver
 - `POST /api/v1/workspaces`
 - `GET /api/v1/api-keys`
 - `POST /api/v1/api-keys`
-- `PATCH /api/v1/api-keys/{id}/revoke`
+- `PATCH /api/v1/api-keys/{id}`
+- `DELETE /api/v1/api-keys/{id}`
 - `POST /api/v1/billing/checkout`
 - `POST /api/v1/billing/portal`
 - `GET /api/v1/billing/status`
@@ -222,6 +223,16 @@ Terraform):
   published.
 
 ### Paid plans and fair use
+
+Scan ingestion uses rolling limits per workspace:
+
+| Plan | Weekly (7 days) | Monthly (30 days) |
+| --- | ---: | ---: |
+| Free | 2,500 | 10,000 |
+| Pro and Enterprise | 1,000,000 | 1,000,000 |
+
+The paid weekly allowance intentionally matches the monthly allowance, so a
+paying workspace may use its entire monthly capacity within one week.
 
 Pro and Enterprise are gated by a cryptographic license: the central engine at
 `https://engine.runtz.dev` signs short-lived certificates that every runtz

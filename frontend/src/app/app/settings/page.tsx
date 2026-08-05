@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import {
+  ActivityIcon,
   ArrowUpRightIcon,
   CopyIcon,
   CreditCardIcon,
@@ -206,8 +207,8 @@ function WorkspacesPanel() {
     <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
       <Card>
         <CardHeader>
-          <CardTitle>Novo workspace</CardTitle>
-          <CardDescription>Crie ambientes para separar resultados.</CardDescription>
+          <CardTitle>New workspace</CardTitle>
+          <CardDescription>Create environments to separate results.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={createWorkspace}>
@@ -228,7 +229,7 @@ function WorkspacesPanel() {
               ) : null}
               <Button type="submit" disabled={pending}>
                 <PlusIcon data-icon="inline-start" />
-                Criar workspace
+                Create workspace
               </Button>
             </FieldGroup>
           </form>
@@ -238,15 +239,15 @@ function WorkspacesPanel() {
       <Card>
         <CardHeader>
           <CardTitle>Workspaces</CardTitle>
-          <CardDescription>{workspaces.length} cadastrados</CardDescription>
+          <CardDescription>{workspaces.length} registered</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
+                <TableHead>Name</TableHead>
                 <TableHead>Slug</TableHead>
-                <TableHead>Criado em</TableHead>
+                <TableHead>Created</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -280,7 +281,7 @@ function SelfHostedWorkspacesLimitPanel() {
           </div>
           <Button variant="outline" onClick={openBillingTab}>
             <PlusIcon data-icon="inline-start" />
-            Criar outro workspace
+            Create another workspace
           </Button>
         </div>
       </CardHeader>
@@ -289,10 +290,10 @@ function SelfHostedWorkspacesLimitPanel() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
+                <TableHead>Name</TableHead>
                 <TableHead>Slug</TableHead>
-                <TableHead>Criado em</TableHead>
-                <TableHead>Plano</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>Plan</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -302,7 +303,7 @@ function SelfHostedWorkspacesLimitPanel() {
                   <TableCell>{workspace.slug}</TableCell>
                   <TableCell>{formatDate(workspace.createdAt)}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">workspace inicial</Badge>
+                    <Badge variant="outline">initial workspace</Badge>
                   </TableCell>
                 </TableRow>
               ))}
@@ -340,9 +341,9 @@ function CloudWorkspacesPanel() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome</TableHead>
+                  <TableHead>Name</TableHead>
                   <TableHead>Slug</TableHead>
-                  <TableHead>Tipo</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -352,7 +353,7 @@ function CloudWorkspacesPanel() {
                     <TableCell className="font-medium">{workspace.name}</TableCell>
                     <TableCell>{workspace.slug}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">workspace inicial</Badge>
+                      <Badge variant="outline">initial workspace</Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end">
@@ -362,7 +363,7 @@ function CloudWorkspacesPanel() {
                           onClick={() => setShareUpgradeOpen(true)}
                         >
                           <Share2Icon data-icon="inline-start" />
-                          Compartilhar workspace
+                          Share workspace
                         </Button>
                       </div>
                     </TableCell>
@@ -607,11 +608,11 @@ function UsersPanel() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <CardTitle>Users</CardTitle>
-              <CardDescription>{users.length} cadastrados</CardDescription>
+              <CardDescription>{users.length} registered</CardDescription>
             </div>
             <Button variant="outline" size="sm" onClick={() => loadUsers()}>
               <RefreshCcwIcon data-icon="inline-start" />
-              Atualizar
+              Refresh
             </Button>
           </div>
         </CardHeader>
@@ -677,7 +678,7 @@ function UsersPanel() {
       <Dialog open={Boolean(inviteLink)} onOpenChange={(open) => !open && setInviteLink("")}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Link de convite</DialogTitle>
+            <DialogTitle>Invitation link</DialogTitle>
             <DialogDescription>
               Link generated for the selected user.
             </DialogDescription>
@@ -705,6 +706,11 @@ type UsageWindow = {
 type UsageResponse = {
   weekly: UsageWindow
   monthly: UsageWindow
+  limits: {
+    weekly: number
+    monthly: number
+  }
+  plan: "free" | "pro" | "enterprise"
   generatedAt: string
 }
 
@@ -739,40 +745,44 @@ function UsagePanel() {
 
   const weekly = usage?.weekly ?? EMPTY_USAGE_WINDOW
   const monthly = usage?.monthly ?? EMPTY_USAGE_WINDOW
-  // Weekly scans are a subset of the monthly ones, so the month is the track.
-  const busiest = Math.max(1, weekly.total, monthly.total)
+  const weeklyLimit = usage?.limits.weekly ?? 0
+  const monthlyLimit = usage?.limits.monthly ?? 0
 
   return (
-    <Card className="relative max-w-xl overflow-hidden">
-      <div aria-hidden="true" className="runtz-dot-map pointer-events-none absolute inset-0 opacity-[0.06]" />
-      <CardHeader className="relative">
+    <Card className="max-w-xl">
+      <CardHeader className="border-b">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <CardTitle>Scans sent</CardTitle>
-            <CardDescription>
-              Counted from the ingested scans of the selected workspace.
-            </CardDescription>
+          <div className="flex items-center gap-2">
+            <ActivityIcon className="size-4 text-primary" />
+            <CardTitle>Scan usage</CardTitle>
+            {usage ? (
+              <Badge variant="secondary">{planLabel(usage.plan)} plan</Badge>
+            ) : null}
           </div>
           <Button variant="outline" size="sm" onClick={loadUsage} disabled={pending}>
             <RefreshCcwIcon data-icon="inline-start" />
-            Atualizar
+            Refresh
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="relative grid gap-3">
+      <CardContent className="grid gap-5 p-4 md:p-5">
         <UsageWindowRow
-          label="Weekly"
+          label="Weekly usage"
           total={weekly.total}
-          busiest={busiest}
+          limit={weeklyLimit}
           loading={pending && !usage}
         />
         <UsageWindowRow
-          label="Monthly"
+          label="Monthly usage"
           total={monthly.total}
-          busiest={busiest}
+          limit={monthlyLimit}
           loading={pending && !usage}
         />
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? (
+          <p className="rounded-lg border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   )
@@ -781,34 +791,51 @@ function UsagePanel() {
 function UsageWindowRow({
   label,
   total,
-  busiest,
+  limit,
   loading,
 }: {
   label: string
   total: number
-  busiest: number
+  limit: number
   loading: boolean
 }) {
-  // Both bars share the same track so the week reads as a slice of the month.
-  const width = Math.round((total / busiest) * 100)
+  const percentage = limit > 0 ? Math.min(100, (total / limit) * 100) : 0
+  const progressColor =
+    percentage >= 100
+      ? "bg-destructive"
+      : percentage >= 80
+        ? "bg-amber-500"
+        : "bg-primary"
 
   return (
-    <div className="grid gap-2 rounded-lg border bg-background/55 p-3 sm:grid-cols-[80px_minmax(0,1fr)_auto] sm:items-center sm:gap-4">
-      <span className="text-sm font-medium">{label}</span>
-      <div
-        className="h-2 overflow-hidden rounded-full bg-muted"
-        role="img"
-        aria-label={`${label}: ${total} scans`}
-      >
-        <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
-      </div>
-      <div className="text-sm sm:justify-self-end">
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium">{label}</p>
         {loading ? (
-          <Skeleton className="h-5 w-10" />
+          <Skeleton className="h-4 w-16" />
         ) : (
-          <span className="font-mono">{total.toLocaleString("pt-BR")}</span>
+          <span className="text-xs font-medium tabular-nums text-muted-foreground">
+            {total}/{limit}
+          </span>
         )}
       </div>
+      {loading ? (
+        <Skeleton className="h-2 w-full rounded-full" />
+      ) : (
+        <div
+          className="h-2 overflow-hidden rounded-full bg-muted"
+          role="progressbar"
+          aria-label={`${label}: ${total} of ${limit} scans used`}
+          aria-valuemin={0}
+          aria-valuemax={limit}
+          aria-valuenow={Math.min(total, limit)}
+        >
+          <div
+            className={`h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none ${progressColor}`}
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -972,7 +999,7 @@ function BillingPanel() {
         ? "enterprise"
         : null
   const renewalText = activeEntitlement.currentPeriodEnd
-    ? `${activeEntitlement.cancelAtPeriodEnd ? "Encerra" : "Renova"} em ${formatDate(activeEntitlement.currentPeriodEnd)}`
+    ? `${activeEntitlement.cancelAtPeriodEnd ? "Ends" : "Renews"} on ${formatDate(activeEntitlement.currentPeriodEnd)}`
     : activeEntitlement.plan === "free"
       ? "No active renewal"
       : "Renewal awaiting confirmation"
@@ -1002,7 +1029,7 @@ function BillingPanel() {
         </CardHeader>
         <CardContent className="relative grid gap-2 px-4 pb-4 pt-0">
           <BillingMetric label="Status" value={statusLabel(activeEntitlement.status)} />
-          <BillingMetric label="Ciclo" value={renewalText} />
+          <BillingMetric label="Billing cycle" value={renewalText} />
           {deploymentMode === "self-hosted" ? (
             <div className="grid gap-2 text-sm">
               <BillingRow
@@ -1036,13 +1063,13 @@ function BillingPanel() {
           {upgradePlan ? (
             <Button className="mt-1 w-full" onClick={() => startCheckout(upgradePlan)} disabled={pending}>
               <ArrowUpRightIcon data-icon="inline-start" />
-              {pending ? "Abrindo checkout..." : `Upgrade to ${planLabel(upgradePlan)}`}
+              {pending ? "Opening checkout..." : `Upgrade to ${planLabel(upgradePlan)}`}
             </Button>
           ) : null}
           {deploymentMode === "cloud" && isPaidPlan ? (
             <Button className="w-full" variant="outline" onClick={openPortal} disabled={pending}>
               <CreditCardIcon data-icon="inline-start" />
-              Gerenciar assinatura
+              Manage subscription
             </Button>
           ) : null}
           {deploymentMode === "self-hosted" ? (
@@ -1133,11 +1160,11 @@ function CloudProfilePanel() {
       <CardContent>
         <FieldGroup>
           <Field>
-            <FieldLabel htmlFor="profile-name">Nome</FieldLabel>
+            <FieldLabel htmlFor="profile-name">Name</FieldLabel>
             <Input id="profile-name" value={name} readOnly />
           </Field>
           <Field>
-            <FieldLabel htmlFor="profile-email">E-mail</FieldLabel>
+            <FieldLabel htmlFor="profile-email">Email</FieldLabel>
             <Input id="profile-email" type="email" value={currentUser.email ?? ""} readOnly />
           </Field>
           <div className="flex items-start gap-3 rounded-lg border bg-muted/35 p-3 text-sm text-muted-foreground">
@@ -1274,7 +1301,7 @@ function planDescription(plan: string, deploymentMode: string) {
 }
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat("pt-BR", {
+  return new Intl.DateTimeFormat("en-US", {
     dateStyle: "short",
     timeStyle: "short",
   }).format(new Date(value))

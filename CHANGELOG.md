@@ -9,6 +9,13 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc10] - 2026-08-05
+
+### Changed
+
+- Standardized all user-facing platform copy and validation messages in
+  English, removing the remaining Portuguese text.
+
 ## [1.0.0-rc9] - 2026-08-05
 
 ### Added
@@ -156,7 +163,8 @@ First public release candidate.
 - The engine refuses to start with empty or placeholder `JWT_SECRET` /
   `RUNTZ_INGEST_TOKEN` values.
 
-[Unreleased]: https://github.com/runtz-dev/runtz/compare/v1.0.0-rc8...HEAD
+[Unreleased]: https://github.com/runtz-dev/runtz/compare/v1.0.0-rc10...HEAD
+[1.0.0-rc10]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc10
 [1.0.0-rc9]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc9
 [1.0.0-rc8]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc8
 [1.0.0-rc5]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc5

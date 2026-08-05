@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import {
+  ActivityIcon,
   ArrowUpRightIcon,
   CopyIcon,
   CreditCardIcon,
@@ -705,6 +706,11 @@ type UsageWindow = {
 type UsageResponse = {
   weekly: UsageWindow
   monthly: UsageWindow
+  limits: {
+    weekly: number
+    monthly: number
+  }
+  plan: "free" | "pro" | "enterprise"
   generatedAt: string
 }
 
@@ -739,40 +745,69 @@ function UsagePanel() {
 
   const weekly = usage?.weekly ?? EMPTY_USAGE_WINDOW
   const monthly = usage?.monthly ?? EMPTY_USAGE_WINDOW
-  // Weekly scans are a subset of the monthly ones, so the month is the track.
-  const busiest = Math.max(1, weekly.total, monthly.total)
+  const weeklyLimit = usage?.limits.weekly ?? 0
+  const monthlyLimit = usage?.limits.monthly ?? 0
+  const scopeDescription =
+    selectedWorkspaceId === "all"
+      ? "Usage across all workspaces you can access."
+      : "Usage for the selected workspace."
 
   return (
-    <Card className="relative max-w-xl overflow-hidden">
-      <div aria-hidden="true" className="runtz-dot-map pointer-events-none absolute inset-0 opacity-[0.06]" />
-      <CardHeader className="relative">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <CardTitle>Scans sent</CardTitle>
-            <CardDescription>
-              Counted from the ingested scans of the selected workspace.
-            </CardDescription>
+    <Card className="relative max-w-3xl overflow-hidden">
+      <div
+        aria-hidden="true"
+        className="runtz-dot-map pointer-events-none absolute inset-0 opacity-[0.045]"
+      />
+      <CardHeader className="relative border-b bg-background/35">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 gap-3">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-background text-primary shadow-sm">
+              <ActivityIcon className="size-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle>Scan usage</CardTitle>
+                {usage ? (
+                  <Badge variant="secondary">{planLabel(usage.plan)} plan</Badge>
+                ) : null}
+              </div>
+              <CardDescription className="mt-1">
+                {scopeDescription} Limits use rolling 7 and 30 day windows.
+              </CardDescription>
+            </div>
           </div>
           <Button variant="outline" size="sm" onClick={loadUsage} disabled={pending}>
             <RefreshCcwIcon data-icon="inline-start" />
-            Atualizar
+            Refresh
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="relative grid gap-3">
+      <CardContent className="relative grid gap-4 p-4 md:p-5">
         <UsageWindowRow
-          label="Weekly"
+          label="Weekly usage"
+          period="Last 7 days"
           total={weekly.total}
-          busiest={busiest}
+          limit={weeklyLimit}
           loading={pending && !usage}
         />
         <UsageWindowRow
-          label="Monthly"
+          label="Monthly usage"
+          period="Last 30 days"
           total={monthly.total}
-          busiest={busiest}
+          limit={monthlyLimit}
           loading={pending && !usage}
         />
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? (
+          <p className="rounded-lg border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+        {usage ? (
+          <p className="text-xs text-muted-foreground">
+            {Math.max(0, monthlyLimit - monthly.total).toLocaleString("en-US")} scans
+            remain in the current monthly window.
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   )
@@ -780,34 +815,57 @@ function UsagePanel() {
 
 function UsageWindowRow({
   label,
+  period,
   total,
-  busiest,
+  limit,
   loading,
 }: {
   label: string
+  period: string
   total: number
-  busiest: number
+  limit: number
   loading: boolean
 }) {
-  // Both bars share the same track so the week reads as a slice of the month.
-  const width = Math.round((total / busiest) * 100)
+  const percentage = limit > 0 ? Math.min(100, (total / limit) * 100) : 0
+  const percentageLabel = Math.round(percentage)
+  const progressColor =
+    percentage >= 100
+      ? "bg-destructive"
+      : percentage >= 80
+        ? "bg-amber-500"
+        : "bg-primary"
 
   return (
-    <div className="grid gap-2 rounded-lg border bg-background/55 p-3 sm:grid-cols-[80px_minmax(0,1fr)_auto] sm:items-center sm:gap-4">
-      <span className="text-sm font-medium">{label}</span>
-      <div
-        className="h-2 overflow-hidden rounded-full bg-muted"
-        role="img"
-        aria-label={`${label}: ${total} scans`}
-      >
-        <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
-      </div>
-      <div className="text-sm sm:justify-self-end">
+    <div className="grid gap-3 rounded-lg border bg-background/70 p-4 shadow-xs">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium">{label}</p>
+          <p className="text-xs text-muted-foreground">{period}</p>
+        </div>
         {loading ? (
-          <Skeleton className="h-5 w-10" />
+          <Skeleton className="h-6 w-28" />
         ) : (
-          <span className="font-mono">{total.toLocaleString("pt-BR")}</span>
+          <div className="text-right">
+            <p className="font-mono text-sm font-medium tabular-nums">
+              {total.toLocaleString("en-US")}
+              <span className="text-muted-foreground"> / {limit.toLocaleString("en-US")}</span>
+            </p>
+            <p className="text-xs text-muted-foreground">{percentageLabel}% used</p>
+          </div>
         )}
+      </div>
+      <div
+        className="h-2.5 overflow-hidden rounded-full bg-muted ring-1 ring-foreground/5"
+        role="progressbar"
+        aria-label={`${label}: ${total} of ${limit} scans used`}
+        aria-valuemin={0}
+        aria-valuemax={limit}
+        aria-valuenow={Math.min(total, limit)}
+      >
+        <div
+          className={`h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none ${progressColor}`}
+          style={{ width: `${percentage}%` }}
+        />
       </div>
     </div>
   )

@@ -103,6 +103,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/workspaces", s.adminOnly(http.HandlerFunc(s.handleCreateWorkspace)))
 	mux.Handle("GET /api/v1/api-keys", s.auth(http.HandlerFunc(s.handleListAPIKeys)))
 	mux.Handle("POST /api/v1/api-keys", s.auth(http.HandlerFunc(s.handleCreateAPIKey)))
+	mux.Handle("PATCH /api/v1/api-keys/{id}", s.auth(http.HandlerFunc(s.handleUpdateAPIKey)))
+	mux.Handle("DELETE /api/v1/api-keys/{id}", s.auth(http.HandlerFunc(s.handleDeleteAPIKey)))
 	mux.Handle("PATCH /api/v1/api-keys/{id}/revoke", s.auth(http.HandlerFunc(s.handleRevokeAPIKey)))
 	mux.HandleFunc("POST /api/v1/billing/checkout", s.handleCreateCheckoutSession)
 	mux.Handle("POST /api/v1/billing/portal", s.auth(http.HandlerFunc(s.handleCreateBillingPortalSession)))
@@ -285,7 +287,7 @@ func (s *Server) withCORS(next http.Handler) http.Handler {
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Runtz-API-Key")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 		}
 
 		if r.Method == http.MethodOptions {

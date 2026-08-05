@@ -9,6 +9,37 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc9] - 2026-08-05
+
+### Added
+
+- Rolling scan allowances per plan, enforced at ingest: Free workspaces get
+  2,500 scans per 7 days and 10,000 per 30 days; Pro and Enterprise get
+  1,000,000 in both windows. **Ingestion returns HTTP 429 once either window is
+  exhausted** — CI that scans above the Free allowance now fails until the
+  window rolls or the workspace upgrades. Playground-generated data does not
+  count towards usage.
+- **Settings → Usage** shows the plan, both windows as progress bars with a
+  `scans/limit` counter, and a refresh action.
+- API keys can be renamed and permanently deleted, from a top-level create flow
+  and a searchable list with an Edit/Delete menu.
+- An "Access host scanning page" link and a "Don't show onboarding again"
+  checkbox in onboarding. Dismissing it persists completion; the page stays
+  reachable by direct URL and from the account menu.
+
+### Fixed
+
+- A host whose scan reported `"vulnerabilities": null` no longer breaks its
+  detail page. macOS/Homebrew scans have no OSV advisory feed, so the CLI sent
+  `null`, the engine stored it verbatim, and the page crashed on
+  `vulnerabilities.length` with "This page couldn't load". Ingest now normalizes
+  `dependencies` and `vulnerabilities` to empty arrays, so every client reads a
+  list instead of guarding each access.
+
+### Removed
+
+- The unused `CVETable` component, which was the one that crashed above.
+
 ## [1.0.0-rc8] - 2026-08-04
 
 Supersedes `1.0.0-rc7`, which was tagged but never produced its own artifacts:
@@ -126,6 +157,7 @@ First public release candidate.
   `RUNTZ_INGEST_TOKEN` values.
 
 [Unreleased]: https://github.com/runtz-dev/runtz/compare/v1.0.0-rc8...HEAD
+[1.0.0-rc9]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc9
 [1.0.0-rc8]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc8
 [1.0.0-rc5]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc5
 [1.0.0-rc1]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc1

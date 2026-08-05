@@ -747,34 +747,17 @@ function UsagePanel() {
   const monthly = usage?.monthly ?? EMPTY_USAGE_WINDOW
   const weeklyLimit = usage?.limits.weekly ?? 0
   const monthlyLimit = usage?.limits.monthly ?? 0
-  const scopeDescription =
-    selectedWorkspaceId === "all"
-      ? "Usage across all workspaces you can access."
-      : "Usage for the selected workspace."
 
   return (
-    <Card className="relative max-w-3xl overflow-hidden">
-      <div
-        aria-hidden="true"
-        className="runtz-dot-map pointer-events-none absolute inset-0 opacity-[0.045]"
-      />
-      <CardHeader className="relative border-b bg-background/35">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex min-w-0 gap-3">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-background text-primary shadow-sm">
-              <ActivityIcon className="size-4" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <CardTitle>Scan usage</CardTitle>
-                {usage ? (
-                  <Badge variant="secondary">{planLabel(usage.plan)} plan</Badge>
-                ) : null}
-              </div>
-              <CardDescription className="mt-1">
-                {scopeDescription} Limits use rolling 7 and 30 day windows.
-              </CardDescription>
-            </div>
+    <Card className="max-w-xl">
+      <CardHeader className="border-b">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <ActivityIcon className="size-4 text-primary" />
+            <CardTitle>Scan usage</CardTitle>
+            {usage ? (
+              <Badge variant="secondary">{planLabel(usage.plan)} plan</Badge>
+            ) : null}
           </div>
           <Button variant="outline" size="sm" onClick={loadUsage} disabled={pending}>
             <RefreshCcwIcon data-icon="inline-start" />
@@ -782,17 +765,15 @@ function UsagePanel() {
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="relative grid gap-4 p-4 md:p-5">
+      <CardContent className="grid gap-5 p-4 md:p-5">
         <UsageWindowRow
           label="Weekly usage"
-          period="Last 7 days"
           total={weekly.total}
           limit={weeklyLimit}
           loading={pending && !usage}
         />
         <UsageWindowRow
           label="Monthly usage"
-          period="Last 30 days"
           total={monthly.total}
           limit={monthlyLimit}
           loading={pending && !usage}
@@ -802,12 +783,6 @@ function UsagePanel() {
             {error}
           </p>
         ) : null}
-        {usage ? (
-          <p className="text-xs text-muted-foreground">
-            {Math.max(0, monthlyLimit - monthly.total).toLocaleString("en-US")} scans
-            remain in the current monthly window.
-          </p>
-        ) : null}
       </CardContent>
     </Card>
   )
@@ -815,19 +790,16 @@ function UsagePanel() {
 
 function UsageWindowRow({
   label,
-  period,
   total,
   limit,
   loading,
 }: {
   label: string
-  period: string
   total: number
   limit: number
   loading: boolean
 }) {
   const percentage = limit > 0 ? Math.min(100, (total / limit) * 100) : 0
-  const percentageLabel = Math.round(percentage)
   const progressColor =
     percentage >= 100
       ? "bg-destructive"
@@ -836,37 +808,25 @@ function UsageWindowRow({
         : "bg-primary"
 
   return (
-    <div className="grid gap-3 rounded-lg border bg-background/70 p-4 shadow-xs">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium">{label}</p>
-          <p className="text-xs text-muted-foreground">{period}</p>
-        </div>
-        {loading ? (
-          <Skeleton className="h-6 w-28" />
-        ) : (
-          <div className="text-right">
-            <p className="font-mono text-sm font-medium tabular-nums">
-              {total.toLocaleString("en-US")}
-              <span className="text-muted-foreground"> / {limit.toLocaleString("en-US")}</span>
-            </p>
-            <p className="text-xs text-muted-foreground">{percentageLabel}% used</p>
-          </div>
-        )}
-      </div>
-      <div
-        className="h-2.5 overflow-hidden rounded-full bg-muted ring-1 ring-foreground/5"
-        role="progressbar"
-        aria-label={`${label}: ${total} of ${limit} scans used`}
-        aria-valuemin={0}
-        aria-valuemax={limit}
-        aria-valuenow={Math.min(total, limit)}
-      >
+    <div className="grid gap-2">
+      <p className="text-sm font-medium">{label}</p>
+      {loading ? (
+        <Skeleton className="h-2 w-full rounded-full" />
+      ) : (
         <div
-          className={`h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none ${progressColor}`}
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
+          className="h-2 overflow-hidden rounded-full bg-muted"
+          role="progressbar"
+          aria-label={`${label}: ${total} of ${limit} scans used`}
+          aria-valuemin={0}
+          aria-valuemax={limit}
+          aria-valuenow={Math.min(total, limit)}
+        >
+          <div
+            className={`h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none ${progressColor}`}
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+      )}
     </div>
   )
 }

@@ -92,6 +92,10 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "workspace not found")
 		return
 	}
+	if workspace.Kind == "playground" {
+		writeError(w, http.StatusBadRequest, "playground workspace cannot issue api keys")
+		return
+	}
 
 	rawKey, prefix, err := generateAPIKey()
 	if err != nil {
@@ -122,6 +126,85 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		"apiKey": serializeAPIKey(apiKey),
 		"key":    rawKey,
 	})
+}
+
+func (s *Server) handleUpdateAPIKey(w http.ResponseWriter, r *http.Request) {
+	user, _ := currentUser(r.Context())
+	apiKeyID, err := bson.ObjectIDFromHex(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid api key id")
+		return
+	}
+	var request struct {
+		Name string `json:"name"`
+	}
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+
+	name := strings.TrimSpace(request.Name)
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	if len(name) > 80 {
+		writeError(w, http.StatusBadRequest, "name must be 80 characters or fewer")
+		return
+	}
+
+	var apiKey APIKey
+	if err := s.apiKeys.FindOne(r.Context(), bson.M{"_id": apiKeyID}).Decode(&apiKey); err != nil {
+		writeError(w, http.StatusNotFound, "api key not found")
+		return
+	}
+	if !s.userCanAccessWorkspace(user, apiKey.WorkspaceID) {
+		writeError(w, http.StatusForbidden, "workspace access required")
+		return
+	}
+
+	result := s.apiKeys.FindOneAndUpdate(
+		r.Context(),
+		bson.M{"_id": apiKey.ID},
+		bson.M{"$set": bson.M{"name": name, "updated_at": time.Now().UTC()}},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	)
+	if err := result.Decode(&apiKey); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update api key")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"apiKey": serializeAPIKey(apiKey)})
+}
+
+func (s *Server) handleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
+	user, _ := currentUser(r.Context())
+	apiKeyID, err := bson.ObjectIDFromHex(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid api key id")
+		return
+	}
+
+	var apiKey APIKey
+	if err := s.apiKeys.FindOne(r.Context(), bson.M{"_id": apiKeyID}).Decode(&apiKey); err != nil {
+		writeError(w, http.StatusNotFound, "api key not found")
+		return
+	}
+	if !s.userCanAccessWorkspace(user, apiKey.WorkspaceID) {
+		writeError(w, http.StatusForbidden, "workspace access required")
+		return
+	}
+
+	result, err := s.apiKeys.DeleteOne(r.Context(), bson.M{"_id": apiKey.ID})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete api key")
+		return
+	}
+	if result.DeletedCount == 0 {
+		writeError(w, http.StatusNotFound, "api key not found")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) handleRevokeAPIKey(w http.ResponseWriter, r *http.Request) {
@@ -170,6 +253,15 @@ func (s *Server) authenticateIngest(w http.ResponseWriter, r *http.Request) (Wor
 	workspace, err := s.workspaceFromAPIKey(r.Context(), apiKeyValue)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid api key")
+		return Workspace{}, false
+	}
+	if err := s.enforceScanUsageLimit(r.Context(), workspace.ID, workspace.CreatedBy); err != nil {
+		var limitError *usageLimitError
+		if errors.As(err, &limitError) {
+			writeError(w, http.StatusTooManyRequests, limitError.Error())
+			return Workspace{}, false
+		}
+		writeError(w, http.StatusInternalServerError, "failed to check scan usage")
 		return Workspace{}, false
 	}
 

@@ -6,6 +6,7 @@ export type Workspace = {
   id: string
   name: string
   slug: string
+  kind?: string
   createdAt: string
   updatedAt: string
 }
@@ -193,7 +194,7 @@ export type ContainerScan = PackageScan & {
 }
 
 type RequestOptions = {
-  method?: "GET" | "POST" | "PATCH"
+  method?: "GET" | "POST" | "PATCH" | "DELETE"
   body?: unknown
 }
 

@@ -16,6 +16,11 @@ const (
 	planPro        = "pro"
 	planEnterprise = "enterprise"
 
+	freeWeeklyScanLimit  int64 = 2_500
+	freeMonthlyScanLimit int64 = 10_000
+	paidWeeklyScanLimit  int64 = 1_000_000
+	paidMonthlyScanLimit int64 = 1_000_000
+
 	hostingCloud      = "cloud"
 	hostingSelfHosted = "self-hosted"
 
@@ -27,6 +32,11 @@ const (
 
 	instanceStateKey = "default"
 )
+
+type scanUsageLimits struct {
+	Weekly  int64 `json:"weekly"`
+	Monthly int64 `json:"monthly"`
+}
 
 type Entitlement struct {
 	Plan              string   `json:"plan"`
@@ -102,6 +112,20 @@ func planRank(plan string) int {
 		return 2
 	default:
 		return 1
+	}
+}
+
+func usageLimitsForPlan(plan string) scanUsageLimits {
+	if planRank(plan) >= planRank(planPro) {
+		return scanUsageLimits{
+			Weekly:  paidWeeklyScanLimit,
+			Monthly: paidMonthlyScanLimit,
+		}
+	}
+
+	return scanUsageLimits{
+		Weekly:  freeWeeklyScanLimit,
+		Monthly: freeMonthlyScanLimit,
 	}
 }
 

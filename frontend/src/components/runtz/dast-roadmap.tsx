@@ -2,14 +2,7 @@ import { ArrowUpRightIcon, ScanLineIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty"
+import { Empty, EmptyContent, EmptyHeader, EmptyMedia } from "@/components/ui/empty"
 
 export default function DastRoadmap() {
   return (
@@ -20,10 +13,6 @@ export default function DastRoadmap() {
             <ScanLineIcon />
           </EmptyMedia>
           <Badge variant="secondary">Coming soon</Badge>
-          <EmptyTitle>DAST is on the roadmap.</EmptyTitle>
-          <EmptyDescription>
-            Development is planned for the phase after runtz 1.0.0.
-          </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
           <a href="/home/roadmap" className={buttonVariants({ size: "lg" })}>

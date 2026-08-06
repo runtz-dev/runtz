@@ -11,4 +11,14 @@ data:
   NEXT_PUBLIC_API_URL: {{ .Values.frontend.env.NEXT_PUBLIC_API_URL | quote }}
   NEXT_PUBLIC_GOOGLE_CLIENT_ID: {{ .Values.frontend.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID | quote }}
   RUNTZ_BACKEND_URL: {{ default (printf "http://%s:%v" (include "runtz.backendName" .) .Values.backend.service.port) .Values.frontend.env.RUNTZ_BACKEND_URL | quote }}
+  {{- /*
+    OpenTelemetry. Rendered only when an endpoint is configured: @vercel/otel
+    registers no exporter without OTEL_EXPORTER_OTLP_ENDPOINT, so a
+    self-hosted install gets no telemetry and no keys it has to reason about.
+  */}}
+  {{- range $key := list "OTEL_EXPORTER_OTLP_ENDPOINT" "OTEL_RESOURCE_ATTRIBUTES" }}
+  {{- with get $.Values.frontend.env $key }}
+  {{ $key }}: {{ . | quote }}
+  {{- end }}
+  {{- end }}
 {{- end }}

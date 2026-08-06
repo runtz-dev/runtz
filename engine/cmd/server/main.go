@@ -13,6 +13,7 @@ import (
 
 	"github.com/runtz-dev/runtz/engine/internal/api"
 	"github.com/runtz-dev/runtz/engine/internal/config"
+	"github.com/runtz-dev/runtz/engine/internal/telemetry"
 	"github.com/runtz-dev/runtz/engine/internal/version"
 )
 
@@ -25,6 +26,27 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// Before api.New: the Mongo client it builds picks up the global tracer
+	// provider at construction time, so the providers have to be installed
+	// first for database spans to land anywhere.
+	shutdownTelemetry, err := telemetry.Setup(ctx, telemetry.Service{
+		Name:    "runtz-engine",
+		Version: version.Version,
+	})
+	if err != nil {
+		slog.Error("failed to start telemetry", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		// Its own context: ctx is already cancelled by the time we get here,
+		// and a cancelled context would drop the final batch of spans.
+		flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdownTelemetry(flushCtx); err != nil {
+			slog.Warn("failed to flush telemetry", "error", err)
+		}
+	}()
 
 	server, err := api.New(ctx, cfg)
 	if err != nil {

@@ -28,6 +28,11 @@ frontend:
     # runtz-engine-config ConfigMap. Nothing environment-specific is baked in.
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: ""
     RUNTZ_BACKEND_URL: "https://engine-dev.runtz.dev"
+    # Traces and metrics go to the in-cluster SigNoz collector. ClusterIP only,
+    # so this is the FQDN — the short name would not resolve from the dev
+    # namespace.
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://signoz-otel-collector.signoz.svc.cluster.local:4318"
+    OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=dev,service.namespace=runtz"
 
 backend:
   image:
@@ -38,6 +43,8 @@ backend:
     RUNTZ_DEPLOYMENT_MODE: cloud
     RUNTZ_PUBLIC_URL: https://runtz-dev.runtz.dev
     CORS_ALLOWED_ORIGINS: https://runtz-dev.runtz.dev
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://signoz-otel-collector.signoz.svc.cluster.local:4318"
+    OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=dev,service.namespace=runtz"
     # GOOGLE_CLIENT_ID, GITHUB_CLIENT_ID and the four STRIPE_PRICE_* ids are
     # deployment config for our cloud only — they come from the
     # runtz-engine-config ConfigMap below (secrets-helm/configmaps-dev.yaml),

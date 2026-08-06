@@ -9,6 +9,7 @@ import {
   CircleIcon,
   CopyIcon,
   KeyRoundIcon,
+  LogInIcon,
   ServerIcon,
   TerminalIcon,
 } from "lucide-react"
@@ -40,10 +41,11 @@ export default function OnboardingPage() {
       ? "https://engine.runtz.dev"
       : "http://localhost:8080"
   const tokenValue = apiKey || "rtz_live_..."
-  const scanCommand =
+  const loginCommand =
     deploymentMode === "cloud"
-      ? `runtz host --token ${tokenValue}`
-      : `runtz host --endpoint ${endpoint} --token ${tokenValue}`
+      ? `runtz login --token ${tokenValue}`
+      : `runtz login --endpoint ${endpoint} --token ${tokenValue}`
+  const scanCommand = "runtz host"
 
   async function createAPIKey() {
     if (!workspace) {
@@ -110,8 +112,8 @@ export default function OnboardingPage() {
           Scan this machine
         </h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Generate a workspace key, install the CLI and let it scan this
-          host&apos;s own OS packages with Runtz.
+          Generate a workspace key, install the CLI, log in once and let it
+          scan this host&apos;s own OS packages with Runtz.
         </p>
       </div>
 
@@ -155,6 +157,20 @@ export default function OnboardingPage() {
                 />
                 <OSBadge />
               </div>
+            </OnboardingStep>
+
+            <OnboardingStep
+              active={Boolean(apiKey)}
+              complete={Boolean(apiKey)}
+              icon={LogInIcon}
+              title="Log in once"
+              description="runtz login verifies the key and stores it locally (~/.config/runtz), so scan commands no longer need --token. In CI/CD, keep passing the key from a secret instead."
+            >
+              <CommandLine
+                value={loginCommand}
+                copied={copied === "login"}
+                onCopy={() => copy(loginCommand, "login")}
+              />
             </OnboardingStep>
 
             <OnboardingStep

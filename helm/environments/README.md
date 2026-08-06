@@ -128,12 +128,12 @@ whole Ingress's DNS record.
 ## The MongoDB volume size is nominal here
 
 `mongodb.persistence.size` in both overlays matches what is already provisioned
-(dev 5Gi, prod 10Gi) and should stay that way. Two reasons:
+(dev 20Gi, prod 500Gi) and should stay that way. Two reasons:
 
-1. **It is not a limit.** `openebs-ssd` is OpenEBS LocalPV in hostpath mode —
+1. **It is not a limit.** `openebs-ssd-wd` is OpenEBS LocalPV in hostpath mode —
    the volume is a directory on the node's disk (`/data/ssd-wd/...`) with no
-   quota. Both MongoDBs already see the full 938G disk with ~890G free, so
-   asking for 500Gi would not give them a byte more than they have.
+   quota. Both MongoDBs already see the full 938G disk with ~890G free, so the
+   difference between the two numbers buys neither of them a byte.
 2. **Changing it breaks the deploy.** The value lands in the StatefulSet's
    `volumeClaimTemplates`, which Kubernetes treats as immutable, so
    `helm upgrade` fails with `Forbidden: updates to statefulset spec for fields

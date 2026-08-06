@@ -9,6 +9,33 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc11] - 2026-08-06
+
+### Added
+
+- OpenTelemetry instrumentation for the engine and the frontend. Traces and
+  metrics are exported over OTLP/HTTP and are off unless
+  `OTEL_EXPORTER_OTLP_ENDPOINT` is set, so self-hosted deployments are
+  unaffected by default. `OTEL_SDK_DISABLED=true` turns the SDK off outright.
+- MongoDB command tracing in the engine, so database calls appear as spans on
+  the request they belong to.
+- Trace context propagation from the frontend to the engine: a browser request
+  and the engine work it triggers now land in the same trace.
+
+### Changed
+
+- The DAST coming-soon card links to the roadmap and its copy was simplified.
+- Bumped `mongo-driver` to v2.8.0.
+
+### Fixed
+
+- The `mongodb.persistence` overlays pointed at the `openebs-ssd` StorageClass,
+  which no longer exists, with sizes that no longer matched the provisioned
+  volumes. Because `volumeClaimTemplates` is immutable, every `helm upgrade`
+  failed with `Forbidden: updates to statefulset spec ... are forbidden`. Both
+  overlays now match what is provisioned (dev 20Gi, prod 500Gi on
+  `openebs-ssd-wd`).
+
 ## [1.0.0-rc10] - 2026-08-05
 
 ### Changed
@@ -163,7 +190,8 @@ First public release candidate.
 - The engine refuses to start with empty or placeholder `JWT_SECRET` /
   `RUNTZ_INGEST_TOKEN` values.
 
-[Unreleased]: https://github.com/runtz-dev/runtz/compare/v1.0.0-rc10...HEAD
+[Unreleased]: https://github.com/runtz-dev/runtz/compare/v1.0.0-rc11...HEAD
+[1.0.0-rc11]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc11
 [1.0.0-rc10]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc10
 [1.0.0-rc9]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc9
 [1.0.0-rc8]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc8

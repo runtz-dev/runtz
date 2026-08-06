@@ -14,10 +14,14 @@ import (
 	"time"
 
 	"github.com/runtz-dev/runtz/engine/internal/config"
+	"github.com/runtz-dev/runtz/engine/internal/telemetry"
 	"github.com/runtz-dev/runtz/engine/internal/version"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -45,7 +49,11 @@ type contextKey string
 const currentUserKey contextKey = "currentUser"
 
 func New(ctx context.Context, cfg config.Config) (*Server, error) {
-	client, err := mongo.Connect(options.Client().ApplyURI(cfg.MongoURI))
+	client, err := mongo.Connect(
+		options.Client().
+			ApplyURI(cfg.MongoURI).
+			SetMonitor(telemetry.NewMongoMonitor()),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("connect mongo: %w", err)
 	}
@@ -139,7 +147,44 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/scans/k8s", s.auth(http.HandlerFunc(s.handleListK8sScans)))
 	mux.Handle("GET /api/v1/scans/k8s/{id}", s.auth(http.HandlerFunc(s.handleGetK8sScan)))
 
-	return s.withCORS(mux)
+	// otelhttp goes outermost so a span exists before anything else runs,
+	// including the CORS preflight short-circuit. withRoutePattern sits
+	// underneath it to give that span a route-shaped name.
+	return otelhttp.NewHandler(
+		s.withCORS(withRoutePattern(mux)),
+		"runtz-engine",
+		otelhttp.WithFilter(func(r *http.Request) bool {
+			// The kubelet hits /health on both probes every few seconds.
+			// Tracing that says nothing and drowns out real traffic.
+			return r.URL.Path != "/health"
+		}),
+	)
+}
+
+// withRoutePattern renames the request span after the ServeMux pattern that
+// will handle it — "GET /api/v1/scans/sca/{id}" rather than the raw path — so
+// traces group by endpoint instead of exploding into one name per scan id.
+//
+// It has to resolve the route itself: Go's ServeMux only fills Request.Pattern
+// on the request it passes to the matched handler, which the middleware
+// wrapping the mux never sees. Handler runs the same trie lookup ServeHTTP is
+// about to run, so this costs one extra match per request and no allocation.
+func withRoutePattern(mux *http.ServeMux) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, pattern := mux.Handler(r); pattern != "" {
+			span := trace.SpanFromContext(r.Context())
+			span.SetName(pattern)
+			span.SetAttributes(semconv.HTTPRoute(pattern))
+
+			// The labeler feeds otelhttp's duration histogram, which would
+			// otherwise carry no route at all.
+			if labeler, ok := otelhttp.LabelerFromContext(r.Context()); ok {
+				labeler.Add(semconv.HTTPRoute(pattern))
+			}
+		}
+
+		mux.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) ensureIndexes(ctx context.Context) error {

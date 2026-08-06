@@ -45,6 +45,14 @@ frontend:
     # Frontend server-side proxy target. Defaults to the in-cluster engine
     # service when empty.
     RUNTZ_BACKEND_URL: ""
+    # OpenTelemetry, off by default. Point this at an OTLP/HTTP collector to
+    # get traces out of the Next.js server, including the /api proxy hop into
+    # the engine, e.g.
+    #   http://signoz-otel-collector.signoz.svc.cluster.local:4318
+    OTEL_EXPORTER_OTLP_ENDPOINT: ""
+    # Extra resource attributes on every span, as key=value pairs, e.g.
+    #   deployment.environment=prod,service.namespace=runtz
+    OTEL_RESOURCE_ATTRIBUTES: ""
   extraEnv: []
   podAnnotations: {}
   podLabels: {}
@@ -93,6 +101,14 @@ backend:
     STRIPE_PRICE_ENTERPRISE_CLOUD: ""
     STRIPE_PRICE_PRO_SELF_HOSTED: ""
     STRIPE_PRICE_ENTERPRISE_SELF_HOSTED: ""
+    # OpenTelemetry, off by default. Point this at an OTLP/HTTP collector to
+    # get traces (HTTP routes and MongoDB commands) and metrics out of the
+    # engine, e.g.
+    #   http://signoz-otel-collector.signoz.svc.cluster.local:4318
+    OTEL_EXPORTER_OTLP_ENDPOINT: ""
+    # Extra resource attributes on every span and metric, as key=value pairs,
+    # e.g. deployment.environment=prod,service.namespace=runtz
+    OTEL_RESOURCE_ATTRIBUTES: ""
   # Name of a ConfigMap that already exists in the release namespace with extra
   # non-secret engine environment variables (same keys as backend.env). It is
   # layered after the chart's own ConfigMap, so its keys win. Used by the runtz

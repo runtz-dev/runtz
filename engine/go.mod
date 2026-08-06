@@ -3,7 +3,7 @@ module github.com/runtz-dev/runtz/engine
 go 1.25.0
 
 require (
-	go.mongodb.org/mongo-driver/v2 v2.6.0
+	go.mongodb.org/mongo-driver/v2 v2.8.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0
 	go.opentelemetry.io/contrib/instrumentation/runtime v0.70.0
 	go.opentelemetry.io/otel v1.45.0

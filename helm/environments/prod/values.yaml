@@ -30,6 +30,11 @@ frontend:
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: ""
     # Frontend server-side proxy target.
     RUNTZ_BACKEND_URL: "https://engine.runtz.dev"
+    # Traces and metrics go to the in-cluster SigNoz collector. ClusterIP only,
+    # so this is the FQDN — the short name would not resolve from the prod
+    # namespace.
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://signoz-otel-collector.signoz.svc.cluster.local:4318"
+    OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=prod,service.namespace=runtz"
 
 backend:
   image:
@@ -41,6 +46,8 @@ backend:
     RUNTZ_DEPLOYMENT_MODE: cloud
     RUNTZ_PUBLIC_URL: https://runtz.dev
     CORS_ALLOWED_ORIGINS: https://runtz.dev
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://signoz-otel-collector.signoz.svc.cluster.local:4318"
+    OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=prod,service.namespace=runtz"
     # GOOGLE_CLIENT_ID, GITHUB_CLIENT_ID and the four STRIPE_PRICE_* ids are
     # deployment config for our cloud only — they come from the
     # runtz-engine-config ConfigMap below (secrets-helm/configmaps-prod.yaml),
@@ -55,15 +62,16 @@ backend:
 
 mongodb:
   persistence:
-    storageClassName: openebs-ssd
-    # openebs-ssd is OpenEBS LocalPV (hostpath): the volume is a directory on the
-    # node disk with no quota, so this number is nominal — MongoDB can already
-    # grow into the whole 938G disk. The StorageClass has allowVolumeExpansion
-    # unset and volumeClaimTemplates are immutable, so changing it fails the
-    # upgrade with "updates to statefulset spec ... are forbidden" and the only
-    # way to make it match is recreating the volume. Keep it at the provisioned
-    # value — see helm/environments/README.md.
-    size: 10Gi
+    storageClassName: openebs-ssd-wd
+    # openebs-ssd-wd is OpenEBS LocalPV (hostpath, BasePath /data/ssd-wd): the
+    # volume is a directory on the node disk with no quota, so this number is
+    # nominal — MongoDB can already grow into the whole 938G disk. The
+    # StorageClass has allowVolumeExpansion unset and volumeClaimTemplates are
+    # immutable, so changing it fails the upgrade with "updates to statefulset
+    # spec ... are forbidden" and the only way to make it match is recreating
+    # the volume. Keep it at the provisioned value — see
+    # helm/environments/README.md.
+    size: 500Gi
 
 # Routing is NOT part of this release. The hostnames and the cloudflare-tunnel
 # ingress class are specific to our cluster, so the Ingress objects live in the

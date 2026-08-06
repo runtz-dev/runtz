@@ -112,7 +112,12 @@ const FREE_SELF_HOSTED_ENTITLEMENT: Entitlement = {
 const buildCodeItems = (basePath: string): NavItem[] => [
   { label: "SCA", href: `${basePath}/sca`, icon: BoxesIcon },
   { label: "SAST", href: `${basePath}/sast`, icon: CodeIcon },
-  { label: "DAST", icon: ScanLineIcon, comingSoon: true },
+  {
+    label: "DAST",
+    href: `${basePath}/dast`,
+    icon: ScanLineIcon,
+    comingSoon: true,
+  },
 ]
 
 const buildHostItems = (basePath: string): NavItem[] => [

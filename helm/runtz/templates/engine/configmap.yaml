@@ -24,4 +24,14 @@ data:
   {{ $key }}: {{ . | quote }}
   {{- end }}
   {{- end }}
+  {{- /*
+    OpenTelemetry. Rendered only when an endpoint is configured: the engine
+    treats an unset OTEL_EXPORTER_OTLP_ENDPOINT as "telemetry off", so a
+    self-hosted install gets no exporter and no keys it has to reason about.
+  */}}
+  {{- range $key := list "OTEL_EXPORTER_OTLP_ENDPOINT" "OTEL_RESOURCE_ATTRIBUTES" }}
+  {{- with get $.Values.backend.env $key }}
+  {{ $key }}: {{ . | quote }}
+  {{- end }}
+  {{- end }}
 {{- end }}

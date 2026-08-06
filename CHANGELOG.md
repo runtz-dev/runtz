@@ -9,6 +9,21 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc12] - 2026-08-06
+
+### Added
+
+- `GET /api/v1/keys/verify`: the CLI's new `runtz login` verifies a workspace
+  key before storing it locally. Authenticates exactly like ingest (active-key
+  lookup, constant-time hash compare, `ingest:write` scope) without counting
+  scan usage, and returns only the workspace id/name and the key's name,
+  prefix and expiry.
+
+### Changed
+
+- Onboarding now teaches the login-once flow: generate key, install the CLI,
+  `runtz login`, then scan with plain `runtz host`.
+
 ## [1.0.0-rc11] - 2026-08-06
 
 ### Added
@@ -190,7 +205,8 @@ First public release candidate.
 - The engine refuses to start with empty or placeholder `JWT_SECRET` /
   `RUNTZ_INGEST_TOKEN` values.
 
-[Unreleased]: https://github.com/runtz-dev/runtz/compare/v1.0.0-rc11...HEAD
+[Unreleased]: https://github.com/runtz-dev/runtz/compare/v1.0.0-rc12...HEAD
+[1.0.0-rc12]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc12
 [1.0.0-rc11]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc11
 [1.0.0-rc10]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc10
 [1.0.0-rc9]: https://github.com/runtz-dev/runtz/releases/tag/v1.0.0-rc9

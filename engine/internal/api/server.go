@@ -128,6 +128,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/users", s.adminOnly(http.HandlerFunc(s.handleCreateUser)))
 	mux.Handle("PATCH /api/v1/users/{id}", s.adminOnly(http.HandlerFunc(s.handleUpdateUser)))
 	mux.Handle("POST /api/v1/users/{id}/invite", s.adminOnly(http.HandlerFunc(s.handleCreateInvite)))
+	mux.HandleFunc("GET /api/v1/keys/verify", s.handleVerifyKey)
 	mux.HandleFunc("POST /api/v1/ingest/sca", s.handleIngestSCA)
 	mux.HandleFunc("POST /api/v1/ingest/sast", s.handleIngestSAST)
 	mux.HandleFunc("POST /api/v1/ingest/host", s.handleIngestHost)

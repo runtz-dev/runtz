@@ -250,7 +250,7 @@ func (s *Server) authenticateIngest(w http.ResponseWriter, r *http.Request) (Wor
 		return Workspace{}, false
 	}
 
-	workspace, err := s.workspaceFromAPIKey(r.Context(), apiKeyValue)
+	workspace, _, err := s.workspaceFromAPIKey(r.Context(), apiKeyValue)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid api key")
 		return Workspace{}, false
@@ -268,28 +268,28 @@ func (s *Server) authenticateIngest(w http.ResponseWriter, r *http.Request) (Wor
 	return workspace, true
 }
 
-func (s *Server) workspaceFromAPIKey(ctx context.Context, rawKey string) (Workspace, error) {
+func (s *Server) workspaceFromAPIKey(ctx context.Context, rawKey string) (Workspace, APIKey, error) {
 	prefix, ok := extractAPIKeyPrefix(rawKey)
 	if !ok {
-		return Workspace{}, errors.New("invalid api key format")
+		return Workspace{}, APIKey{}, errors.New("invalid api key format")
 	}
 
 	var apiKey APIKey
 	if err := s.apiKeys.FindOne(ctx, activeAPIKeyFilterWithPrefix(prefix)).Decode(&apiKey); err != nil {
-		return Workspace{}, err
+		return Workspace{}, APIKey{}, err
 	}
 
 	keyHash := hashAPIKey(rawKey)
 	if subtle.ConstantTimeCompare([]byte(keyHash), []byte(apiKey.KeyHash)) != 1 {
-		return Workspace{}, errors.New("api key hash mismatch")
+		return Workspace{}, APIKey{}, errors.New("api key hash mismatch")
 	}
 	if !apiKeyAllowsScope(apiKey, "ingest:write") {
-		return Workspace{}, errors.New("api key scope denied")
+		return Workspace{}, APIKey{}, errors.New("api key scope denied")
 	}
 
 	var workspace Workspace
 	if err := s.workspaces.FindOne(ctx, bson.M{"_id": apiKey.WorkspaceID}).Decode(&workspace); err != nil {
-		return Workspace{}, err
+		return Workspace{}, APIKey{}, err
 	}
 
 	now := time.Now().UTC()
@@ -297,7 +297,47 @@ func (s *Server) workspaceFromAPIKey(ctx context.Context, rawKey string) (Worksp
 		"$set": bson.M{"last_used_at": now, "updated_at": now},
 	})
 
-	return workspace, nil
+	return workspace, apiKey, nil
+}
+
+// handleVerifyKey lets `runtz login` check a token before storing it locally.
+// It authenticates exactly like ingest (same active-key lookup, hash compare
+// and ingest:write scope) but counts no scan usage, and answers with the
+// workspace the key unlocks so the CLI can greet the user.
+func (s *Server) handleVerifyKey(w http.ResponseWriter, r *http.Request) {
+	apiKeyValue := apiKeyFromRequest(r)
+	if apiKeyValue == "" {
+		writeError(w, http.StatusUnauthorized, "api key required")
+		return
+	}
+
+	workspace, apiKey, err := s.workspaceFromAPIKey(r.Context(), apiKeyValue)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid api key")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, verifyKeyResponse(workspace, apiKey))
+}
+
+// verifyKeyResponse deliberately exposes less than serializeAPIKey: a scan
+// token entitles its holder to know where it lands and when it dies, not the
+// workspace's internal ids (creator, scopes, key id).
+func verifyKeyResponse(workspace Workspace, apiKey APIKey) map[string]any {
+	key := map[string]any{
+		"name":   apiKey.Name,
+		"prefix": apiKey.Prefix,
+	}
+	if apiKey.ExpiresAt != nil {
+		key["expiresAt"] = apiKey.ExpiresAt.UTC().Format(time.RFC3339)
+	}
+	return map[string]any{
+		"workspace": map[string]any{
+			"id":   workspace.ID.Hex(),
+			"name": workspace.Name,
+		},
+		"apiKey": key,
+	}
 }
 
 // globalDataScope reports whether user may read data outside the workspaces

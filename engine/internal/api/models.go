@@ -153,13 +153,25 @@ type Finding struct {
 }
 
 type ScanSummary struct {
-	TotalDependencies int `bson:"total_dependencies" json:"totalDependencies"`
-	Vulnerabilities   int `bson:"vulnerabilities" json:"vulnerabilities"`
-	Critical          int `bson:"critical" json:"critical"`
-	High              int `bson:"high" json:"high"`
-	Medium            int `bson:"medium" json:"medium"`
-	Low               int `bson:"low" json:"low"`
-	Unknown           int `bson:"unknown" json:"unknown"`
+	TotalDependencies int                 `bson:"total_dependencies" json:"totalDependencies"`
+	Vulnerabilities   int                 `bson:"vulnerabilities" json:"vulnerabilities"`
+	Critical          int                 `bson:"critical" json:"critical"`
+	High              int                 `bson:"high" json:"high"`
+	Medium            int                 `bson:"medium" json:"medium"`
+	Low               int                 `bson:"low" json:"low"`
+	Unknown           int                 `bson:"unknown" json:"unknown"`
+	WithFix           VulnerabilityCounts `bson:"with_fix,omitempty" json:"withFix"`
+	WithoutFix        VulnerabilityCounts `bson:"without_fix,omitempty" json:"withoutFix"`
+	FixStatusComputed bool                `bson:"fix_status_computed,omitempty" json:"fixStatusComputed"`
+}
+
+type VulnerabilityCounts struct {
+	Vulnerabilities int `bson:"vulnerabilities" json:"vulnerabilities"`
+	Critical        int `bson:"critical" json:"critical"`
+	High            int `bson:"high" json:"high"`
+	Medium          int `bson:"medium" json:"medium"`
+	Low             int `bson:"low" json:"low"`
+	Unknown         int `bson:"unknown" json:"unknown"`
 }
 
 type Scan struct {

@@ -32,6 +32,7 @@ Implemented:
 - Workspaces, users and profile settings.
 - Workspace-scoped API keys for CLI ingestion.
 - SCA scan ingestion and SCA dashboard.
+- CVE fix-availability filters across dashboards and package vulnerability results.
 - Go CLI for npm `package.json` SCA using GitHub Global Security Advisories.
 - SAST finding ingestion and dashboard.
 - Host package scan ingestion and dashboard for dpkg-based systems.
@@ -196,7 +197,8 @@ follow `1.0.0-rc1 → 1.0.0-rc2 → ... → 1.0.0`, then regular semver
 - `GET /api/v1/scans/k8s/{id}`
 
 Scan collection endpoints return lightweight metadata and the precomputed
-summary for dashboards. Use the corresponding `/{id}` endpoint when the full
+summary for dashboards, including CVE counts split by whether a patched version
+is available. Use the corresponding `/{id}` endpoint when the full
 dependencies, packages, vulnerabilities or findings payload is needed. Detail
 views may request `/{id}?view=results` to receive only the finding/CVE result
 array without the scanned inventory.

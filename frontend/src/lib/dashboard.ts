@@ -1,6 +1,16 @@
-import type { ScanSummary } from "@/lib/api"
+import type { ScanSummary, VulnerabilityCounts } from "@/lib/api"
+
+export type CVEFixFilter = "all" | "with-fix" | "without-fix"
 
 export type TrendScan = {
+  id?: string
+  type?: string
+  workspaceId?: string
+  projectName?: string
+  targetName?: string
+  hostname?: string
+  imageName?: string
+  imageRef?: string
   createdAt: string
   summary: ScanSummary
 }
@@ -28,4 +38,31 @@ export function aggregateSummaries(summaries: ScanSummary[]): ScanSummary {
     total.unknown += summary.unknown
     return total
   }, emptyScanSummary())
+}
+
+export function filterScanSummary(
+  summary: ScanSummary,
+  filter: CVEFixFilter
+): ScanSummary {
+  if (filter === "all") {
+    return summary
+  }
+
+  const counts = filter === "with-fix" ? summary.withFix : summary.withoutFix
+  return summaryFromCounts(summary.totalDependencies, counts)
+}
+
+function summaryFromCounts(
+  totalDependencies: number,
+  counts?: VulnerabilityCounts
+): ScanSummary {
+  return {
+    totalDependencies,
+    vulnerabilities: counts?.vulnerabilities ?? 0,
+    critical: counts?.critical ?? 0,
+    high: counts?.high ?? 0,
+    medium: counts?.medium ?? 0,
+    low: counts?.low ?? 0,
+    unknown: counts?.unknown ?? 0,
+  }
 }

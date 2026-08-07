@@ -1,4 +1,5 @@
 import type { SCAScan, ScanSummary } from "@/lib/api"
+import { filterScanSummary, type CVEFixFilter } from "@/lib/dashboard"
 
 export type SeverityKey = "critical" | "high" | "medium" | "low" | "unknown"
 
@@ -68,10 +69,13 @@ export function filterScansByProject(scans: SCAScan[], projectName: string) {
   )
 }
 
-export function summarizeProjects(projects: SCAProject[]): SCAOverviewTotals {
+export function summarizeProjects(
+  projects: SCAProject[],
+  filter: CVEFixFilter = "all"
+): SCAOverviewTotals {
   return projects.reduce(
     (acc, project) => {
-      const summary = project.latestScan.summary
+      const summary = filterScanSummary(project.latestScan.summary, filter)
       acc.scans += project.scans.length
       acc.dependencies += summary.totalDependencies
       acc.vulnerabilities += summary.vulnerabilities

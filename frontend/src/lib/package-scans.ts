@@ -1,4 +1,5 @@
 import type { PackageScan, ScanSummary } from "@/lib/api"
+import { filterScanSummary, type CVEFixFilter } from "@/lib/dashboard"
 import { SEVERITY_KEYS, countSeverity, sortScansDesc, type SeverityKey } from "@/lib/sca"
 
 export type PackageScanTarget<TScan extends PackageScan = PackageScan> = {
@@ -65,11 +66,12 @@ export function filterPackageScansByTarget<TScan extends PackageScan>(
 }
 
 export function summarizePackageTargets(
-  targets: PackageScanTarget[]
+  targets: PackageScanTarget[],
+  filter: CVEFixFilter = "all"
 ): PackageScanTotals {
   return targets.reduce(
     (acc, target) => {
-      const summary = target.latestScan.summary
+      const summary = filterScanSummary(target.latestScan.summary, filter)
       acc.scans += target.scans.length
       acc.packages += summary.totalDependencies
       acc.vulnerabilities += summary.vulnerabilities

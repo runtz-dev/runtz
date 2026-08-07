@@ -81,6 +81,9 @@ func New(ctx context.Context, cfg config.Config) (*Server, error) {
 	if err := server.ensureIndexes(ctx); err != nil {
 		return nil, err
 	}
+	if err := server.backfillVulnerabilityFixSummaries(ctx); err != nil {
+		return nil, err
+	}
 
 	server.startLicenseHeartbeat(ctx)
 
@@ -1253,21 +1256,11 @@ func buildSummary(dependencies []Dependency, vulnerabilities []Vulnerability) Sc
 	summary := ScanSummary{
 		TotalDependencies: len(dependencies),
 		Vulnerabilities:   len(vulnerabilities),
+		FixStatusComputed: true,
 	}
 
 	for _, vulnerability := range vulnerabilities {
-		switch strings.ToLower(vulnerability.Severity) {
-		case "critical":
-			summary.Critical++
-		case "high":
-			summary.High++
-		case "medium":
-			summary.Medium++
-		case "low":
-			summary.Low++
-		default:
-			summary.Unknown++
-		}
+		addVulnerabilityToSummary(&summary, vulnerability)
 	}
 
 	return summary
@@ -1277,24 +1270,40 @@ func buildPackageSummary(packages []Package, vulnerabilities []Vulnerability) Sc
 	summary := ScanSummary{
 		TotalDependencies: len(packages),
 		Vulnerabilities:   len(vulnerabilities),
+		FixStatusComputed: true,
 	}
 
 	for _, vulnerability := range vulnerabilities {
-		switch strings.ToLower(vulnerability.Severity) {
-		case "critical":
-			summary.Critical++
-		case "high":
-			summary.High++
-		case "medium":
-			summary.Medium++
-		case "low":
-			summary.Low++
-		default:
-			summary.Unknown++
-		}
+		addVulnerabilityToSummary(&summary, vulnerability)
 	}
 
 	return summary
+}
+
+func addVulnerabilityToSummary(summary *ScanSummary, vulnerability Vulnerability) {
+	counts := &summary.WithoutFix
+	if strings.TrimSpace(vulnerability.FirstPatchedVersion) != "" {
+		counts = &summary.WithFix
+	}
+
+	counts.Vulnerabilities++
+	switch strings.ToLower(strings.TrimSpace(vulnerability.Severity)) {
+	case "critical":
+		summary.Critical++
+		counts.Critical++
+	case "high":
+		summary.High++
+		counts.High++
+	case "medium":
+		summary.Medium++
+		counts.Medium++
+	case "low":
+		summary.Low++
+		counts.Low++
+	default:
+		summary.Unknown++
+		counts.Unknown++
+	}
 }
 
 func buildFindingSummary(totalScanned int, findings []Finding) ScanSummary {

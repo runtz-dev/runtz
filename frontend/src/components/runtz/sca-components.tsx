@@ -4,8 +4,11 @@ import * as React from "react"
 import {
   ActivityIcon,
   ChartSplineIcon,
+  MinusIcon,
   PackageIcon,
   ShieldAlertIcon,
+  TrendingDownIcon,
+  TrendingUpIcon,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -24,6 +27,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useVulnerabilityFilter } from "@/components/runtz/vulnerability-filter"
 import {
   Tooltip,
   TooltipContent,
@@ -31,7 +35,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import type { ScanSummary } from "@/lib/api"
-import type { TrendScan } from "@/lib/dashboard"
+import {
+  aggregateSummaries,
+  filterScanSummary,
+  type CVEFixFilter,
+  type TrendScan,
+} from "@/lib/dashboard"
 import {
   countSeverity,
   formatDate,
@@ -254,19 +263,34 @@ const TREND_SERIES = [
 // Render order bottom to top so critical is the topmost visual layer.
 const STACK_ORDER = ["unknown", "low", "medium", "high", "critical"] as const
 
-export function VulnerabilityTrendChart({ scans }: { scans: TrendScan[] }) {
+export function VulnerabilityTrendChart({
+  scans,
+  filter = "all",
+}: {
+  scans: TrendScan[]
+  filter?: CVEFixFilter
+}) {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(22rem,2fr)]">
-      <VulnerabilityChart scans={scans} />
+      <VulnerabilityChart scans={scans} filter={filter} />
       <DailyScansChart scans={scans} />
     </div>
   )
 }
 
-function VulnerabilityChart({ scans }: { scans: TrendScan[] }) {
+function VulnerabilityChart({
+  scans,
+  filter,
+}: {
+  scans: TrendScan[]
+  filter: CVEFixFilter
+}) {
   const [period, setPeriod] = React.useState<TrendPeriod>(30)
   const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null)
-  const chart = React.useMemo(() => buildTrendChart(scans, period), [period, scans])
+  const chart = React.useMemo(
+    () => buildTrendChart(scans, period, filter),
+    [filter, period, scans]
+  )
   const hoveredDay = hoveredIndex === null ? null : chart.days[hoveredIndex]
 
   return (
@@ -279,7 +303,7 @@ function VulnerabilityChart({ scans }: { scans: TrendScan[] }) {
               Vulnerability trend
             </CardTitle>
             <CardDescription>
-              Severities found in scans received each day.
+              Latest known severity state per asset each day.
             </CardDescription>
           </div>
           <TrendPeriodSelector
@@ -620,7 +644,11 @@ function TrendPeriodSelector({
   )
 }
 
-function buildTrendChart(scans: TrendScan[], period: TrendPeriod) {
+function buildTrendChart(
+  scans: TrendScan[],
+  period: TrendPeriod,
+  filter: CVEFixFilter
+) {
   const width = 862
   const height = 270
   const left = 42
@@ -642,29 +670,37 @@ function buildTrendChart(scans: TrendScan[], period: TrendPeriod) {
       unknown: 0,
     }
   })
-  const byDay = new Map(days.map((day) => [day.key, day]))
+  const orderedScans = scans
+    .map((scan, index) => ({
+      scan,
+      index,
+      timestamp: new Date(scan.createdAt).getTime(),
+    }))
+    .filter(({ timestamp }) => Number.isFinite(timestamp))
+    .sort((left, right) => left.timestamp - right.timestamp)
+  const latestByAsset = new Map<string, ScanSummary>()
+  let scanIndex = 0
 
-  for (const scan of scans) {
-    const day = byDay.get(dayKey(new Date(scan.createdAt)))
-    if (!day) {
-      continue
-    }
-    day.scans += 1
-    for (const series of TREND_SERIES) {
-      day[series.key] += scan.summary[series.key]
-    }
-  }
-
-  // Forward-fill: days with no scan carry the last known vulnerability state.
-  // This shows "the vulnerability debt is still there even if we didn't scan today."
-  const lastSeen: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 }
-  let seenAny = false
   for (const day of days) {
-    if (day.scans > 0) {
-      seenAny = true
-      for (const s of TREND_SERIES) lastSeen[s.key] = day[s.key]
-    } else if (seenAny) {
-      for (const s of TREND_SERIES) day[s.key] = lastSeen[s.key]
+    const nextDay = new Date(day.date)
+    nextDay.setDate(nextDay.getDate() + 1)
+
+    while (
+      scanIndex < orderedScans.length &&
+      orderedScans[scanIndex].timestamp < nextDay.getTime()
+    ) {
+      const current = orderedScans[scanIndex]
+      latestByAsset.set(
+        trendAssetKey(current.scan, current.index),
+        filterScanSummary(current.scan.summary, filter)
+      )
+      scanIndex++
+    }
+
+    const summary = aggregateSummaries(Array.from(latestByAsset.values()))
+    day.scans = latestByAsset.size
+    for (const series of TREND_SERIES) {
+      day[series.key] = summary[series.key]
     }
   }
 
@@ -743,6 +779,23 @@ function buildTrendChart(scans: TrendScan[], period: TrendPeriod) {
       }))
       .filter((_, index) => index % Math.max(1, Math.floor(period / 6)) === 0),
   }
+}
+
+function trendAssetKey(scan: TrendScan, index: number) {
+  const targetName =
+    scan.hostname?.trim() ||
+    scan.imageName?.trim() ||
+    scan.targetName?.trim() ||
+    scan.imageRef?.trim() ||
+    scan.projectName?.trim()
+
+  if (targetName) {
+    return [scan.type || "scan", scan.workspaceId || "workspace", targetName].join(
+      ":"
+    )
+  }
+
+  return scan.id || `scan-${index}`
 }
 
 function buildDailyScansChart(scans: TrendScan[], period: TrendPeriod) {
@@ -903,6 +956,7 @@ export function LatestScansCard({
   getTitle = (scan) => scan.projectName || scan.targetName || "scan",
   packageLabel = "deps",
   findingLabel = "vulns",
+  supportsFixFilter = false,
 }: {
   scans: Array<{
     id: string
@@ -920,7 +974,15 @@ export function LatestScansCard({
   }) => string
   packageLabel?: string
   findingLabel?: string
+  supportsFixFilter?: boolean
 }) {
+  const { filter } = useVulnerabilityFilter()
+  const activeFilter = supportsFixFilter ? filter : "all"
+  const visibleScans = scans.slice(0, 8).map((scan) => ({
+    ...scan,
+    filteredSummary: filterScanSummary(scan.summary, activeFilter),
+  }))
+
   return (
     <Card>
       <CardHeader>
@@ -929,34 +991,76 @@ export function LatestScansCard({
       </CardHeader>
       <CardContent>
         <div className="flex flex-col gap-3">
-          {scans.slice(0, 8).map((scan) => (
-            <div
-              key={scan.id}
-              className="flex items-start gap-3 rounded-lg border p-3"
-            >
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">
-                <PackageIcon />
+          {visibleScans.map((scan, index) => {
+            const previousSummary = visibleScans[index + 1]?.filteredSummary
+            const delta = previousSummary
+              ? scan.filteredSummary.vulnerabilities -
+                previousSummary.vulnerabilities
+              : null
+
+            return (
+              <div
+                key={scan.id}
+                className="flex items-start gap-3 rounded-lg border p-3"
+              >
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+                  <PackageIcon />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">
+                    {getTitle(scan)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {formatDate(scan.createdAt)}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Badge variant="outline">
+                      {scan.summary.totalDependencies} {packageLabel}
+                    </Badge>
+                    <Badge variant="secondary">
+                      {scan.filteredSummary.vulnerabilities} {findingLabel}
+                    </Badge>
+                    <VulnerabilityDelta delta={delta} />
+                  </div>
+                  <SeverityDistribution
+                    summary={scan.filteredSummary}
+                    className="mt-3 max-w-none"
+                  />
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">
-                  {getTitle(scan)}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {formatDate(scan.createdAt)}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <Badge variant="outline">
-                    {scan.summary.totalDependencies} {packageLabel}
-                  </Badge>
-                  <Badge variant="secondary">
-                    {scan.summary.vulnerabilities} {findingLabel}
-                  </Badge>
-                </div>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+function VulnerabilityDelta({ delta }: { delta: number | null }) {
+  if (delta === null) {
+    return null
+  }
+
+  if (delta > 0) {
+    return (
+      <Badge variant="destructive" aria-label={`${delta} more vulnerabilities`}>
+        <TrendingUpIcon data-icon="inline-start" />+{delta}
+      </Badge>
+    )
+  }
+
+  if (delta < 0) {
+    return (
+      <Badge variant="secondary" aria-label={`${Math.abs(delta)} fewer vulnerabilities`}>
+        <TrendingDownIcon data-icon="inline-start" />
+        {delta}
+      </Badge>
+    )
+  }
+
+  return (
+    <Badge variant="outline" aria-label="No vulnerability count change">
+      <MinusIcon data-icon="inline-start" />0
+    </Badge>
   )
 }

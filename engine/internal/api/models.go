@@ -105,6 +105,7 @@ type Dependency struct {
 	ResolvedVersion string `bson:"resolved_version" json:"resolvedVersion"`
 	Scope           string `bson:"scope" json:"scope"`
 	Ecosystem       string `bson:"ecosystem" json:"ecosystem"`
+	File            string `bson:"file,omitempty" json:"file,omitempty"`
 }
 
 type Vulnerability struct {

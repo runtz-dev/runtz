@@ -24,7 +24,7 @@ services:
       retries: 10
 
   backend:
-    image: runtzdev/runtz-engine:${RUNTZ_VERSION:-1.0.0-rc12}
+    image: runtzdev/runtz-engine:${RUNTZ_VERSION:-1.0.0-rc13}
     container_name: runtz
     restart: unless-stopped
     depends_on:
@@ -52,7 +52,7 @@ services:
       - "${BACKEND_PORT:-8080}:8080"
 
   frontend:
-    image: runtzdev/runtz-frontend:${RUNTZ_VERSION:-1.0.0-rc12}
+    image: runtzdev/runtz-frontend:${RUNTZ_VERSION:-1.0.0-rc13}
     container_name: runtz-frontend
     restart: unless-stopped
     depends_on:

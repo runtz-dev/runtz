@@ -9,6 +9,18 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc13] - 2026-08-06
+
+### Fixed
+
+- `POST /api/v1/ingest/sca`: every SCA scan was rejected with `400 invalid
+  json body`. The engine's `Dependency` model was missing the per-dependency
+  `file` field that the CLI has always sent, and the strict JSON decoder
+  (`DisallowUnknownFields`) rejected the whole payload as a result. `runtz
+  sca` has been unusable against both dev and prod since the initial
+  release; this was never caught because the ingest endpoint had no test
+  coverage.
+
 ## [1.0.0-rc12] - 2026-08-06
 
 ### Added

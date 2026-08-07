@@ -22,7 +22,7 @@ import { useFindingScans } from "@/components/runtz/use-finding-scans"
 import { usePackageScans } from "@/components/runtz/use-package-scans"
 import { useSCAScans } from "@/components/runtz/use-sca-scans"
 import {
-  UnfixedCVEsSwitch,
+  ShowUnfixedCVEsSwitch,
   useVulnerabilityFilter,
 } from "@/components/runtz/vulnerability-filter"
 import { Badge } from "@/components/ui/badge"
@@ -124,7 +124,7 @@ export default function OverviewPage() {
             </p>
           </div>
         </div>
-        <UnfixedCVEsSwitch />
+        <ShowUnfixedCVEsSwitch />
       </div>
 
       {error ? (

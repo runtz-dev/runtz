@@ -9,6 +9,30 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc14] - 2026-08-07
+
+### Added
+
+- Reusable first-scan and clean-scan states across SCA, SAST, container, host
+  and Kubernetes views, with copyable CLI examples and continuous-monitoring
+  guidance.
+- Fix-availability filtering across overview metrics, asset lists, scan
+  history, vulnerability trends and package details. Fixable CVEs are shown by
+  default, with a **Show unfixed CVEs** switch for findings without a published
+  fix.
+- Severity distributions and scan-over-scan vulnerability deltas in the
+  latest-scan cards.
+- Production autoscaling for the engine and frontend, with CPU and memory
+  targets, resource requests and limits, and three to ten replicas.
+
+### Fixed
+
+- Vulnerability trends now retain the latest known state per asset each day
+  instead of summing repeated submissions of the same inventory.
+- Historical package scans backfill fix-availability severity counts so the
+  new filters remain consistent with existing data.
+- Unchanged scan totals now display a single dash instead of `- 0`.
+
 ## [1.0.0-rc13] - 2026-08-06
 
 ### Fixed

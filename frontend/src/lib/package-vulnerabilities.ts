@@ -92,8 +92,9 @@ export function filterVulnerabilitiesByFix(
     return vulnerabilities
   }
 
+  const wantsFix = filter === "with-fix"
   return vulnerabilities.filter(
-    (vulnerability) => !vulnerabilityHasFix(vulnerability)
+    (vulnerability) => vulnerabilityHasFix(vulnerability) === wantsFix
   )
 }
 

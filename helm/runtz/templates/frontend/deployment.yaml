@@ -6,7 +6,9 @@ metadata:
   labels:
     {{- include "runtz.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
 spec:
+  {{- if not .Values.frontend.autoscaling.enabled }}
   replicas: {{ .Values.frontend.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "runtz.componentSelectorLabels" (dict "root" . "component" "frontend") | nindent 6 }}

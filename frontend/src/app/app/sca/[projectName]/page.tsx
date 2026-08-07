@@ -17,6 +17,10 @@ import { PackageVulnerabilityExplorer } from "@/components/runtz/package-vulnera
 import { usePlatform } from "@/components/runtz/platform-context"
 import { useScanDetail } from "@/components/runtz/use-scan-detail"
 import { useSCAScans } from "@/components/runtz/use-sca-scans"
+import {
+  ShowUnfixedCVEsSwitch,
+  useVulnerabilityFilter,
+} from "@/components/runtz/vulnerability-filter"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -35,9 +39,11 @@ import {
 } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { filterScansByProject, formatDate } from "@/lib/sca"
+import { filterScanSummary } from "@/lib/dashboard"
 
 export default function SCAProjectPage() {
   const { basePath } = usePlatform()
+  const { filter } = useVulnerabilityFilter()
   const params = useParams<{ projectName: string }>()
   const projectName = React.useMemo(
     () => decodeProjectName(params.projectName),
@@ -49,7 +55,11 @@ export default function SCAProjectPage() {
     [projectName, scans]
   )
   const latestScan = projectScans[0]
-  const latestSummary = latestScan?.summary
+  const latestSummary = React.useMemo(
+    () =>
+      latestScan ? filterScanSummary(latestScan.summary, filter) : undefined,
+    [filter, latestScan]
+  )
   const scanDetail = useScanDetail("sca", latestScan)
 
   return (
@@ -76,7 +86,7 @@ export default function SCAProjectPage() {
               {projectName}
             </h1>
             <p className="text-sm text-muted-foreground">
-              CVEs found in this app&apos;s latest SCA scan.
+              Vulnerability results from this app&apos;s latest SCA scan.
             </p>
           </div>
         </div>
@@ -134,15 +144,18 @@ export default function SCAProjectPage() {
             />
           </DashboardSummaryGrid>
 
-          <VulnerabilityTrendChart scans={projectScans} />
+          <VulnerabilityTrendChart scans={projectScans} filter={filter} />
 
           <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
             <Card>
-              <CardHeader>
-                <CardTitle>CVEs found</CardTitle>
-                <CardDescription>
-                  Latest scan on {formatDate(latestScan.createdAt)}
-                </CardDescription>
+              <CardHeader className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                <div>
+                  <CardTitle>Vulnerability results</CardTitle>
+                  <CardDescription>
+                    Latest scan on {formatDate(latestScan.createdAt)}
+                  </CardDescription>
+                </div>
+                <ShowUnfixedCVEsSwitch />
               </CardHeader>
               <CardContent>
                 {scanDetail.loading ? (
@@ -163,6 +176,7 @@ export default function SCAProjectPage() {
               <LatestScansCard
                 scans={projectScans}
                 description="Recent history for this app."
+                supportsFixFilter
               />
             </div>
           </div>

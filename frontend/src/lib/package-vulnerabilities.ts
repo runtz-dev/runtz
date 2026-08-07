@@ -1,4 +1,5 @@
 import type { Vulnerability } from "@/lib/api"
+import type { CVEFixFilter } from "@/lib/dashboard"
 import type { SeverityKey } from "@/lib/sca"
 
 const SEVERITY_WEIGHT: Record<SeverityKey, number> = {
@@ -71,9 +72,7 @@ export function groupVulnerabilitiesByPackage(
           )
         ),
         highestSeverity,
-        fixableCount: deduplicated.filter((vulnerability) =>
-          Boolean(vulnerability.firstPatchedVersion?.trim())
-        ).length,
+        fixableCount: deduplicated.filter(vulnerabilityHasFix).length,
         vulnerabilities: deduplicated.sort(compareVulnerabilities),
       }
     })
@@ -83,6 +82,24 @@ export function groupVulnerabilitiesByPackage(
         severityWeight(left.highestSeverity)
       return severityDifference || left.name.localeCompare(right.name)
     })
+}
+
+export function filterVulnerabilitiesByFix(
+  vulnerabilities: Vulnerability[],
+  filter: CVEFixFilter
+) {
+  if (filter === "all") {
+    return vulnerabilities
+  }
+
+  const wantsFix = filter === "with-fix"
+  return vulnerabilities.filter(
+    (vulnerability) => vulnerabilityHasFix(vulnerability) === wantsFix
+  )
+}
+
+export function vulnerabilityHasFix(vulnerability: Vulnerability) {
+  return Boolean(vulnerability.firstPatchedVersion?.trim())
 }
 
 export function vulnerabilityReferences(vulnerability: Vulnerability) {

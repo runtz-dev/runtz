@@ -89,6 +89,18 @@ export type ScanSummary = {
   medium: number
   low: number
   unknown: number
+  withFix?: VulnerabilityCounts
+  withoutFix?: VulnerabilityCounts
+  fixStatusComputed?: boolean
+}
+
+export type VulnerabilityCounts = {
+  vulnerabilities: number
+  critical: number
+  high: number
+  medium: number
+  low: number
+  unknown: number
 }
 
 export type ScanPackage = {
@@ -244,6 +256,9 @@ export function clearClientState() {
 
   window.localStorage.removeItem("runtz_workspace_id")
   window.localStorage.removeItem("runtz_workspace_filter")
+  window.localStorage.removeItem("runtz_cve_fix_filter")
+  window.localStorage.removeItem("runtz_unfixed_cves_only")
+  window.localStorage.removeItem("runtz_show_unfixed_cves")
 }
 
 export async function signOut() {

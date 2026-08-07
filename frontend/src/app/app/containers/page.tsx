@@ -10,8 +10,13 @@ import {
   SeverityDistribution,
   VulnerabilityTrendChart,
 } from "@/components/runtz/sca-components"
+import { FirstScanEmptyState } from "@/components/runtz/scan-empty-state"
 import { usePlatform } from "@/components/runtz/platform-context"
 import { usePackageScans } from "@/components/runtz/use-package-scans"
+import {
+  ShowUnfixedCVEsSwitch,
+  useVulnerabilityFilter,
+} from "@/components/runtz/vulnerability-filter"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -20,13 +25,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -41,20 +39,27 @@ import {
   groupPackageScans,
   summarizePackageTargets,
 } from "@/lib/package-scans"
+import { aggregateSummaries, filterScanSummary } from "@/lib/dashboard"
 import { formatDate } from "@/lib/sca"
-import { aggregateSummaries } from "@/lib/dashboard"
 
 export default function ContainersPage() {
   const { basePath } = usePlatform()
+  const { filter } = useVulnerabilityFilter()
   const { scans, loading, error } = usePackageScans("container")
   const images = React.useMemo(
     () => groupPackageScans(scans, getContainerTargetName),
     [scans]
   )
-  const totals = React.useMemo(() => summarizePackageTargets(images), [images])
+  const totals = React.useMemo(
+    () => summarizePackageTargets(images, filter),
+    [filter, images]
+  )
   const severitySummary = React.useMemo(
-    () => aggregateSummaries(images.map((image) => image.latestScan.summary)),
-    [images]
+    () =>
+      aggregateSummaries(
+        images.map((image) => filterScanSummary(image.latestScan.summary, filter))
+      ),
+    [filter, images]
   )
 
   return (
@@ -114,28 +119,26 @@ export default function ContainersPage() {
             />
           </DashboardSummaryGrid>
 
-          <VulnerabilityTrendChart scans={scans} />
+          <VulnerabilityTrendChart scans={scans} filter={filter} />
 
           {images.length === 0 ? (
-            <Empty className="min-h-80 border">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <ContainerIcon />
-                </EmptyMedia>
-                <EmptyTitle>No images scanned</EmptyTitle>
-                <EmptyDescription>
-                  Run the container CLI against the engine to populate this panel.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
+            <FirstScanEmptyState
+              title="No images scanned"
+              description="Scan a container image to start tracking vulnerable packages in this workspace."
+              command="runtz container ubuntu:22.04"
+              icon={ContainerIcon}
+            />
           ) : (
             <Card>
-              <CardHeader>
-                <CardTitle>Images</CardTitle>
-                <CardDescription>
-                  Click an image name to see the CVE list from its latest
-                  scan.
-                </CardDescription>
+              <CardHeader className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                <div>
+                  <CardTitle>Images</CardTitle>
+                  <CardDescription>
+                    Click an image name to see the CVE list from its latest
+                    scan.
+                  </CardDescription>
+                </div>
+                <ShowUnfixedCVEsSwitch />
               </CardHeader>
               <CardContent>
                 <Table>
@@ -150,8 +153,14 @@ export default function ContainersPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {images.map((image) => (
-                      <TableRow key={image.targetName}>
+                    {images.map((image) => {
+                      const summary = filterScanSummary(
+                        image.latestScan.summary,
+                        filter
+                      )
+
+                      return (
+                        <TableRow key={image.targetName}>
                         <TableCell className="min-w-72">
                           <div className="flex min-w-0 flex-col gap-1">
                             <Link
@@ -172,15 +181,15 @@ export default function ContainersPage() {
                           <div className="flex items-center gap-4">
                             <Badge
                               variant={
-                                image.latestScan.summary.vulnerabilities > 0
+                                summary.vulnerabilities > 0
                                   ? "secondary"
                                   : "outline"
                               }
                             >
-                              {image.latestScan.summary.vulnerabilities} vulns
+                              {summary.vulnerabilities} vulns
                             </Badge>
                             <SeverityDistribution
-                              summary={image.latestScan.summary}
+                              summary={summary}
                               className="min-w-56"
                             />
                           </div>
@@ -195,8 +204,9 @@ export default function ContainersPage() {
                         <TableCell>
                           {formatDate(image.latestScan.createdAt)}
                         </TableCell>
-                      </TableRow>
-                    ))}
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>

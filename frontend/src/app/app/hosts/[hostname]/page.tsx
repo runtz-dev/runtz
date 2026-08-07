@@ -17,6 +17,10 @@ import { PackageVulnerabilityExplorer } from "@/components/runtz/package-vulnera
 import { usePlatform } from "@/components/runtz/platform-context"
 import { usePackageScans } from "@/components/runtz/use-package-scans"
 import { useScanDetail } from "@/components/runtz/use-scan-detail"
+import {
+  ShowUnfixedCVEsSwitch,
+  useVulnerabilityFilter,
+} from "@/components/runtz/vulnerability-filter"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -39,9 +43,11 @@ import {
   getHostTargetName,
 } from "@/lib/package-scans"
 import { formatDate } from "@/lib/sca"
+import { filterScanSummary } from "@/lib/dashboard"
 
 export default function HostDetailPage() {
   const { basePath } = usePlatform()
+  const { filter } = useVulnerabilityFilter()
   const params = useParams<{ hostname: string }>()
   const hostname = React.useMemo(
     () => decodeParam(params.hostname),
@@ -53,7 +59,11 @@ export default function HostDetailPage() {
     [hostname, scans]
   )
   const latestScan = hostScans[0]
-  const latestSummary = latestScan?.summary
+  const latestSummary = React.useMemo(
+    () =>
+      latestScan ? filterScanSummary(latestScan.summary, filter) : undefined,
+    [filter, latestScan]
+  )
   const scanDetail = useScanDetail("host", latestScan)
 
   return (
@@ -80,7 +90,7 @@ export default function HostDetailPage() {
               {hostname}
             </h1>
             <p className="text-sm text-muted-foreground">
-              CVEs found in the host&apos;s latest package scan.
+              Vulnerability results from the host&apos;s latest package scan.
             </p>
           </div>
         </div>
@@ -138,15 +148,18 @@ export default function HostDetailPage() {
             />
           </DashboardSummaryGrid>
 
-          <VulnerabilityTrendChart scans={hostScans} />
+          <VulnerabilityTrendChart scans={hostScans} filter={filter} />
 
           <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
             <Card>
-              <CardHeader>
-                <CardTitle>CVEs found</CardTitle>
-                <CardDescription>
-                  Latest scan on {formatDate(latestScan.createdAt)}
-                </CardDescription>
+              <CardHeader className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                <div>
+                  <CardTitle>Vulnerability results</CardTitle>
+                  <CardDescription>
+                    Latest scan on {formatDate(latestScan.createdAt)}
+                  </CardDescription>
+                </div>
+                <ShowUnfixedCVEsSwitch />
               </CardHeader>
               <CardContent>
                 {scanDetail.loading ? (
@@ -191,6 +204,7 @@ export default function HostDetailPage() {
                 description="Recent history for this host."
                 getTitle={(scan) => scan.targetName || scan.projectName || hostname}
                 packageLabel="packages"
+                supportsFixFilter
               />
             </div>
           </div>

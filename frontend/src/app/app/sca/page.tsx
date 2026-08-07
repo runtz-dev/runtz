@@ -10,8 +10,13 @@ import {
   SeverityDistribution,
   VulnerabilityTrendChart,
 } from "@/components/runtz/sca-components"
+import { FirstScanEmptyState } from "@/components/runtz/scan-empty-state"
 import { usePlatform } from "@/components/runtz/platform-context"
 import { useSCAScans } from "@/components/runtz/use-sca-scans"
+import {
+  ShowUnfixedCVEsSwitch,
+  useVulnerabilityFilter,
+} from "@/components/runtz/vulnerability-filter"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -20,13 +25,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -36,17 +34,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { aggregateSummaries, filterScanSummary } from "@/lib/dashboard"
 import { formatDate, groupScansByProject, summarizeProjects } from "@/lib/sca"
-import { aggregateSummaries } from "@/lib/dashboard"
 
 export default function SCAPage() {
   const { basePath } = usePlatform()
+  const { filter } = useVulnerabilityFilter()
   const { scans, loading, error } = useSCAScans()
   const apps = React.useMemo(() => groupScansByProject(scans), [scans])
-  const totals = React.useMemo(() => summarizeProjects(apps), [apps])
+  const totals = React.useMemo(
+    () => summarizeProjects(apps, filter),
+    [apps, filter]
+  )
   const severitySummary = React.useMemo(
-    () => aggregateSummaries(apps.map((app) => app.latestScan.summary)),
-    [apps]
+    () =>
+      aggregateSummaries(
+        apps.map((app) => filterScanSummary(app.latestScan.summary, filter))
+      ),
+    [apps, filter]
   )
 
   return (
@@ -104,27 +109,25 @@ export default function SCAPage() {
             />
           </DashboardSummaryGrid>
 
-          <VulnerabilityTrendChart scans={scans} />
+          <VulnerabilityTrendChart scans={scans} filter={filter} />
 
           {apps.length === 0 ? (
-            <Empty className="min-h-80 border">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <RadarIcon />
-                </EmptyMedia>
-                <EmptyTitle>No apps scanned</EmptyTitle>
-                <EmptyDescription>
-                  Run the CLI against the local engine to populate this panel.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
+            <FirstScanEmptyState
+              title="No apps scanned"
+              description="Scan your application dependencies to start tracking risk in this workspace."
+              command="runtz sca ./"
+              icon={RadarIcon}
+            />
           ) : (
             <Card>
-              <CardHeader>
-                <CardTitle>Apps</CardTitle>
-                <CardDescription>
-                  Click an app name to see the CVE list from its latest scan.
-                </CardDescription>
+              <CardHeader className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                <div>
+                  <CardTitle>Apps</CardTitle>
+                  <CardDescription>
+                    Click an app name to see the CVE list from its latest scan.
+                  </CardDescription>
+                </div>
+                <ShowUnfixedCVEsSwitch />
               </CardHeader>
               <CardContent>
                 <Table>
@@ -138,48 +141,59 @@ export default function SCAPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {apps.map((app) => (
-                      <TableRow key={app.projectName}>
-                        <TableCell className="min-w-64">
-                          <div className="flex min-w-0 flex-col gap-1">
-                            <Link
-                              className="inline-flex items-center gap-2 font-medium text-primary underline-offset-4 hover:underline"
-                              href={`${basePath}/sca/${encodeURIComponent(
-                                app.projectName
-                              )}`}
-                            >
-                              <span className="truncate">{app.projectName}</span>
-                              <ArrowRightIcon />
-                            </Link>
-                            <span className="truncate text-xs text-muted-foreground">
-                              {app.workspaceNames.join(", ")}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="min-w-72">
-                          <div className="flex items-center gap-4">
-                            <Badge
-                              variant={
-                                app.latestScan.summary.vulnerabilities > 0
-                                  ? "secondary"
-                                  : "outline"
-                              }
-                            >
-                              {app.latestScan.summary.vulnerabilities} vulns
-                            </Badge>
-                            <SeverityDistribution
-                              summary={app.latestScan.summary}
-                              className="min-w-56"
-                            />
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {app.latestScan.summary.totalDependencies}
-                        </TableCell>
-                        <TableCell>{app.scans.length}</TableCell>
-                        <TableCell>{formatDate(app.latestScan.createdAt)}</TableCell>
-                      </TableRow>
-                    ))}
+                    {apps.map((app) => {
+                      const summary = filterScanSummary(
+                        app.latestScan.summary,
+                        filter
+                      )
+
+                      return (
+                        <TableRow key={app.projectName}>
+                          <TableCell className="min-w-64">
+                            <div className="flex min-w-0 flex-col gap-1">
+                              <Link
+                                className="inline-flex items-center gap-2 font-medium text-primary underline-offset-4 hover:underline"
+                                href={`${basePath}/sca/${encodeURIComponent(
+                                  app.projectName
+                                )}`}
+                              >
+                                <span className="truncate">
+                                  {app.projectName}
+                                </span>
+                                <ArrowRightIcon />
+                              </Link>
+                              <span className="truncate text-xs text-muted-foreground">
+                                {app.workspaceNames.join(", ")}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="min-w-72">
+                            <div className="flex items-center gap-4">
+                              <Badge
+                                variant={
+                                  summary.vulnerabilities > 0
+                                    ? "secondary"
+                                    : "outline"
+                                }
+                              >
+                                {summary.vulnerabilities} vulns
+                              </Badge>
+                              <SeverityDistribution
+                                summary={summary}
+                                className="min-w-56"
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {app.latestScan.summary.totalDependencies}
+                          </TableCell>
+                          <TableCell>{app.scans.length}</TableCell>
+                          <TableCell>
+                            {formatDate(app.latestScan.createdAt)}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>

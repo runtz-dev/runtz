@@ -21,6 +21,10 @@ import { usePlatform } from "@/components/runtz/platform-context"
 import { useFindingScans } from "@/components/runtz/use-finding-scans"
 import { usePackageScans } from "@/components/runtz/use-package-scans"
 import { useSCAScans } from "@/components/runtz/use-sca-scans"
+import {
+  CVEFixFilterSwitches,
+  useVulnerabilityFilter,
+} from "@/components/runtz/vulnerability-filter"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -30,7 +34,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { aggregateSummaries } from "@/lib/dashboard"
+import { aggregateSummaries, filterScanSummary } from "@/lib/dashboard"
 import {
   getContainerTargetName,
   getHostTargetName,
@@ -41,6 +45,7 @@ import { groupScansByProject } from "@/lib/sca"
 
 export default function OverviewPage() {
   const { basePath } = usePlatform()
+  const { filter } = useVulnerabilityFilter()
   const sca = useSCAScans()
   const sast = useFindingScans("sast")
   const containers = usePackageScans("container")
@@ -65,13 +70,23 @@ export default function OverviewPage() {
   )
   const latestSummaries = React.useMemo(
     () => [
-      ...scaProjects.map((project) => project.latestScan.summary),
-      ...sastProjects.map((project) => project.latestScan.summary),
-      ...containerImages.map((image) => image.latestScan.summary),
-      ...hostTargets.map((host) => host.latestScan.summary),
-      ...k8sTargets.map((target) => target.latestScan.summary),
+      ...scaProjects.map((project) =>
+        filterScanSummary(project.latestScan.summary, filter)
+      ),
+      ...sastProjects.map((project) =>
+        filterScanSummary(project.latestScan.summary, filter)
+      ),
+      ...containerImages.map((image) =>
+        filterScanSummary(image.latestScan.summary, filter)
+      ),
+      ...hostTargets.map((host) =>
+        filterScanSummary(host.latestScan.summary, filter)
+      ),
+      ...k8sTargets.map((target) =>
+        filterScanSummary(target.latestScan.summary, filter)
+      ),
     ],
-    [containerImages, hostTargets, k8sTargets, sastProjects, scaProjects]
+    [containerImages, filter, hostTargets, k8sTargets, sastProjects, scaProjects]
   )
   const totals = React.useMemo(
     () => aggregateSummaries(latestSummaries),
@@ -93,20 +108,23 @@ export default function OverviewPage() {
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <Badge variant="outline">PLATFORM</Badge>
-          <Badge>Overview</Badge>
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">PLATFORM</Badge>
+            <Badge>Overview</Badge>
+          </div>
+          <div>
+            <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-normal">
+              <LayoutDashboardIcon className="size-5 text-primary" />
+              Overview
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Overview of scans and vulnerabilities across all assets.
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-normal">
-            <LayoutDashboardIcon className="size-5 text-primary" />
-            Overview
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Overview of scans and vulnerabilities across all assets.
-          </p>
-        </div>
+        <CVEFixFilterSwitches />
       </div>
 
       {error ? (
@@ -141,7 +159,7 @@ export default function OverviewPage() {
             />
           </DashboardSummaryGrid>
 
-          <VulnerabilityTrendChart scans={scans} />
+          <VulnerabilityTrendChart scans={scans} filter={filter} />
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <ScanFamilyCard

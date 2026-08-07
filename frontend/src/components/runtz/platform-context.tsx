@@ -2,6 +2,8 @@
 
 import * as React from "react"
 
+import { VulnerabilityFilterProvider } from "@/components/runtz/vulnerability-filter"
+
 export type PlatformMode = "app" | "playground"
 
 type PlatformContextValue = {
@@ -37,7 +39,7 @@ export function PlatformProvider({
 
   return (
     <PlatformContext.Provider value={value}>
-      {children}
+      <VulnerabilityFilterProvider>{children}</VulnerabilityFilterProvider>
     </PlatformContext.Provider>
   )
 }

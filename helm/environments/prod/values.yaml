@@ -15,6 +15,19 @@
 #     --set frontend.image.tag="<version>"
 
 frontend:
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 75
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
   image:
     # Cloud build pushed to the in-cluster registry. It no longer bakes any
     # NEXT_PUBLIC_* config — everything environment-specific is served by the
@@ -37,6 +50,19 @@ frontend:
     OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=prod,service.namespace=runtz"
 
 backend:
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 75
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
   image:
     # Generic public engine image (no build-time config).
     repository: runtzdev/runtz-engine

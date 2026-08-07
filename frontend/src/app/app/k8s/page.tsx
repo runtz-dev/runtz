@@ -18,7 +18,7 @@ export default function KubernetesPage() {
       targetListDescription="Click a cluster name to see the findings from its latest scan."
       inspectedTitle="Resources"
       emptyTitle="No clusters scanned"
-      emptyDescription="Run the Kubernetes CLI against the engine to populate this panel."
+      emptyDescription="Scan your cluster posture to start tracking Kubernetes security findings."
       commandLabel="runtz k8s"
       icon={ShipWheelIcon}
     />

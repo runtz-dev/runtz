@@ -39,6 +39,11 @@ pre-created Kubernetes Secret containing the keys `RESEND_API_KEY`,
 | `backend.image.repository` | `runtzdev/runtz-engine` | Engine image |
 | `frontend.image.repository` | `runtzdev/runtz-frontend` | Frontend image |
 | `backend.image.tag` / `frontend.image.tag` | chart `appVersion` | Image tag |
+| `backend.autoscaling.enabled` / `frontend.autoscaling.enabled` | `false` | Create a CPU-based HPA for the component |
+| `backend.autoscaling.minReplicas` / `frontend.autoscaling.minReplicas` | `1` | Minimum replicas while autoscaling |
+| `backend.autoscaling.maxReplicas` / `frontend.autoscaling.maxReplicas` | `10` | Maximum replicas while autoscaling |
+| `backend.autoscaling.targetCPUUtilizationPercentage` / `frontend.autoscaling.targetCPUUtilizationPercentage` | `70` | Target CPU utilization as a percentage of the request |
+| `backend.autoscaling.targetMemoryUtilizationPercentage` / `frontend.autoscaling.targetMemoryUtilizationPercentage` | `75` | Target memory utilization as a percentage of the request |
 | `backend.env.RUNTZ_PUBLIC_URL` | `http://localhost:3000` | Public URL of the platform |
 | `backend.env.CORS_ALLOWED_ORIGINS` | `http://localhost:3000` | Comma-separated origins |
 | `backend.env.MONGODB_URI` | in-cluster MongoDB | Set to use an external MongoDB |
@@ -50,6 +55,11 @@ pre-created Kubernetes Secret containing the keys `RESEND_API_KEY`,
 | `backend.ingress.enabled` | `false` | Engine ingress (direct API access) |
 
 See [values.yaml](values.yaml) for the complete list.
+
+Resource autoscaling requires the Kubernetes metrics API (usually Metrics
+Server) and CPU/memory requests on each autoscaled container. Set both
+requests when enabling an HPA; the runtz production overlay already defines
+them.
 
 ## OpenTelemetry
 

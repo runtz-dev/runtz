@@ -227,7 +227,8 @@ export function FindingsTargetPage({
               <FindingsTable
                 scans={[scanDetail.scan]}
                 findings={visibleFindings}
-                title="Findings found"
+                scanIsClean={latestFindings.length === 0}
+                title="Security findings"
                 description={
                   disabledCategories.size > 0
                     ? `Showing ${visibleFindings.length} of ${latestFindings.length} findings · Latest scan on ${formatDate(latestScan.createdAt)}`

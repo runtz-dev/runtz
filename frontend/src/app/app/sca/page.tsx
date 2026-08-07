@@ -10,6 +10,7 @@ import {
   SeverityDistribution,
   VulnerabilityTrendChart,
 } from "@/components/runtz/sca-components"
+import { FirstScanEmptyState } from "@/components/runtz/scan-empty-state"
 import { usePlatform } from "@/components/runtz/platform-context"
 import { useSCAScans } from "@/components/runtz/use-sca-scans"
 import { Badge } from "@/components/ui/badge"
@@ -20,13 +21,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -107,17 +101,12 @@ export default function SCAPage() {
           <VulnerabilityTrendChart scans={scans} />
 
           {apps.length === 0 ? (
-            <Empty className="min-h-80 border">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <RadarIcon />
-                </EmptyMedia>
-                <EmptyTitle>No apps scanned</EmptyTitle>
-                <EmptyDescription>
-                  Run the CLI against the local engine to populate this panel.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
+            <FirstScanEmptyState
+              title="No apps scanned"
+              description="Scan your application dependencies to start tracking risk in this workspace."
+              command="runtz sca ./"
+              icon={RadarIcon}
+            />
           ) : (
             <Card>
               <CardHeader>

@@ -80,7 +80,7 @@ export default function HostDetailPage() {
               {hostname}
             </h1>
             <p className="text-sm text-muted-foreground">
-              CVEs found in the host&apos;s latest package scan.
+              Vulnerability results from the host&apos;s latest package scan.
             </p>
           </div>
         </div>
@@ -143,7 +143,7 @@ export default function HostDetailPage() {
           <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
             <Card>
               <CardHeader>
-                <CardTitle>CVEs found</CardTitle>
+                <CardTitle>Vulnerability results</CardTitle>
                 <CardDescription>
                   Latest scan on {formatDate(latestScan.createdAt)}
                 </CardDescription>

@@ -10,6 +10,7 @@ import {
   SeverityDistribution,
   VulnerabilityTrendChart,
 } from "@/components/runtz/sca-components"
+import { FirstScanEmptyState } from "@/components/runtz/scan-empty-state"
 import { usePlatform } from "@/components/runtz/platform-context"
 import { usePackageScans } from "@/components/runtz/use-package-scans"
 import { Badge } from "@/components/ui/badge"
@@ -20,13 +21,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -117,17 +111,12 @@ export default function ContainersPage() {
           <VulnerabilityTrendChart scans={scans} />
 
           {images.length === 0 ? (
-            <Empty className="min-h-80 border">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <ContainerIcon />
-                </EmptyMedia>
-                <EmptyTitle>No images scanned</EmptyTitle>
-                <EmptyDescription>
-                  Run the container CLI against the engine to populate this panel.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
+            <FirstScanEmptyState
+              title="No images scanned"
+              description="Scan a container image to start tracking vulnerable packages in this workspace."
+              command="runtz container ubuntu:22.04"
+              icon={ContainerIcon}
+            />
           ) : (
             <Card>
               <CardHeader>

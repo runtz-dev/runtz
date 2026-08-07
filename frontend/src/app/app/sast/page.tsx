@@ -18,8 +18,8 @@ export default function SASTPage() {
       targetListDescription="Click an app name to see the findings from its latest scan."
       inspectedTitle="Files"
       emptyTitle="No apps scanned"
-      emptyDescription="Run the SAST CLI against the engine to populate this panel."
-      commandLabel="runtz sast"
+      emptyDescription="Scan your source code to start tracking security findings in this workspace."
+      commandLabel="runtz sast ./"
       icon={CodeIcon}
     />
   )

@@ -12,6 +12,10 @@ import {
   SeverityDistribution,
   VulnerabilityTrendChart,
 } from "@/components/runtz/sca-components"
+import {
+  CleanScanState,
+  FirstScanEmptyState,
+} from "@/components/runtz/scan-empty-state"
 import { usePlatform } from "@/components/runtz/platform-context"
 import { useFindingScans } from "@/components/runtz/use-finding-scans"
 import { Badge } from "@/components/ui/badge"
@@ -22,13 +26,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -149,15 +146,12 @@ export function FindingsScanPage({
           <VulnerabilityTrendChart scans={scans} />
 
           {targets.length === 0 ? (
-            <Empty className="min-h-80 border">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <Icon />
-                </EmptyMedia>
-                <EmptyTitle>{emptyTitle}</EmptyTitle>
-                <EmptyDescription>{emptyDescription}</EmptyDescription>
-              </EmptyHeader>
-            </Empty>
+            <FirstScanEmptyState
+              title={emptyTitle}
+              description={emptyDescription}
+              command={commandLabel}
+              icon={Icon}
+            />
           ) : (
             <Card>
               <CardHeader>
@@ -237,11 +231,13 @@ export function FindingsTable({
   findings,
   title = "Latest findings",
   description,
+  scanIsClean = false,
 }: {
   scans: FindingsScan[]
   findings: Array<{ scan: FindingsScan; finding: Finding }>
   title?: string
   description?: string
+  scanIsClean?: boolean
 }) {
   return (
     <Card>
@@ -253,49 +249,57 @@ export function FindingsTable({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Severity</TableHead>
-              <TableHead>Finding</TableHead>
-              <TableHead>Location</TableHead>
-              <TableHead>Remediation</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {findings.map(({ scan, finding }, index) => (
-              <TableRow
-                key={`${scan.id}-${finding.id}-${finding.file ?? ""}-${
-                  finding.line ?? 0
-                }-${finding.resourceName ?? ""}-${index}`}
-              >
-                <TableCell>
-                  <SeverityBadge severity={finding.severity} />
-                </TableCell>
-                <TableCell className="min-w-72">
-                  <div className="flex flex-col gap-1">
-                    <span className="font-medium">{finding.title}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {finding.id}
-                      {finding.category ? ` · ${finding.category}` : ""}
-                    </span>
-                    {finding.description ? (
-                      <span className="text-xs text-muted-foreground">
-                        {finding.description}
-                      </span>
-                    ) : null}
-                  </div>
-                </TableCell>
-                <TableCell className="min-w-64">
-                  <span className="text-sm">{findingLocation(finding)}</span>
-                </TableCell>
-                <TableCell className="min-w-72 text-sm text-muted-foreground">
-                  {finding.remediation || "-"}
-                </TableCell>
+        {scanIsClean ? (
+          <CleanScanState title="Great news — no findings detected" />
+        ) : findings.length === 0 ? (
+          <div className="flex min-h-40 items-center justify-center rounded-lg border border-dashed px-6 text-center text-sm text-muted-foreground">
+            No findings match the active filters.
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Severity</TableHead>
+                <TableHead>Finding</TableHead>
+                <TableHead>Location</TableHead>
+                <TableHead>Remediation</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {findings.map(({ scan, finding }, index) => (
+                <TableRow
+                  key={`${scan.id}-${finding.id}-${finding.file ?? ""}-${
+                    finding.line ?? 0
+                  }-${finding.resourceName ?? ""}-${index}`}
+                >
+                  <TableCell>
+                    <SeverityBadge severity={finding.severity} />
+                  </TableCell>
+                  <TableCell className="min-w-72">
+                    <div className="flex flex-col gap-1">
+                      <span className="font-medium">{finding.title}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {finding.id}
+                        {finding.category ? ` · ${finding.category}` : ""}
+                      </span>
+                      {finding.description ? (
+                        <span className="text-xs text-muted-foreground">
+                          {finding.description}
+                        </span>
+                      ) : null}
+                    </div>
+                  </TableCell>
+                  <TableCell className="min-w-64">
+                    <span className="text-sm">{findingLocation(finding)}</span>
+                  </TableCell>
+                  <TableCell className="min-w-72 text-sm text-muted-foreground">
+                    {finding.remediation || "-"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </CardContent>
     </Card>
   )

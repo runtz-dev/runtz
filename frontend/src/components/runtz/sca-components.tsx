@@ -4,7 +4,6 @@ import * as React from "react"
 import {
   ActivityIcon,
   ChartSplineIcon,
-  MinusIcon,
   PackageIcon,
   ShieldAlertIcon,
   TrendingDownIcon,
@@ -1060,7 +1059,7 @@ function VulnerabilityDelta({ delta }: { delta: number | null }) {
 
   return (
     <Badge variant="outline" aria-label="No vulnerability count change">
-      <MinusIcon data-icon="inline-start" />0
+      −
     </Badge>
   )
 }

@@ -1,6 +1,6 @@
 import type { ScanSummary, VulnerabilityCounts } from "@/lib/api"
 
-export type CVEFixFilter = "all" | "with-fix" | "without-fix"
+export type CVEFixFilter = "all" | "without-fix"
 
 export type TrendScan = {
   id?: string
@@ -48,8 +48,7 @@ export function filterScanSummary(
     return summary
   }
 
-  const counts = filter === "with-fix" ? summary.withFix : summary.withoutFix
-  return summaryFromCounts(summary.totalDependencies, counts)
+  return summaryFromCounts(summary.totalDependencies, summary.withoutFix)
 }
 
 function summaryFromCounts(

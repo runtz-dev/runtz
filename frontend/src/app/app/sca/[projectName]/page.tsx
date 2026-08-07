@@ -18,7 +18,7 @@ import { usePlatform } from "@/components/runtz/platform-context"
 import { useScanDetail } from "@/components/runtz/use-scan-detail"
 import { useSCAScans } from "@/components/runtz/use-sca-scans"
 import {
-  CVEFixFilterSwitches,
+  UnfixedCVEsSwitch,
   useVulnerabilityFilter,
 } from "@/components/runtz/vulnerability-filter"
 import { Badge } from "@/components/ui/badge"
@@ -155,7 +155,7 @@ export default function SCAProjectPage() {
                     Latest scan on {formatDate(latestScan.createdAt)}
                   </CardDescription>
                 </div>
-                <CVEFixFilterSwitches />
+                <UnfixedCVEsSwitch />
               </CardHeader>
               <CardContent>
                 {scanDetail.loading ? (

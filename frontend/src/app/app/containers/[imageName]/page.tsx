@@ -18,7 +18,7 @@ import { usePlatform } from "@/components/runtz/platform-context"
 import { usePackageScans } from "@/components/runtz/use-package-scans"
 import { useScanDetail } from "@/components/runtz/use-scan-detail"
 import {
-  CVEFixFilterSwitches,
+  UnfixedCVEsSwitch,
   useVulnerabilityFilter,
 } from "@/components/runtz/vulnerability-filter"
 import { Badge } from "@/components/ui/badge"
@@ -159,7 +159,7 @@ export default function ContainerDetailPage() {
                     Latest scan on {formatDate(latestScan.createdAt)}
                   </CardDescription>
                 </div>
-                <CVEFixFilterSwitches />
+                <UnfixedCVEsSwitch />
               </CardHeader>
               <CardContent>
                 {scanDetail.loading ? (

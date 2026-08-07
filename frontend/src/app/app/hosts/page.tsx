@@ -14,7 +14,7 @@ import { FirstScanEmptyState } from "@/components/runtz/scan-empty-state"
 import { usePlatform } from "@/components/runtz/platform-context"
 import { usePackageScans } from "@/components/runtz/use-package-scans"
 import {
-  CVEFixFilterSwitches,
+  UnfixedCVEsSwitch,
   useVulnerabilityFilter,
 } from "@/components/runtz/vulnerability-filter"
 import { Badge } from "@/components/ui/badge"
@@ -137,7 +137,7 @@ export default function HostsPage() {
                     Click a hostname to see the CVE list from its latest scan.
                   </CardDescription>
                 </div>
-                <CVEFixFilterSwitches />
+                <UnfixedCVEsSwitch />
               </CardHeader>
               <CardContent>
                 <Table>

@@ -258,6 +258,7 @@ export function clearClientState() {
   window.localStorage.removeItem("runtz_workspace_filter")
   window.localStorage.removeItem("runtz_cve_fix_filter")
   window.localStorage.removeItem("runtz_unfixed_cves_only")
+  window.localStorage.removeItem("runtz_show_unfixed_cves")
 }
 
 export async function signOut() {

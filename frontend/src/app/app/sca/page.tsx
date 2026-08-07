@@ -14,7 +14,7 @@ import { FirstScanEmptyState } from "@/components/runtz/scan-empty-state"
 import { usePlatform } from "@/components/runtz/platform-context"
 import { useSCAScans } from "@/components/runtz/use-sca-scans"
 import {
-  UnfixedCVEsSwitch,
+  ShowUnfixedCVEsSwitch,
   useVulnerabilityFilter,
 } from "@/components/runtz/vulnerability-filter"
 import { Badge } from "@/components/ui/badge"
@@ -127,7 +127,7 @@ export default function SCAPage() {
                     Click an app name to see the CVE list from its latest scan.
                   </CardDescription>
                 </div>
-                <UnfixedCVEsSwitch />
+                <ShowUnfixedCVEsSwitch />
               </CardHeader>
               <CardContent>
                 <Table>

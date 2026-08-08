@@ -39,9 +39,9 @@ func TestUsageLimitsForPlan(t *testing.T) {
 		plan string
 		want scanUsageLimits
 	}{
-		{plan: planFree, want: scanUsageLimits{Weekly: 2_500, Monthly: 10_000}},
-		{plan: planPro, want: scanUsageLimits{Weekly: 1_000_000, Monthly: 1_000_000}},
-		{plan: planEnterprise, want: scanUsageLimits{Weekly: 1_000_000, Monthly: 1_000_000}},
+		{plan: planFree, want: scanUsageLimits{Weekly: 250, Monthly: 1_000}},
+		{plan: planPro, want: scanUsageLimits{Weekly: 2_500, Monthly: 10_000}},
+		{plan: planEnterprise, want: scanUsageLimits{Weekly: unlimitedLimit, Monthly: unlimitedLimit}},
 	}
 
 	for _, test := range tests {
@@ -58,12 +58,19 @@ func TestScanUsageLimitErrorAtBoundary(t *testing.T) {
 	}
 
 	weeklyErr := scanUsageLimitError(limits.Weekly, limits.Monthly-1, limits)
-	if weeklyErr == nil || weeklyErr.Error() != "weekly scan limit reached (2,500); upgrade your plan or wait for older scans to leave the usage window" {
+	if weeklyErr == nil || weeklyErr.Error() != "weekly scan limit reached (250); upgrade your plan or wait for older scans to leave the usage window" {
 		t.Fatalf("unexpected weekly limit error: %v", weeklyErr)
 	}
 
 	monthlyErr := scanUsageLimitError(0, limits.Monthly, limits)
-	if monthlyErr == nil || monthlyErr.Error() != "monthly scan limit reached (10,000); upgrade your plan or wait for older scans to leave the usage window" {
+	if monthlyErr == nil || monthlyErr.Error() != "monthly scan limit reached (1,000); upgrade your plan or wait for older scans to leave the usage window" {
 		t.Fatalf("unexpected monthly limit error: %v", monthlyErr)
+	}
+}
+
+func TestScanUsageLimitErrorNeverBlocksUnlimited(t *testing.T) {
+	enterprise := usageLimitsForPlan(planEnterprise)
+	if err := scanUsageLimitError(1_000_000, 1_000_000, enterprise); err != nil {
+		t.Fatalf("enterprise (unlimited) scan usage must never be blocked, got: %v", err)
 	}
 }

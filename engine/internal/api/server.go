@@ -636,9 +636,20 @@ func (s *Server) handleListWorkspaces(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	user, _ := currentUser(r.Context())
-	if !s.hasFeature(r.Context(), &user, featureMultipleWorkspaces) {
-		writeError(w, http.StatusPaymentRequired, "enterprise plan required to create additional workspaces")
-		return
+	plan := s.currentEntitlement(r.Context(), &user).Plan
+	if limit := workspaceLimitForPlan(plan); limit >= 0 {
+		count, err := s.workspaceCountForOwner(r.Context(), user.ID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to check workspace limit")
+			return
+		}
+		if count >= limit {
+			writeError(w, http.StatusPaymentRequired, fmt.Sprintf(
+				"workspace limit reached for your plan (%s); upgrade to add more workspaces",
+				formatUsageLimit(limit),
+			))
+			return
+		}
 	}
 
 	var request struct {
@@ -711,6 +722,22 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
+	plan := s.currentEntitlement(r.Context(), nil).Plan
+	if limit := userLimitForPlan(plan); limit >= 0 {
+		count, err := s.users.CountDocuments(r.Context(), bson.M{})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to check user limit")
+			return
+		}
+		if count >= limit {
+			writeError(w, http.StatusPaymentRequired, fmt.Sprintf(
+				"user limit reached for your plan (%s); upgrade to add more users",
+				formatUsageLimit(limit),
+			))
+			return
+		}
+	}
+
 	var request struct {
 		Username              string   `json:"username"`
 		Password              string   `json:"password"`
@@ -1235,6 +1262,18 @@ func (s *Server) parseWorkspaceIDs(ctx context.Context, ids []string) ([]bson.Ob
 	}
 
 	return workspaceIDs, nil
+}
+
+// workspaceCountForOwner reports how many workspaces already count against
+// ownerID's workspace limit. Self-hosted is a single instance (one org, no
+// per-user ownership), so every workspace counts; cloud scopes to the
+// workspaces this account created, matching accountLimitCounts in usage.go.
+func (s *Server) workspaceCountForOwner(ctx context.Context, ownerID bson.ObjectID) (int64, error) {
+	filter := bson.M{}
+	if s.cfg.DeploymentMode != hostingSelfHosted {
+		filter["created_by"] = ownerID
+	}
+	return s.workspaces.CountDocuments(ctx, filter)
 }
 
 func (s *Server) getAllWorkspaces(ctx context.Context) ([]Workspace, error) {

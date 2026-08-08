@@ -26,8 +26,13 @@ const (
 	proWeeklyScanLimit   int64 = 2_500
 	proMonthlyScanLimit  int64 = 10_000
 
-	freeUserLimit int64 = 1
-	proUserLimit  int64 = 50
+	// Free's user limit is the one dimension that splits by hosting mode:
+	// cloud Free is single-player (1 seat), self-hosted Free may be shared
+	// by a small team (25 seats) since it costs runtz no cloud infra either
+	// way. Pro/Enterprise don't split — see userLimitForPlan.
+	freeUserLimitCloud      int64 = 1
+	freeUserLimitSelfHosted int64 = 25
+	proUserLimit            int64 = 50
 
 	freeWorkspaceLimit int64 = 1
 	proWorkspaceLimit  int64 = 5
@@ -147,15 +152,20 @@ func workspaceLimitForPlan(plan string) int64 {
 }
 
 // userLimitForPlan returns the max number of users an account on plan may
-// have, or unlimitedLimit for Enterprise (negotiated/custom).
-func userLimitForPlan(plan string) int64 {
+// have, or unlimitedLimit for Enterprise (negotiated/custom). Free is the
+// only tier that splits by deploymentMode: cloud stays single-player, while
+// self-hosted may share its one workspace with a small team.
+func userLimitForPlan(plan, deploymentMode string) int64 {
 	switch normalizePlan(plan) {
 	case planEnterprise:
 		return unlimitedLimit
 	case planPro:
 		return proUserLimit
 	default:
-		return freeUserLimit
+		if normalizeHostingMode(deploymentMode) == hostingSelfHosted {
+			return freeUserLimitSelfHosted
+		}
+		return freeUserLimitCloud
 	}
 }
 

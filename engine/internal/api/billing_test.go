@@ -76,14 +76,19 @@ func TestWorkspaceAndUserLimitForPlan(t *testing.T) {
 		t.Fatalf("enterprise workspace limit = %d, want unlimited", got)
 	}
 
-	if got := userLimitForPlan(planFree); got != freeUserLimit {
-		t.Fatalf("free user limit = %d, want %d", got, freeUserLimit)
+	if got := userLimitForPlan(planFree, hostingCloud); got != freeUserLimitCloud {
+		t.Fatalf("cloud free user limit = %d, want %d", got, freeUserLimitCloud)
 	}
-	if got := userLimitForPlan(planPro); got != proUserLimit {
-		t.Fatalf("pro user limit = %d, want %d", got, proUserLimit)
+	if got := userLimitForPlan(planFree, hostingSelfHosted); got != freeUserLimitSelfHosted {
+		t.Fatalf("self-hosted free user limit = %d, want %d", got, freeUserLimitSelfHosted)
 	}
-	if got := userLimitForPlan(planEnterprise); got != unlimitedLimit {
+	if got := userLimitForPlan(planPro, hostingCloud); got != proUserLimit {
+		t.Fatalf("cloud pro user limit = %d, want %d", got, proUserLimit)
+	}
+	if got := userLimitForPlan(planPro, hostingSelfHosted); got != proUserLimit {
+		t.Fatalf("self-hosted pro user limit = %d, want %d", got, proUserLimit)
+	}
+	if got := userLimitForPlan(planEnterprise, hostingCloud); got != unlimitedLimit {
 		t.Fatalf("enterprise user limit = %d, want unlimited", got)
 	}
 }
-

@@ -723,7 +723,7 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	plan := s.currentEntitlement(r.Context(), nil).Plan
-	if limit := userLimitForPlan(plan); limit >= 0 {
+	if limit := userLimitForPlan(plan, s.cfg.DeploymentMode); limit >= 0 {
 		count, err := s.users.CountDocuments(r.Context(), bson.M{})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to check user limit")

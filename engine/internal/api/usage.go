@@ -109,7 +109,7 @@ func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 		"plan":        plan,
 		"scanTypes":   usageScanTypes,
 		"workspaces":  limitUsage{Total: workspaceCount, Limit: workspaceLimitForPlan(plan)},
-		"users":       limitUsage{Total: userCount, Limit: userLimitForPlan(plan)},
+		"users":       limitUsage{Total: userCount, Limit: userLimitForPlan(plan, s.cfg.DeploymentMode)},
 		"generatedAt": now.Format(time.RFC3339),
 	})
 }

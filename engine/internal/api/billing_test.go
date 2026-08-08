@@ -54,14 +54,26 @@ func TestStripeSubscriptionPeriodEnd(t *testing.T) {
 }
 
 func TestFeaturesForPlan(t *testing.T) {
+	// Google sign-in is available on every plan/mode; GitHub stays cloud-only.
 	freeSelfHosted := featuresForPlan(planFree, hostingSelfHosted)
-	if featureEnabled(freeSelfHosted, featureGoogleGitHubAuth) {
-		t.Fatal("self-hosted free should not include google/github auth")
+	if !featureEnabled(freeSelfHosted, featureGoogleAuth) {
+		t.Fatal("self-hosted free should include google auth")
+	}
+	if featureEnabled(freeSelfHosted, featureGitHubAuth) {
+		t.Fatal("self-hosted free should not include github auth")
 	}
 
 	proSelfHosted := featuresForPlan(planPro, hostingSelfHosted)
-	if !featureEnabled(proSelfHosted, featureGoogleGitHubAuth) || !featureEnabled(proSelfHosted, featureAIAlertAgent) {
-		t.Fatal("self-hosted pro should include oauth and ai alert agent")
+	if !featureEnabled(proSelfHosted, featureGoogleAuth) || !featureEnabled(proSelfHosted, featureAIAlertAgent) {
+		t.Fatal("self-hosted pro should include google auth and ai alert agent")
+	}
+	if featureEnabled(proSelfHosted, featureGitHubAuth) {
+		t.Fatal("self-hosted pro should not include github auth")
+	}
+
+	freeCloud := featuresForPlan(planFree, hostingCloud)
+	if !featureEnabled(freeCloud, featureGoogleAuth) || !featureEnabled(freeCloud, featureGitHubAuth) {
+		t.Fatal("cloud free should include both google and github auth")
 	}
 }
 

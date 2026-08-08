@@ -51,8 +51,10 @@ func (s *Server) handleGitHubLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "github login is not configured")
 		return
 	}
-	if s.cfg.DeploymentMode == hostingSelfHosted && !s.hasFeature(r.Context(), nil, featureGoogleGitHubAuth) {
-		writeError(w, http.StatusPaymentRequired, "self-hosted pro or enterprise license required for github login")
+	// GitHub sign-in is cloud-only: featuresForPlan never grants
+	// featureGitHubAuth in self-hosted, on any plan.
+	if s.cfg.DeploymentMode == hostingSelfHosted && !s.hasFeature(r.Context(), nil, featureGitHubAuth) {
+		writeError(w, http.StatusNotFound, "github login is not available for self-hosted deployments")
 		return
 	}
 

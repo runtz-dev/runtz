@@ -40,10 +40,11 @@ const (
 	hostingCloud      = "cloud"
 	hostingSelfHosted = "self-hosted"
 
-	featureGoogleGitHubAuth = "google_github_auth"
-	featureSmartReports     = "smart_reports"
-	featureSmartAlerts      = "smart_alerts"
-	featureAIAlertAgent     = "ai_alert_agent"
+	featureGoogleAuth   = "google_auth"
+	featureGitHubAuth   = "github_auth"
+	featureSmartReports = "smart_reports"
+	featureSmartAlerts  = "smart_alerts"
+	featureAIAlertAgent = "ai_alert_agent"
 
 	instanceStateKey = "default"
 )
@@ -87,9 +88,11 @@ func featuresForPlan(plan, deploymentMode string) []string {
 	plan = normalizePlan(plan)
 	deploymentMode = normalizeHostingMode(deploymentMode)
 
-	features := []string{}
-	if deploymentMode == hostingCloud || plan == planPro || plan == planEnterprise {
-		features = append(features, featureGoogleGitHubAuth)
+	// Google sign-in is available on every plan, cloud or self-hosted.
+	// GitHub sign-in stays cloud-only regardless of plan.
+	features := []string{featureGoogleAuth}
+	if deploymentMode == hostingCloud {
+		features = append(features, featureGitHubAuth)
 	}
 	if plan == planPro || plan == planEnterprise {
 		features = append(features, featureSmartReports, featureSmartAlerts, featureAIAlertAgent)

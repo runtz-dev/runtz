@@ -46,8 +46,8 @@ func (s *Server) handleGoogleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "google login is not configured")
 		return
 	}
-	if s.cfg.DeploymentMode == hostingSelfHosted && !s.hasFeature(r.Context(), nil, featureGoogleGitHubAuth) {
-		writeError(w, http.StatusPaymentRequired, "self-hosted pro or enterprise license required for google login")
+	if s.cfg.DeploymentMode == hostingSelfHosted && !s.hasFeature(r.Context(), nil, featureGoogleAuth) {
+		writeError(w, http.StatusPaymentRequired, "google login is not available for this license")
 		return
 	}
 

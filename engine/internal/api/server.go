@@ -414,15 +414,16 @@ func (s *Server) handleSetupStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	entitlement := s.currentEntitlement(r.Context(), nil)
-	oauthEnabled := featureEnabled(entitlement.Features, featureGoogleGitHubAuth)
+	googleEnabled := featureEnabled(entitlement.Features, featureGoogleAuth)
+	githubEnabled := featureEnabled(entitlement.Features, featureGitHubAuth)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"configured":     count > 0,
 		"deploymentMode": s.cfg.DeploymentMode,
 		"entitlement":    entitlement,
 		"auth": map[string]any{
 			"email":          strings.TrimSpace(s.cfg.ResendAPIKey) != "",
-			"google":         oauthEnabled && strings.TrimSpace(s.cfg.GoogleClientID) != "",
-			"github":         oauthEnabled && strings.TrimSpace(s.cfg.GitHubClientID) != "" && strings.TrimSpace(s.cfg.GitHubClientSecret) != "",
+			"google":         googleEnabled && strings.TrimSpace(s.cfg.GoogleClientID) != "",
+			"github":         githubEnabled && strings.TrimSpace(s.cfg.GitHubClientID) != "" && strings.TrimSpace(s.cfg.GitHubClientSecret) != "",
 			"githubClientId": s.cfg.GitHubClientID,
 			"googleClientId": s.cfg.GoogleClientID,
 		},

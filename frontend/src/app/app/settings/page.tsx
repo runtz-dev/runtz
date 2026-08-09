@@ -888,8 +888,13 @@ function AccountLimitRow({
 }) {
   const unlimited = limit < 0
   const percentage = !unlimited && limit > 0 ? Math.min(100, (total / limit) * 100) : 0
-  const progressColor =
-    percentage >= 100
+  // Free's fixed 1/1 (caption set) is a deliberate ceiling, not a warning —
+  // the "Personal Free Plan" caption already explains it, so keep the bar
+  // calm there instead of alarming red/amber at a "limit" nobody is at risk
+  // of blowing through.
+  const progressColor = caption
+    ? "bg-primary"
+    : percentage >= 100
       ? "bg-destructive"
       : percentage >= 80
         ? "bg-amber-500"

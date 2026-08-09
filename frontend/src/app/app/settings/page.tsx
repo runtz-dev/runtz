@@ -703,6 +703,13 @@ type UsageWindow = {
   total: number
 }
 
+// A "total used / limit" pair. limit is -1 (unlimitedLimit on the engine
+// side) for Enterprise, which is negotiated/custom rather than capped.
+type AccountLimit = {
+  total: number
+  limit: number
+}
+
 type UsageResponse = {
   weekly: UsageWindow
   monthly: UsageWindow
@@ -711,10 +718,13 @@ type UsageResponse = {
     monthly: number
   }
   plan: "free" | "pro" | "enterprise"
+  workspaces: AccountLimit
+  users: AccountLimit
   generatedAt: string
 }
 
 const EMPTY_USAGE_WINDOW: UsageWindow = { total: 0 }
+const EMPTY_ACCOUNT_LIMIT: AccountLimit = { total: 0, limit: 0 }
 
 function UsagePanel() {
   const { selectedWorkspaceId } = useWorkspace()
@@ -747,6 +757,11 @@ function UsagePanel() {
   const monthly = usage?.monthly ?? EMPTY_USAGE_WINDOW
   const weeklyLimit = usage?.limits.weekly ?? 0
   const monthlyLimit = usage?.limits.monthly ?? 0
+  const workspaces = usage?.workspaces ?? EMPTY_ACCOUNT_LIMIT
+  const users = usage?.users ?? EMPTY_ACCOUNT_LIMIT
+  // Free is fixed at 1/1 by design (personal, single-user use) rather than a
+  // cap that's just low — call that out so it doesn't read as a bug.
+  const accountLimitCaption = usage?.plan === "free" ? "Personal Free Plan" : undefined
 
   return (
     <Card className="max-w-xl">
@@ -777,6 +792,20 @@ function UsagePanel() {
           total={monthly.total}
           limit={monthlyLimit}
           loading={pending && !usage}
+        />
+        <AccountLimitRow
+          label="Users"
+          total={users.total}
+          limit={users.limit}
+          loading={pending && !usage}
+          caption={accountLimitCaption}
+        />
+        <AccountLimitRow
+          label="Workspaces"
+          total={workspaces.total}
+          limit={workspaces.limit}
+          loading={pending && !usage}
+          caption={accountLimitCaption}
         />
         {error ? (
           <p className="rounded-lg border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -826,6 +855,73 @@ function UsageWindowRow({
           className="h-2 overflow-hidden rounded-full bg-muted"
           role="progressbar"
           aria-label={`${label}: ${total} of ${limit} scans used`}
+          aria-valuemin={0}
+          aria-valuemax={limit}
+          aria-valuenow={Math.min(total, limit)}
+        >
+          <div
+            className={`h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none ${progressColor}`}
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Users/Workspaces row: same shape as UsageWindowRow, plus an "unlimited"
+// state (limit < 0, Enterprise) that skips the total/limit fraction and the
+// progress bar entirely, and an optional caption (used on Free to label the
+// fixed 1/1 as "Personal Free Plan" rather than a bug-looking low cap).
+function AccountLimitRow({
+  label,
+  total,
+  limit,
+  loading,
+  caption,
+}: {
+  label: string
+  total: number
+  limit: number
+  loading: boolean
+  caption?: string
+}) {
+  const unlimited = limit < 0
+  const percentage = !unlimited && limit > 0 ? Math.min(100, (total / limit) * 100) : 0
+  // Free's fixed 1/1 (caption set) is a deliberate ceiling, not a warning —
+  // the "Personal Free Plan" caption already explains it, so keep the bar
+  // calm there instead of alarming red/amber at a "limit" nobody is at risk
+  // of blowing through.
+  const progressColor = caption
+    ? "bg-primary"
+    : percentage >= 100
+      ? "bg-destructive"
+      : percentage >= 80
+        ? "bg-amber-500"
+        : "bg-primary"
+
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium">{label}</p>
+        {loading ? (
+          <Skeleton className="h-4 w-16" />
+        ) : (
+          <span className="text-xs font-medium tabular-nums text-muted-foreground">
+            {unlimited ? `${total} · Unlimited` : `${total}/${limit}`}
+          </span>
+        )}
+      </div>
+      {!loading && caption ? (
+        <p className="text-xs text-muted-foreground">{caption}</p>
+      ) : null}
+      {unlimited ? null : loading ? (
+        <Skeleton className="h-2 w-full rounded-full" />
+      ) : (
+        <div
+          className="h-2 overflow-hidden rounded-full bg-muted"
+          role="progressbar"
+          aria-label={`${label}: ${total} of ${limit} used`}
           aria-valuemin={0}
           aria-valuemax={limit}
           aria-valuenow={Math.min(total, limit)}

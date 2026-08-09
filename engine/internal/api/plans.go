@@ -16,19 +16,35 @@ const (
 	planPro        = "pro"
 	planEnterprise = "enterprise"
 
-	freeWeeklyScanLimit  int64 = 2_500
-	freeMonthlyScanLimit int64 = 10_000
-	paidWeeklyScanLimit  int64 = 1_000_000
-	paidMonthlyScanLimit int64 = 1_000_000
+	// unlimitedLimit marks a plan dimension (scans, seats, workspaces) as
+	// having no cap. Enterprise is negotiated/custom, so it always reports
+	// this instead of a number.
+	unlimitedLimit int64 = -1
+
+	freeWeeklyScanLimit  int64 = 250
+	freeMonthlyScanLimit int64 = 1_000
+	proWeeklyScanLimit   int64 = 2_500
+	proMonthlyScanLimit  int64 = 10_000
+
+	// Free's user limit is the one dimension that splits by hosting mode:
+	// cloud Free is single-player (1 seat), self-hosted Free may be shared
+	// by a small team (25 seats) since it costs runtz no cloud infra either
+	// way. Pro/Enterprise don't split — see userLimitForPlan.
+	freeUserLimitCloud      int64 = 1
+	freeUserLimitSelfHosted int64 = 25
+	proUserLimit            int64 = 50
+
+	freeWorkspaceLimit int64 = 1
+	proWorkspaceLimit  int64 = 5
 
 	hostingCloud      = "cloud"
 	hostingSelfHosted = "self-hosted"
 
-	featureGoogleGitHubAuth   = "google_github_auth"
-	featureSmartReports       = "smart_reports"
-	featureSmartAlerts        = "smart_alerts"
-	featureAIAlertAgent       = "ai_alert_agent"
-	featureMultipleWorkspaces = "multiple_workspaces"
+	featureGoogleAuth   = "google_auth"
+	featureGitHubAuth   = "github_auth"
+	featureSmartReports = "smart_reports"
+	featureSmartAlerts  = "smart_alerts"
+	featureAIAlertAgent = "ai_alert_agent"
 
 	instanceStateKey = "default"
 )
@@ -72,15 +88,14 @@ func featuresForPlan(plan, deploymentMode string) []string {
 	plan = normalizePlan(plan)
 	deploymentMode = normalizeHostingMode(deploymentMode)
 
-	features := []string{}
-	if deploymentMode == hostingCloud || plan == planPro || plan == planEnterprise {
-		features = append(features, featureGoogleGitHubAuth)
+	// Google sign-in is available on every plan, cloud or self-hosted.
+	// GitHub sign-in stays cloud-only regardless of plan.
+	features := []string{featureGoogleAuth}
+	if deploymentMode == hostingCloud {
+		features = append(features, featureGitHubAuth)
 	}
 	if plan == planPro || plan == planEnterprise {
 		features = append(features, featureSmartReports, featureSmartAlerts, featureAIAlertAgent)
-	}
-	if plan == planEnterprise {
-		features = append(features, featureMultipleWorkspaces)
 	}
 
 	return features
@@ -116,16 +131,44 @@ func planRank(plan string) int {
 }
 
 func usageLimitsForPlan(plan string) scanUsageLimits {
-	if planRank(plan) >= planRank(planPro) {
-		return scanUsageLimits{
-			Weekly:  paidWeeklyScanLimit,
-			Monthly: paidMonthlyScanLimit,
-		}
+	switch normalizePlan(plan) {
+	case planEnterprise:
+		return scanUsageLimits{Weekly: unlimitedLimit, Monthly: unlimitedLimit}
+	case planPro:
+		return scanUsageLimits{Weekly: proWeeklyScanLimit, Monthly: proMonthlyScanLimit}
+	default:
+		return scanUsageLimits{Weekly: freeWeeklyScanLimit, Monthly: freeMonthlyScanLimit}
 	}
+}
 
-	return scanUsageLimits{
-		Weekly:  freeWeeklyScanLimit,
-		Monthly: freeMonthlyScanLimit,
+// workspaceLimitForPlan returns the max number of workspaces an account on
+// plan may create, or unlimitedLimit for Enterprise (negotiated/custom).
+func workspaceLimitForPlan(plan string) int64 {
+	switch normalizePlan(plan) {
+	case planEnterprise:
+		return unlimitedLimit
+	case planPro:
+		return proWorkspaceLimit
+	default:
+		return freeWorkspaceLimit
+	}
+}
+
+// userLimitForPlan returns the max number of users an account on plan may
+// have, or unlimitedLimit for Enterprise (negotiated/custom). Free is the
+// only tier that splits by deploymentMode: cloud stays single-player, while
+// self-hosted may share its one workspace with a small team.
+func userLimitForPlan(plan, deploymentMode string) int64 {
+	switch normalizePlan(plan) {
+	case planEnterprise:
+		return unlimitedLimit
+	case planPro:
+		return proUserLimit
+	default:
+		if normalizeHostingMode(deploymentMode) == hostingSelfHosted {
+			return freeUserLimitSelfHosted
+		}
+		return freeUserLimitCloud
 	}
 }
 

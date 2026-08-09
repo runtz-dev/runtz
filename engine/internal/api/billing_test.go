@@ -54,21 +54,53 @@ func TestStripeSubscriptionPeriodEnd(t *testing.T) {
 }
 
 func TestFeaturesForPlan(t *testing.T) {
+	// Google sign-in is available on every plan/mode; GitHub stays cloud-only.
 	freeSelfHosted := featuresForPlan(planFree, hostingSelfHosted)
-	if featureEnabled(freeSelfHosted, featureGoogleGitHubAuth) {
-		t.Fatal("self-hosted free should not include google/github auth")
+	if !featureEnabled(freeSelfHosted, featureGoogleAuth) {
+		t.Fatal("self-hosted free should include google auth")
+	}
+	if featureEnabled(freeSelfHosted, featureGitHubAuth) {
+		t.Fatal("self-hosted free should not include github auth")
 	}
 
 	proSelfHosted := featuresForPlan(planPro, hostingSelfHosted)
-	if !featureEnabled(proSelfHosted, featureGoogleGitHubAuth) || !featureEnabled(proSelfHosted, featureAIAlertAgent) {
-		t.Fatal("self-hosted pro should include oauth and ai alert agent")
+	if !featureEnabled(proSelfHosted, featureGoogleAuth) || !featureEnabled(proSelfHosted, featureAIAlertAgent) {
+		t.Fatal("self-hosted pro should include google auth and ai alert agent")
 	}
-	if featureEnabled(proSelfHosted, featureMultipleWorkspaces) {
-		t.Fatal("self-hosted pro should not include multiple workspaces")
+	if featureEnabled(proSelfHosted, featureGitHubAuth) {
+		t.Fatal("self-hosted pro should not include github auth")
 	}
 
-	enterprise := featuresForPlan(planEnterprise, hostingCloud)
-	if !featureEnabled(enterprise, featureMultipleWorkspaces) {
-		t.Fatal("enterprise should include multiple workspaces")
+	freeCloud := featuresForPlan(planFree, hostingCloud)
+	if !featureEnabled(freeCloud, featureGoogleAuth) || !featureEnabled(freeCloud, featureGitHubAuth) {
+		t.Fatal("cloud free should include both google and github auth")
+	}
+}
+
+func TestWorkspaceAndUserLimitForPlan(t *testing.T) {
+	if got := workspaceLimitForPlan(planFree); got != freeWorkspaceLimit {
+		t.Fatalf("free workspace limit = %d, want %d", got, freeWorkspaceLimit)
+	}
+	if got := workspaceLimitForPlan(planPro); got != proWorkspaceLimit {
+		t.Fatalf("pro workspace limit = %d, want %d", got, proWorkspaceLimit)
+	}
+	if got := workspaceLimitForPlan(planEnterprise); got != unlimitedLimit {
+		t.Fatalf("enterprise workspace limit = %d, want unlimited", got)
+	}
+
+	if got := userLimitForPlan(planFree, hostingCloud); got != freeUserLimitCloud {
+		t.Fatalf("cloud free user limit = %d, want %d", got, freeUserLimitCloud)
+	}
+	if got := userLimitForPlan(planFree, hostingSelfHosted); got != freeUserLimitSelfHosted {
+		t.Fatalf("self-hosted free user limit = %d, want %d", got, freeUserLimitSelfHosted)
+	}
+	if got := userLimitForPlan(planPro, hostingCloud); got != proUserLimit {
+		t.Fatalf("cloud pro user limit = %d, want %d", got, proUserLimit)
+	}
+	if got := userLimitForPlan(planPro, hostingSelfHosted); got != proUserLimit {
+		t.Fatalf("self-hosted pro user limit = %d, want %d", got, proUserLimit)
+	}
+	if got := userLimitForPlan(planEnterprise, hostingCloud); got != unlimitedLimit {
+		t.Fatalf("enterprise user limit = %d, want unlimited", got)
 	}
 }

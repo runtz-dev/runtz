@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -41,9 +43,17 @@ func (e *usageLimitError) Error() string {
 	)
 }
 
+// limitUsage is the "how many of how many" shape the Usage panel renders as
+// a progress row, shared by the scans/users/workspaces sections.
+type limitUsage struct {
+	Total int64 `json:"total"`
+	Limit int64 `json:"limit"`
+}
+
 func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 	user, _ := currentUser(r.Context())
 	plan := s.currentEntitlement(r.Context(), &user).Plan
+	accountOwnerID := user.ID
 
 	filter := bson.M{}
 	if workspaceIDParam := r.URL.Query().Get("workspaceId"); workspaceIDParam != "" {
@@ -66,6 +76,7 @@ func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to load workspace plan")
 			return
 		}
+		accountOwnerID = workspace.CreatedBy
 		filter["workspace_id"] = workspaceID
 	} else if !s.globalDataScope(user) {
 		filter["workspace_id"] = bson.M{"$in": user.WorkspaceIDs}
@@ -85,14 +96,64 @@ func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	workspaceCount, userCount, err := s.accountLimitCounts(r.Context(), accountOwnerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to check account limits")
+		return
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"weekly":      weekly,
 		"monthly":     monthly,
 		"limits":      usageLimitsForPlan(plan),
 		"plan":        plan,
 		"scanTypes":   usageScanTypes,
+		"workspaces":  limitUsage{Total: workspaceCount, Limit: workspaceLimitForPlan(plan)},
+		"users":       limitUsage{Total: userCount, Limit: userLimitForPlan(plan, s.cfg.DeploymentMode)},
 		"generatedAt": now.Format(time.RFC3339),
 	})
+}
+
+// accountLimitCounts reports how many workspaces and users currently count
+// against an account's plan. Self-hosted is a single instance, so both are
+// global; cloud is scoped to the workspaces a given owner created (matching
+// how handleCreateWorkspace and handleCreateUser enforce the same limits).
+func (s *Server) accountLimitCounts(ctx context.Context, ownerID bson.ObjectID) (workspaces int64, users int64, err error) {
+	if s.cfg.DeploymentMode == hostingSelfHosted {
+		workspaces, err = s.workspaces.CountDocuments(ctx, bson.M{})
+		if err != nil {
+			return 0, 0, err
+		}
+		users, err = s.users.CountDocuments(ctx, bson.M{})
+		return workspaces, users, err
+	}
+
+	ownedWorkspaceIDs, err := s.workspaceIDsOwnedBy(ctx, ownerID)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	users, err = s.users.CountDocuments(ctx, bson.M{"workspace_ids": bson.M{"$in": ownedWorkspaceIDs}})
+	return int64(len(ownedWorkspaceIDs)), users, err
+}
+
+func (s *Server) workspaceIDsOwnedBy(ctx context.Context, ownerID bson.ObjectID) ([]bson.ObjectID, error) {
+	cursor, err := s.workspaces.Find(ctx, bson.M{"created_by": ownerID})
+	if err != nil {
+		return nil, err
+	}
+	defer closeCursor(ctx, cursor)
+
+	var owned []Workspace
+	if err := cursor.All(ctx, &owned); err != nil {
+		return nil, err
+	}
+
+	ids := make([]bson.ObjectID, 0, len(owned))
+	for _, workspace := range owned {
+		ids = append(ids, workspace.ID)
+	}
+	return ids, nil
 }
 
 // enforceScanUsageLimit applies the plan allowance to the workspace resolved
@@ -132,26 +193,40 @@ func (s *Server) planForWorkspace(ctx context.Context, workspaceOwnerID bson.Obj
 }
 
 func scanUsageLimitError(weekly, monthly int64, limits scanUsageLimits) error {
-	if weekly >= limits.Weekly {
+	// unlimitedLimit (Enterprise) never trips: a negative cap must not be
+	// compared against an actual count.
+	if limits.Weekly >= 0 && weekly >= limits.Weekly {
 		return &usageLimitError{Window: "weekly", Limit: limits.Weekly}
 	}
-	if monthly >= limits.Monthly {
+	if limits.Monthly >= 0 && monthly >= limits.Monthly {
 		return &usageLimitError{Window: "monthly", Limit: limits.Monthly}
 	}
 	return nil
 }
 
+// formatUsageLimit renders a limit for the error message: "unlimited" for
+// Enterprise's unlimitedLimit sentinel, comma-grouped thousands otherwise.
 func formatUsageLimit(limit int64) string {
-	switch limit {
-	case 1_000_000:
-		return "1,000,000"
-	case 10_000:
-		return "10,000"
-	case 2_500:
-		return "2,500"
-	default:
-		return fmt.Sprintf("%d", limit)
+	if limit < 0 {
+		return "unlimited"
 	}
+
+	digits := strconv.FormatInt(limit, 10)
+	if len(digits) <= 3 {
+		return digits
+	}
+
+	var grouped strings.Builder
+	firstGroup := len(digits) % 3
+	if firstGroup == 0 {
+		firstGroup = 3
+	}
+	grouped.WriteString(digits[:firstGroup])
+	for i := firstGroup; i < len(digits); i += 3 {
+		grouped.WriteByte(',')
+		grouped.WriteString(digits[i : i+3])
+	}
+	return grouped.String()
 }
 
 // countScansInWindows counts the scans matching filter in a single aggregation:

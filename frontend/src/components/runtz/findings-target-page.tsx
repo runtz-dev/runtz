@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 import { ArrowLeftIcon } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import * as React from "react"
@@ -71,6 +71,8 @@ export function FindingsTargetPage({
 }: FindingsTargetPageProps) {
   const { basePath } = usePlatform()
   const params = useParams<{ targetName: string }>()
+  const searchParams = useSearchParams()
+  const requestedScanId = searchParams.get("scanId")
   const targetName = React.useMemo(
     () => decodeParam(params.targetName),
     [params.targetName]
@@ -80,10 +82,14 @@ export function FindingsTargetPage({
     () => filterFindingsScansByTarget(scans, targetName),
     [scans, targetName]
   )
-  const latestScan = targetScans[0]
-  const latestSummary = latestScan?.summary
-  const scanDetail = useScanDetail(scanType, latestScan)
-  const latestFindings = React.useMemo(
+  const selectedScan = React.useMemo(
+    () =>
+      targetScans.find((scan) => scan.id === requestedScanId) ?? targetScans[0],
+    [requestedScanId, targetScans]
+  )
+  const selectedSummary = selectedScan?.summary
+  const scanDetail = useScanDetail(scanType, selectedScan)
+  const selectedFindings = React.useMemo(
     () =>
       scanDetail.scan
         ? (scanDetail.scan.findings ?? []).map((finding) => ({
@@ -100,19 +106,19 @@ export function FindingsTargetPage({
   >(new Set())
   const categoryCounts = React.useMemo(() => {
     const counts: Record<string, number> = {}
-    for (const { finding } of latestFindings) {
+    for (const { finding } of selectedFindings) {
       const category = finding.category || "uncategorized"
       counts[category] = (counts[category] ?? 0) + 1
     }
     return counts
-  }, [latestFindings])
+  }, [selectedFindings])
   const visibleFindings = React.useMemo(
     () =>
-      latestFindings.filter(
+      selectedFindings.filter(
         ({ finding }) =>
           !disabledCategories.has(finding.category || "uncategorized")
       ),
-    [latestFindings, disabledCategories]
+    [selectedFindings, disabledCategories]
   )
 
   const toggleCategory = React.useCallback(
@@ -173,7 +179,7 @@ export function FindingsTargetPage({
             <Skeleton key={index} className="h-28" />
           ))}
         </div>
-      ) : !latestScan || !latestSummary ? (
+      ) : !selectedScan || !selectedSummary ? (
         <Empty className="min-h-80 border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -185,7 +191,7 @@ export function FindingsTargetPage({
         </Empty>
       ) : (
         <>
-          <DashboardSummaryGrid summary={latestSummary}>
+          <DashboardSummaryGrid summary={selectedSummary}>
             <MetricCard
               title="Scans"
               value={targetScans.length}
@@ -193,17 +199,17 @@ export function FindingsTargetPage({
             />
             <MetricCard
               title={inspectedTitle}
-              value={latestSummary.totalDependencies}
-              description="in the latest scan"
+              value={selectedSummary.totalDependencies}
+              description="in the selected scan"
             />
             <MetricCard
               title="Findings"
-              value={latestSummary.vulnerabilities}
-              description="in the latest scan"
+              value={selectedSummary.vulnerabilities}
+              description="in the selected scan"
             />
             <MetricCard
               title="Critical/High"
-              value={latestSummary.critical + latestSummary.high}
+              value={selectedSummary.critical + selectedSummary.high}
               description="fix priority"
             />
           </DashboardSummaryGrid>
@@ -215,7 +221,7 @@ export function FindingsTargetPage({
               <Card>
                 <CardHeader>
                   <CardTitle>Findings found</CardTitle>
-                  <CardDescription>Loading the latest scan…</CardDescription>
+                  <CardDescription>Loading the selected scan…</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ScanDetailSkeleton />
@@ -227,12 +233,12 @@ export function FindingsTargetPage({
               <FindingsTable
                 scans={[scanDetail.scan]}
                 findings={visibleFindings}
-                scanIsClean={latestFindings.length === 0}
+                scanIsClean={selectedFindings.length === 0}
                 title="Security findings"
                 description={
                   disabledCategories.size > 0
-                    ? `Showing ${visibleFindings.length} of ${latestFindings.length} findings · Latest scan on ${formatDate(latestScan.createdAt)}`
-                    : `Latest scan on ${formatDate(latestScan.createdAt)}`
+                    ? `Showing ${visibleFindings.length} of ${selectedFindings.length} findings · Selected scan on ${formatDate(selectedScan.createdAt)}`
+                    : `Selected scan on ${formatDate(selectedScan.createdAt)}`
                 }
               />
             ) : null}
@@ -248,22 +254,22 @@ export function FindingsTargetPage({
               <Card>
                 <CardHeader>
                   <CardTitle>{targetTitle}</CardTitle>
-                  <CardDescription>{latestScan.workspaceName}</CardDescription>
+                  <CardDescription>{selectedScan.workspaceName}</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-2 text-sm">
                   <div className="flex justify-between gap-4">
                     <span className="text-muted-foreground">Source</span>
                     <span className="truncate text-right">
-                      {latestScan.source || "-"}
+                      {selectedScan.source || "-"}
                     </span>
                   </div>
                   <div className="flex justify-between gap-4">
                     <span className="text-muted-foreground">Status</span>
-                    <span>{latestScan.status || "-"}</span>
+                    <span>{selectedScan.status || "-"}</span>
                   </div>
                   <div className="flex justify-between gap-4">
                     <span className="text-muted-foreground">Scanner</span>
-                    <span>{latestScan.scannerVersion || "-"}</span>
+                    <span>{selectedScan.scannerVersion || "-"}</span>
                   </div>
                 </CardContent>
               </Card>

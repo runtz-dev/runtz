@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 import { ArrowLeftIcon, RadarIcon } from "lucide-react"
 import * as React from "react"
 
@@ -45,6 +45,8 @@ export default function SCAProjectPage() {
   const { basePath } = usePlatform()
   const { filter } = useVulnerabilityFilter()
   const params = useParams<{ projectName: string }>()
+  const searchParams = useSearchParams()
+  const requestedScanId = searchParams.get("scanId")
   const projectName = React.useMemo(
     () => decodeProjectName(params.projectName),
     [params.projectName]
@@ -54,13 +56,18 @@ export default function SCAProjectPage() {
     () => filterScansByProject(scans, projectName),
     [projectName, scans]
   )
-  const latestScan = projectScans[0]
-  const latestSummary = React.useMemo(
+  const selectedScan = React.useMemo(
     () =>
-      latestScan ? filterScanSummary(latestScan.summary, filter) : undefined,
-    [filter, latestScan]
+      projectScans.find((scan) => scan.id === requestedScanId) ??
+      projectScans[0],
+    [projectScans, requestedScanId]
   )
-  const scanDetail = useScanDetail("sca", latestScan)
+  const selectedSummary = React.useMemo(
+    () =>
+      selectedScan ? filterScanSummary(selectedScan.summary, filter) : undefined,
+    [filter, selectedScan]
+  )
+  const scanDetail = useScanDetail("sca", selectedScan)
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6">
@@ -86,7 +93,7 @@ export default function SCAProjectPage() {
               {projectName}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Vulnerability results from this app&apos;s latest SCA scan.
+              Vulnerability results from the selected SCA scan.
             </p>
           </div>
         </div>
@@ -107,7 +114,7 @@ export default function SCAProjectPage() {
             <Skeleton key={index} className="h-28" />
           ))}
         </div>
-      ) : !latestScan || !latestSummary ? (
+      ) : !selectedScan || !selectedSummary ? (
         <Empty className="min-h-80 border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -121,7 +128,7 @@ export default function SCAProjectPage() {
         </Empty>
       ) : (
         <>
-          <DashboardSummaryGrid summary={latestSummary}>
+          <DashboardSummaryGrid summary={selectedSummary}>
             <MetricCard
               title="Scans"
               value={projectScans.length}
@@ -129,17 +136,17 @@ export default function SCAProjectPage() {
             />
             <MetricCard
               title="Dependencies"
-              value={latestSummary.totalDependencies}
-              description="in the latest scan"
+              value={selectedSummary.totalDependencies}
+              description="in the selected scan"
             />
             <MetricCard
               title="CVEs/GHSAs"
-              value={latestSummary.vulnerabilities}
-              description="in the latest scan"
+              value={selectedSummary.vulnerabilities}
+              description="in the selected scan"
             />
             <MetricCard
               title="Critical/High"
-              value={latestSummary.critical + latestSummary.high}
+              value={selectedSummary.critical + selectedSummary.high}
               description="fix priority"
             />
           </DashboardSummaryGrid>
@@ -152,7 +159,7 @@ export default function SCAProjectPage() {
                 <div>
                   <CardTitle>Vulnerability results</CardTitle>
                   <CardDescription>
-                    Latest scan on {formatDate(latestScan.createdAt)}
+                    Selected scan on {formatDate(selectedScan.createdAt)}
                   </CardDescription>
                 </div>
                 <ShowUnfixedCVEsSwitch />

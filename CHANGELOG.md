@@ -9,6 +9,18 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc16] - 2026-08-11
+
+### Added
+
+- Findings pages accept a `?scanId=` query param to open a specific past
+  scan instead of always defaulting to the latest one.
+
+### Docs
+
+- Documented the new `runtz-dev/runtz-vscode-extension` repo alongside the
+  CLI and MCP server repos.
+
 ## [1.0.0-rc14] - 2026-08-07
 
 ### Added

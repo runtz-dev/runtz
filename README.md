@@ -21,6 +21,12 @@ The scanner CLI lives in its own repository,
 and release independently. The MCP server lives in
 [runtz-dev/runtz-mcp](https://github.com/runtz-dev/runtz-mcp).
 
+The VS Code extension lives in
+[runtz-dev/runtz-vscode-extension](https://github.com/runtz-dev/runtz-vscode-extension),
+so it can evolve and release independently. It uses the installed Runtz CLI to
+run SAST from folder context menus and SCA from supported dependency manifests,
+then surfaces the latest result in the VS Code Activity Bar.
+
 ## Current Scope
 
 Implemented:

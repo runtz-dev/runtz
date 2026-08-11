@@ -13,7 +13,9 @@ This file is the contract for anyone — human or AI coding agent (Claude, Codex
 
 The scanner CLI is **not** here — it lives in
 [runtz-dev/runtz-cli](https://github.com/runtz-dev/runtz-cli). The MCP server is
-in [runtz-dev/runtz-mcp](https://github.com/runtz-dev/runtz-mcp).
+in [runtz-dev/runtz-mcp](https://github.com/runtz-dev/runtz-mcp). The VS Code
+extension is in
+[runtz-dev/runtz-vscode-extension](https://github.com/runtz-dev/runtz-vscode-extension).
 
 ## Branch and release flow
 

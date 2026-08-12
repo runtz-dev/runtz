@@ -9,6 +9,14 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc17] - 2026-08-12
+
+### Added
+
+- Onboarding's "Install the CLI" step now switches between the Linux/macOS
+  `curl` command and the Windows `irm` command, matching runtz-cli's new
+  Windows support.
+
 ## [1.0.0-rc16] - 2026-08-11
 
 ### Added

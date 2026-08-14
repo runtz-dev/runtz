@@ -9,6 +9,14 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc18] - 2026-08-14
+
+### Documentation
+
+- Reworked the project README around a clearer product overview, accurate
+  setup and deployment guidance, and real platform and VS Code extension
+  visuals.
+
 ## [1.0.0-rc17] - 2026-08-12
 
 ### Added

@@ -9,6 +9,8 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc19] - 2026-08-15
+
 ### Changed
 
 - Replaced the onboarding host-scan step with an optional VS Code extension

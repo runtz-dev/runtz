@@ -176,7 +176,7 @@ export default function OnboardingPage() {
                     className="rounded-full"
                     onClick={() => setInstallOS("windows")}
                   >
-                    Windows
+                    Windows (PowerShell)
                   </Button>
                 </div>
                 <CommandLine
@@ -344,7 +344,7 @@ function OSBadge({ os }: { os: "unix" | "windows" }) {
       ) : (
         <>
           <WindowsIcon className="size-3" />
-          <span>Windows</span>
+          <span>Windows (PowerShell)</span>
         </>
       )}
     </div>

@@ -9,6 +9,12 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced the onboarding host-scan step with an optional VS Code extension
+  setup and a scanner-agnostic completion step, so onboarding works the same
+  way on Linux, macOS and Windows.
+
 ## [1.0.0-rc18] - 2026-08-14
 
 ### Documentation

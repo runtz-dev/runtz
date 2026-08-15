@@ -1,16 +1,17 @@
 "use client"
 
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 import {
   ArrowRightIcon,
+  BlocksIcon,
   CheckIcon,
   CircleIcon,
   CopyIcon,
+  ExternalLinkIcon,
   KeyRoundIcon,
   LogInIcon,
-  ServerIcon,
+  RocketIcon,
   TerminalIcon,
 } from "lucide-react"
 
@@ -29,6 +30,10 @@ const installCommands = {
   unix: "curl -fsSL https://runtz.dev/install.sh | bash",
   windows: "irm https://runtz.dev/install.ps1 | iex",
 } as const
+
+const vscodeExtensionUrl = "vscode:extension/runtz.runtz-security"
+const vscodeMarketplaceUrl =
+  "https://marketplace.visualstudio.com/items?itemName=Runtz.runtz-security"
 
 export default function OnboardingPage() {
   const router = useRouter()
@@ -49,7 +54,6 @@ export default function OnboardingPage() {
     deploymentMode === "cloud"
       ? `runtz login --token ${tokenValue}`
       : `runtz login --endpoint ${endpoint} --token ${tokenValue}`
-  const scanCommand = "runtz host"
   const installCommand = installCommands[installOS]
 
   async function createAPIKey() {
@@ -114,11 +118,11 @@ export default function OnboardingPage() {
           first steps
         </p>
         <h1 className="mt-2 text-3xl font-semibold tracking-normal">
-          Scan this machine
+          Start scanning with Runtz
         </h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Generate a workspace key, install the CLI, log in once and let it
-          scan this host&apos;s own OS packages with Runtz.
+          Connect your workspace, install the tools that fit your workflow,
+          and start scanning from the terminal or VS Code.
         </p>
       </div>
 
@@ -201,25 +205,43 @@ export default function OnboardingPage() {
             <OnboardingStep
               active={Boolean(apiKey)}
               complete={false}
-              icon={ServerIcon}
-              title="Scan your host"
+              icon={BlocksIcon}
+              title="Install the VS Code extension"
+              description="Run SAST and dependency scans without leaving your editor."
+              optional
             >
-              <div className="flex flex-col gap-3">
-                <CommandLine
-                  value={scanCommand}
-                  copied={copied === "scan"}
-                  onCopy={() => copy(scanCommand, "scan")}
-                />
+              <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
                 <Button
-                  variant="outline"
                   className="w-fit"
-                  render={<Link href="/app/hosts" />}
+                  render={<a href={vscodeExtensionUrl} />}
                 >
-                  Access host scanning page
-                  <ArrowRightIcon data-icon="inline-end" />
+                  <BlocksIcon data-icon="inline-start" />
+                  Install in VS Code
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-fit text-muted-foreground"
+                  render={
+                    <a
+                      href={vscodeMarketplaceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    />
+                  }
+                >
+                  View in Marketplace
+                  <ExternalLinkIcon data-icon="inline-end" />
                 </Button>
               </div>
             </OnboardingStep>
+
+            <OnboardingStep
+              active={Boolean(apiKey)}
+              complete={Boolean(apiKey)}
+              icon={RocketIcon}
+              title="You’re ready to start scanning"
+              description="Run your first scan from the terminal or open Runtz in VS Code whenever you’re ready."
+            />
           </div>
 
           {error ? (
@@ -265,16 +287,23 @@ function OnboardingStep({
   title,
   description,
   children,
+  optional = false,
 }: {
   active: boolean
   complete: boolean
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
   title: string
   description?: string
-  children: React.ReactNode
+  children?: React.ReactNode
+  optional?: boolean
 }) {
   return (
-    <section className={cn("relative grid gap-4 pb-10 pl-14", !active && "opacity-55")}>
+    <section
+      className={cn(
+        "relative grid gap-4 pb-10 pl-14 last:pb-0",
+        !active && "opacity-55"
+      )}
+    >
       <div
         className={cn(
           "absolute top-0 left-0 z-10 flex size-8 items-center justify-center rounded-full border bg-background",
@@ -284,14 +313,21 @@ function OnboardingStep({
         {complete ? <CheckIcon className="size-4" /> : <Icon className="size-4" />}
       </div>
       <div>
-        <h2 className="text-lg font-semibold">{title}</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-lg font-semibold">{title}</h2>
+          {optional ? (
+            <span className="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Optional
+            </span>
+          ) : null}
+        </div>
         {description ? (
           <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
             {description}
           </p>
         ) : null}
       </div>
-      {children}
+      {children ?? null}
     </section>
   )
 }

@@ -14,6 +14,7 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 - Replaced the onboarding host-scan step with an optional VS Code extension
   setup and a scanner-agnostic completion step, so onboarding works the same
   way on Linux, macOS and Windows.
+- Clarified that the Windows CLI installation command runs in PowerShell.
 
 ## [1.0.0-rc18] - 2026-08-14
 

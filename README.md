@@ -105,7 +105,7 @@ curl -fsSL https://runtz.dev/install.sh | bash
 runtz version
 ```
 
-Or on Windows:
+Or on Windows (PowerShell):
 
 ```powershell
 irm https://runtz.dev/install.ps1 | iex

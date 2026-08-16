@@ -591,7 +591,7 @@ export default function APIKeysPage() {
         open={Boolean(newKey)}
         onOpenChange={(open) => !open && closeNewKeyDialog()}
       >
-        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-2xl">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <div className="mb-1 flex size-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
               <CheckIcon className="size-4" />
@@ -601,7 +601,7 @@ export default function APIKeysPage() {
               Copy this key now. For security, it will not be shown again.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+          <div className="flex min-w-0 flex-col gap-2">
             <Input
               className="min-w-0 flex-1 font-mono text-xs"
               type={newKeyVisible ? "text" : "password"}
@@ -609,9 +609,8 @@ export default function APIKeysPage() {
               readOnly
               aria-label="Generated API key"
             />
-            <div className="flex shrink-0 gap-2">
+            <div className="flex justify-end gap-2">
               <Button
-                className="flex-1 sm:flex-none"
                 variant="outline"
                 onClick={() => setNewKeyVisible((visible) => !visible)}
                 aria-label={newKeyVisible ? "Hide API key" : "Show API key"}
@@ -625,7 +624,6 @@ export default function APIKeysPage() {
                 {newKeyVisible ? "Hide" : "Show"}
               </Button>
               <Button
-                className="flex-1 sm:flex-none"
                 variant="outline"
                 onClick={copyNewKey}
                 aria-label="Copy API key"

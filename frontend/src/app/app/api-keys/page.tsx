@@ -4,6 +4,8 @@ import * as React from "react"
 import {
   CheckIcon,
   CopyIcon,
+  EyeIcon,
+  EyeOffIcon,
   KeyRoundIcon,
   MoreHorizontalIcon,
   PencilIcon,
@@ -74,6 +76,7 @@ export default function APIKeysPage() {
   const [workspaceId, setWorkspaceId] = React.useState("")
   const [name, setName] = React.useState("CLI key")
   const [newKey, setNewKey] = React.useState("")
+  const [newKeyVisible, setNewKeyVisible] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
   const [query, setQuery] = React.useState("")
   const [error, setError] = React.useState("")
@@ -170,6 +173,7 @@ export default function APIKeysPage() {
       setAPIKeys((current) => [response.apiKey, ...current])
       setCreateOpen(false)
       setNewKey(response.key)
+      setNewKeyVisible(false)
       setName("CLI key")
       setCopied(false)
     } catch (createError) {
@@ -244,6 +248,12 @@ export default function APIKeysPage() {
   async function copyNewKey() {
     await navigator.clipboard.writeText(newKey)
     setCopied(true)
+  }
+
+  function closeNewKeyDialog() {
+    setNewKey("")
+    setNewKeyVisible(false)
+    setCopied(false)
   }
 
   return (
@@ -577,7 +587,10 @@ export default function APIKeysPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(newKey)} onOpenChange={(open) => !open && setNewKey("")}>
+      <Dialog
+        open={Boolean(newKey)}
+        onOpenChange={(open) => !open && closeNewKeyDialog()}
+      >
         <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-2xl">
           <DialogHeader>
             <div className="mb-1 flex size-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
@@ -588,25 +601,46 @@ export default function APIKeysPage() {
               Copy this key now. For security, it will not be shown again.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex min-w-0 gap-2">
-            <Input className="min-w-0 flex-1 font-mono text-xs" value={newKey} readOnly />
-            <Button
-              className="shrink-0"
-              variant="outline"
-              onClick={copyNewKey}
-              aria-label="Copy API key"
-            >
-              {copied ? <CheckIcon data-icon="inline-start" /> : <CopyIcon data-icon="inline-start" />}
-              {copied ? "Copied" : "Copy"}
-            </Button>
-          </div>
-          <div className="min-w-0 overflow-x-auto rounded-lg border bg-muted/60 px-3 py-2.5">
-            <code className="block w-max whitespace-nowrap font-mono text-xs leading-5">
-              RUNTZ_API_KEY={newKey}
-            </code>
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+            <Input
+              className="min-w-0 flex-1 font-mono text-xs"
+              type={newKeyVisible ? "text" : "password"}
+              value={newKey}
+              readOnly
+              aria-label="Generated API key"
+            />
+            <div className="flex shrink-0 gap-2">
+              <Button
+                className="flex-1 sm:flex-none"
+                variant="outline"
+                onClick={() => setNewKeyVisible((visible) => !visible)}
+                aria-label={newKeyVisible ? "Hide API key" : "Show API key"}
+                aria-pressed={newKeyVisible}
+              >
+                {newKeyVisible ? (
+                  <EyeOffIcon data-icon="inline-start" />
+                ) : (
+                  <EyeIcon data-icon="inline-start" />
+                )}
+                {newKeyVisible ? "Hide" : "Show"}
+              </Button>
+              <Button
+                className="flex-1 sm:flex-none"
+                variant="outline"
+                onClick={copyNewKey}
+                aria-label="Copy API key"
+              >
+                {copied ? (
+                  <CheckIcon data-icon="inline-start" />
+                ) : (
+                  <CopyIcon data-icon="inline-start" />
+                )}
+                {copied ? "Copied" : "Copy"}
+              </Button>
+            </div>
           </div>
           <DialogFooter>
-            <Button onClick={() => setNewKey("")}>Done</Button>
+            <Button onClick={closeNewKeyDialog}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

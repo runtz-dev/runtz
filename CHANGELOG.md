@@ -9,6 +9,15 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc20] - 2026-08-16
+
+### Changed
+
+- Newly created API keys are masked by default and can be explicitly shown or
+  hidden before copying.
+- Removed the duplicate `RUNTZ_API_KEY=...` snippet from the API-key creation
+  dialog.
+
 ## [1.0.0-rc19] - 2026-08-15
 
 ### Changed

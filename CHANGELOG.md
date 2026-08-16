@@ -9,6 +9,13 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc21] - 2026-08-16
+
+### Changed
+
+- Kept the API-key creation and success dialogs at the same width for a
+  smoother transition after creating a key.
+
 ## [1.0.0-rc20] - 2026-08-16
 
 ### Changed

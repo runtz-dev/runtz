@@ -361,15 +361,43 @@ func emailLoginCodeMatches(storedHash, email, code string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(email+":"+code)) == nil
 }
 
+// loginCodeEmailHTML is the transactional email sent for passwordless
+// sign-in. It's a self-contained, inline-styled HTML string (no external
+// assets, no web fonts) so it renders consistently across email clients,
+// styled to match the runtz.dev / app brand's dark surface — canvas
+// #050912, ink #eaf4ff, accent #6db5ff — with JetBrains Mono for the
+// wordmark and the code itself.
+const loginCodeEmailHTML = `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your Runtz sign-in code — expires in 10 minutes.</div>
+<div style="background-color:#050912;padding:40px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="max-width:440px;margin:0 auto;">
+    <tr>
+      <td style="padding-bottom:24px;text-align:center;">
+        <span style="font-family:ui-monospace,'JetBrains Mono',SFMono-Regular,Menlo,monospace;font-weight:700;font-size:20px;letter-spacing:-0.05em;color:#eaf4ff;">runtz<span style="display:inline-block;width:9px;height:16px;background-color:#6db5ff;margin-left:2px;vertical-align:middle;"></span></span>
+      </td>
+    </tr>
+    <tr>
+      <td style="background-color:#0d1420;border:1px solid #223149;border-radius:12px;padding:40px 32px;text-align:center;">
+        <p style="margin:0 0 24px;font-size:15px;line-height:1.5;color:#eaf4ff;">Use the code below to sign in to Runtz:</p>
+        <div style="display:inline-block;background-color:#111b2b;border:1px solid #223149;border-radius:8px;padding:16px 24px;">
+          <span style="font-family:ui-monospace,'JetBrains Mono',SFMono-Regular,Menlo,monospace;font-size:28px;font-weight:700;letter-spacing:6px;color:#6db5ff;">%s</span>
+        </div>
+        <p style="margin:24px 0 0;font-size:13px;color:#8ba3c2;">Expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding-top:24px;text-align:center;">
+        <p style="margin:0;font-size:12px;color:#8ba3c2;">runtz.dev</p>
+      </td>
+    </tr>
+  </table>
+</div>`
+
 func (s *Server) sendLoginCode(ctx context.Context, email, code string) error {
 	payload := map[string]any{
 		"from":    s.cfg.ResendFromEmail,
 		"to":      []string{email},
 		"subject": "Your Runtz access code",
-		"html": fmt.Sprintf(
-			`<p>Use the code below to sign in to Runtz:</p><p style="font-size: 24px; font-weight: 700; letter-spacing: 4px">%s</p><p>It expires in 10 minutes.</p>`,
-			html.EscapeString(code),
-		),
+		"html":    fmt.Sprintf(loginCodeEmailHTML, html.EscapeString(code)),
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {

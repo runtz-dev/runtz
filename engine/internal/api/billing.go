@@ -98,6 +98,15 @@ type stripeEvent struct {
 	} `json:"data"`
 }
 
+type stripeHTTPError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e stripeHTTPError) Error() string {
+	return fmt.Sprintf("stripe request failed with status %d: %s", e.StatusCode, e.Body)
+}
+
 func (s *Server) handleCreateCheckoutSession(w http.ResponseWriter, r *http.Request) {
 	var request createCheckoutRequest
 	if !decodeJSON(w, r, &request) {
@@ -663,7 +672,7 @@ func (s *Server) sendStripeRequest(request *http.Request, target any) error {
 		return err
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return fmt.Errorf("stripe request failed with status %d: %s", response.StatusCode, string(body))
+		return stripeHTTPError{StatusCode: response.StatusCode, Body: string(body)}
 	}
 
 	if target == nil {

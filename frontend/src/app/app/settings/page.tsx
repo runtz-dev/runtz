@@ -12,6 +12,8 @@ import {
   RefreshCcwIcon,
   SendIcon,
   Share2Icon,
+  Trash2Icon,
+  TriangleAlertIcon,
   UsersIcon,
 } from "lucide-react"
 
@@ -22,6 +24,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -30,6 +33,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -60,9 +64,41 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { apiRequest, type Entitlement, type User } from "@/lib/api"
+import {
+  apiRequest,
+  clearClientState,
+  type Entitlement,
+  type User,
+  type Workspace,
+} from "@/lib/api"
 
-type SettingsTab = "profile" | "workspaces" | "usage" | "billing" | "users"
+type SettingsTab =
+  | "profile"
+  | "workspaces"
+  | "usage"
+  | "billing"
+  | "users"
+  | "account"
+
+type WorkspaceDeletionImpact = {
+  workspaceId: string
+  workspaceName: string
+  scanCount: number
+  apiKeyCount: number
+  otherMemberCount: number
+  replacementWorkspaceWillBeCreated: boolean
+}
+
+type AccountDeletionImpact = {
+  confirmationValue: string
+  ownedWorkspaceCount: number
+  sharedWorkspaceCount: number
+  scanCount: number
+  apiKeyCount: number
+  sharedOwnedWorkspaceCount: number
+  subscriptionWillBeCanceled: boolean
+  canDelete: boolean
+}
 
 export default function SettingsPage() {
   const { deploymentMode } = useWorkspace()
@@ -112,6 +148,7 @@ export default function SettingsPage() {
           <TabsTrigger value="workspaces">Workspaces</TabsTrigger>
           <TabsTrigger value="usage">Usage</TabsTrigger>
           <TabsTrigger value="billing">Billing</TabsTrigger>
+          {isCloud ? <TabsTrigger value="account">Account</TabsTrigger> : null}
           {isCloud ? null : <TabsTrigger value="users">Users</TabsTrigger>}
         </TabsList>
         <TabsContent value="profile">
@@ -126,6 +163,11 @@ export default function SettingsPage() {
         <TabsContent value="billing">
           <BillingPanel />
         </TabsContent>
+        {isCloud ? (
+          <TabsContent value="account">
+            <AccountPanel />
+          </TabsContent>
+        ) : null}
         {isCloud ? null : (
           <TabsContent value="users">
             <UsersPanel />
@@ -147,6 +189,9 @@ function isSettingsTab(value: string | null | undefined, isCloud: boolean): valu
     value === "usage" ||
     value === "billing"
   ) {
+    return true
+  }
+  if (isCloud && value === "account") {
     return true
   }
   return !isCloud && value === "users"
@@ -316,8 +361,9 @@ function SelfHostedWorkspacesLimitPanel() {
 }
 
 function CloudWorkspacesPanel() {
-  const { entitlement, workspaces } = useWorkspace()
+  const { currentUser, entitlement, workspaces, refreshWorkspaces } = useWorkspace()
   const [shareUpgradeOpen, setShareUpgradeOpen] = React.useState(false)
+  const [workspaceToDelete, setWorkspaceToDelete] = React.useState<Workspace | null>(null)
   const canShareWorkspace = entitlement.plan === "pro" || entitlement.plan === "enterprise"
 
   return (
@@ -348,27 +394,43 @@ function CloudWorkspacesPanel() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {workspaces.map((workspace) => (
-                  <TableRow key={workspace.id}>
-                    <TableCell className="font-medium">{workspace.name}</TableCell>
-                    <TableCell>{workspace.slug}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">initial workspace</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShareUpgradeOpen(true)}
-                        >
-                          <Share2Icon data-icon="inline-start" />
-                          Share workspace
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {workspaces.map((workspace) => {
+                  const isOwner = workspace.createdBy === currentUser.id
+
+                  return (
+                    <TableRow key={workspace.id}>
+                      <TableCell className="font-medium">{workspace.name}</TableCell>
+                      <TableCell>{workspace.slug}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{isOwner ? "Owner" : "Shared"}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex justify-end gap-2">
+                          {isOwner ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShareUpgradeOpen(true)}
+                            >
+                              <Share2Icon data-icon="inline-start" />
+                              Share
+                            </Button>
+                          ) : null}
+                          {isOwner ? (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => setWorkspaceToDelete(workspace)}
+                            >
+                              <Trash2Icon data-icon="inline-start" />
+                              Delete
+                            </Button>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </div>
@@ -379,7 +441,166 @@ function CloudWorkspacesPanel() {
         open={shareUpgradeOpen}
         onOpenChange={setShareUpgradeOpen}
       />
+      <WorkspaceDeletionDialog
+        workspace={workspaceToDelete}
+        open={Boolean(workspaceToDelete)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setWorkspaceToDelete(null)
+          }
+        }}
+        onDeleted={refreshWorkspaces}
+      />
     </>
+  )
+}
+
+function WorkspaceDeletionDialog({
+  workspace,
+  open,
+  onOpenChange,
+  onDeleted,
+}: {
+  workspace: Workspace | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onDeleted: () => Promise<void>
+}) {
+  const [impact, setImpact] = React.useState<WorkspaceDeletionImpact | null>(null)
+  const [confirmation, setConfirmation] = React.useState("")
+  const [error, setError] = React.useState("")
+  const [pending, setPending] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!open || !workspace) {
+      setImpact(null)
+      setConfirmation("")
+      setError("")
+      return
+    }
+
+    let cancelled = false
+    setImpact(null)
+    setConfirmation("")
+    setError("")
+    apiRequest<WorkspaceDeletionImpact>(
+      `/api/v1/workspaces/${workspace.id}/deletion-impact`
+    )
+      .then((response) => {
+        if (!cancelled) {
+          setImpact(response)
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setError(
+            error instanceof Error
+              ? error.message
+              : "Failed to calculate deletion impact"
+          )
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, workspace])
+
+  async function deleteWorkspace(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!workspace) {
+      return
+    }
+
+    setError("")
+    setPending(true)
+    try {
+      await apiRequest(`/api/v1/workspaces/${workspace.id}`, {
+        method: "DELETE",
+        body: { confirmation },
+      })
+      await onDeleted()
+      onOpenChange(false)
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : "Failed to delete workspace"
+      )
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const confirmed = Boolean(
+    workspace && confirmation.trim() === workspace.name.trim()
+  )
+
+  return (
+    <Dialog open={open} onOpenChange={pending ? undefined : onOpenChange}>
+      <DialogContent className="sm:max-w-md" showCloseButton={!pending}>
+        <DialogHeader>
+          <div className="mb-2 flex size-10 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+            <TriangleAlertIcon className="size-5" />
+          </div>
+          <DialogTitle>Delete workspace?</DialogTitle>
+          <DialogDescription>
+            This permanently deletes the workspace and all scan data stored in it.
+            This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={deleteWorkspace}>
+          <FieldGroup>
+            {impact ? (
+              <div className="flex flex-col gap-2 rounded-lg border bg-muted/35 p-3 text-sm">
+                <p><strong>{impact.scanCount}</strong> scans will be deleted.</p>
+                <p><strong>{impact.apiKeyCount}</strong> API keys will be revoked.</p>
+                {impact.otherMemberCount > 0 ? (
+                  <p>
+                    <strong>{impact.otherMemberCount}</strong> other members will lose access.
+                  </p>
+                ) : null}
+                {impact.replacementWorkspaceWillBeCreated ? (
+                  <p>A new empty personal workspace will be created for your account.</p>
+                ) : null}
+              </div>
+            ) : error ? null : (
+              <Skeleton className="h-24 w-full" />
+            )}
+            <Field data-invalid={Boolean(error)}>
+              <FieldLabel htmlFor="delete-workspace-confirmation">
+                Type <strong>{workspace?.name}</strong> to confirm
+              </FieldLabel>
+              <Input
+                id="delete-workspace-confirmation"
+                value={confirmation}
+                onChange={(event) => setConfirmation(event.target.value)}
+                autoComplete="off"
+                aria-invalid={Boolean(error)}
+                disabled={pending}
+              />
+              {error ? <FieldError>{error}</FieldError> : null}
+            </Field>
+          </FieldGroup>
+          <DialogFooter className="mt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={pending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="destructive"
+              disabled={pending || !impact || !confirmed}
+            >
+              <Trash2Icon data-icon="inline-start" />
+              {pending ? "Deleting..." : "Delete workspace and data"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -1228,6 +1449,190 @@ function BillingRow({
         {value}
       </span>
     </div>
+  )
+}
+
+function AccountPanel() {
+  const [impact, setImpact] = React.useState<AccountDeletionImpact | null>(null)
+  const [dialogOpen, setDialogOpen] = React.useState(false)
+  const [confirmation, setConfirmation] = React.useState("")
+  const [error, setError] = React.useState("")
+  const [pending, setPending] = React.useState(false)
+
+  const loadImpact = React.useCallback(async () => {
+    setError("")
+    try {
+      setImpact(
+        await apiRequest<AccountDeletionImpact>("/api/v1/me/deletion-impact")
+      )
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to calculate account deletion impact"
+      )
+    }
+  }, [])
+
+  React.useEffect(() => {
+    loadImpact()
+  }, [loadImpact])
+
+  function handleDialogChange(open: boolean) {
+    if (pending) {
+      return
+    }
+    setDialogOpen(open)
+    if (!open) {
+      setConfirmation("")
+      setError("")
+    }
+  }
+
+  async function deleteAccount(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    setError("")
+    setPending(true)
+    try {
+      await apiRequest("/api/v1/me", {
+        method: "DELETE",
+        body: { confirmation },
+      })
+      clearClientState()
+      window.location.replace("/login?account_deleted=1")
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : "Failed to delete account"
+      )
+      setPending(false)
+    }
+  }
+
+  const confirmed = Boolean(
+    impact &&
+      confirmation.trim().toLowerCase() ===
+        impact.confirmationValue.trim().toLowerCase()
+  )
+
+  return (
+    <>
+      <Card className="max-w-xl">
+        <CardHeader>
+          <CardTitle>Delete account</CardTitle>
+          <CardDescription>
+            Permanently delete your Runtz account and all data that belongs to it.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {impact ? (
+            <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+              <p>
+                This will delete {impact.ownedWorkspaceCount} owned workspaces, {" "}
+                {impact.scanCount} scans and {impact.apiKeyCount} API keys.
+              </p>
+              {impact.sharedWorkspaceCount > 0 ? (
+                <p>
+                  You will lose access to {impact.sharedWorkspaceCount} workspaces shared
+                  with you. Their scans will not be deleted.
+                </p>
+              ) : null}
+              {impact.subscriptionWillBeCanceled ? (
+                <p>Your active subscription will be canceled immediately.</p>
+              ) : null}
+            </div>
+          ) : error ? null : (
+            <Skeleton className="h-16 w-full" />
+          )}
+          {impact && !impact.canDelete ? (
+            <FieldError>
+              You own {impact.sharedOwnedWorkspaceCount} workspaces used by other
+              members. Delete those workspaces before deleting your account.
+            </FieldError>
+          ) : null}
+          {error && !dialogOpen ? (
+            <div className="flex flex-col items-start gap-2">
+              <FieldError>{error}</FieldError>
+              <Button variant="outline" size="sm" onClick={loadImpact}>
+                <RefreshCcwIcon data-icon="inline-start" />
+                Retry
+              </Button>
+            </div>
+          ) : null}
+        </CardContent>
+        <CardFooter className="justify-end">
+          <Button
+            variant="destructive"
+            onClick={() => setDialogOpen(true)}
+            disabled={!impact?.canDelete}
+          >
+            <Trash2Icon data-icon="inline-start" />
+            Delete account
+          </Button>
+        </CardFooter>
+      </Card>
+
+      <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
+        <DialogContent className="sm:max-w-md" showCloseButton={!pending}>
+          <DialogHeader>
+            <div className="mb-2 flex size-10 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+              <TriangleAlertIcon className="size-5" />
+            </div>
+            <DialogTitle>Permanently delete your account?</DialogTitle>
+            <DialogDescription>
+              Your profile, owned workspaces, scans and API keys will be permanently
+              deleted. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={deleteAccount}>
+            <FieldGroup>
+              {impact ? (
+                <div className="flex flex-col gap-2 rounded-lg border bg-muted/35 p-3 text-sm">
+                  <p><strong>{impact.ownedWorkspaceCount}</strong> workspaces will be deleted.</p>
+                  <p><strong>{impact.scanCount}</strong> scans will be deleted.</p>
+                  <p><strong>{impact.apiKeyCount}</strong> API keys will be revoked.</p>
+                  {impact.subscriptionWillBeCanceled ? (
+                    <p>Your subscription will be canceled.</p>
+                  ) : null}
+                </div>
+              ) : null}
+              <Field data-invalid={Boolean(error)}>
+                <FieldLabel htmlFor="delete-account-confirmation">
+                  Type <strong>{impact?.confirmationValue}</strong> to confirm
+                </FieldLabel>
+                <Input
+                  id="delete-account-confirmation"
+                  value={confirmation}
+                  onChange={(event) => setConfirmation(event.target.value)}
+                  autoComplete="off"
+                  aria-invalid={Boolean(error)}
+                  disabled={pending}
+                />
+                {error ? <FieldError>{error}</FieldError> : null}
+              </Field>
+            </FieldGroup>
+            <DialogFooter className="mt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleDialogChange(false)}
+                disabled={pending}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={pending || !confirmed}
+              >
+                <Trash2Icon data-icon="inline-start" />
+                {pending ? "Deleting..." : "Delete account and data"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 

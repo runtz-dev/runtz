@@ -7,6 +7,7 @@ export type Workspace = {
   name: string
   slug: string
   kind?: string
+  createdBy?: string
   createdAt: string
   updatedAt: string
 }

@@ -153,6 +153,7 @@ export function SetupLogin() {
             <LoginSkeleton />
           ) : status.deploymentMode === "cloud" ? (
             <CloudLoginForm
+              accountDeleted={searchParams.get("account_deleted") === "1"}
               githubClientId={status.auth?.githubClientId ?? ""}
               googleClientId={status.auth?.googleClientId || BUILD_TIME_GOOGLE_CLIENT_ID}
               nextPath={nextPath}
@@ -186,11 +187,13 @@ function LoginSkeleton() {
 }
 
 function CloudLoginForm({
+  accountDeleted,
   githubClientId,
   googleClientId,
   nextPath,
   onAuthenticated,
 }: {
+  accountDeleted: boolean
   githubClientId: string
   googleClientId: string
   nextPath: string
@@ -260,7 +263,9 @@ function CloudLoginForm({
       <CardHeader className="relative z-10">
         <CardTitle className="text-xl font-bold">Sign in to Runtz</CardTitle>
         <CardDescription className="text-[#b8cbe4]">
-          Sign in without a password. We will email you a code.
+          {accountDeleted
+            ? "Your account and its data were permanently deleted."
+            : "Sign in without a password. We will email you a code."}
         </CardDescription>
       </CardHeader>
       <CardContent className="relative z-10">

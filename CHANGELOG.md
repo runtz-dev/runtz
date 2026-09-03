@@ -9,6 +9,21 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+### Added
+
+- Cloud workspace owners can permanently delete a workspace from Settings,
+  including every scan and API key stored in it. Deleting the last workspace
+  creates a new empty personal workspace so the account remains usable.
+- Settings now includes a cloud-only **Account** tab for permanent account and
+  owned-data deletion. The confirmation shows the affected workspaces, scans,
+  API keys, shared access and subscription before proceeding.
+
+### Security
+
+- Account deletion revokes sessions and API keys, removes authentication data,
+  cancels active Stripe subscriptions and refuses to continue while an owned
+  workspace is still shared with other users.
+
 ## [1.0.0-rc21] - 2026-08-16
 
 ### Changed

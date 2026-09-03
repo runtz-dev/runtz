@@ -53,7 +53,7 @@ func Load() Config {
 		GitHubClientID:                  getEnv("GITHUB_CLIENT_ID", ""),
 		GitHubClientSecret:              getEnv("GITHUB_CLIENT_SECRET", ""),
 		ResendAPIKey:                    getEnv("RESEND_API_KEY", ""),
-		ResendFromEmail:                 getEnv("RESEND_FROM_EMAIL", "Runtz <login@runtz.dev>"),
+		ResendFromEmail:                 getEnv("RESEND_FROM_EMAIL", "runtz <login@runtz.dev>"),
 		StripeSecretKey:                 getEnv("STRIPE_SECRET_KEY", ""),
 		StripeWebhookSecret:             getEnv("STRIPE_WEBHOOK_SECRET", ""),
 		StripePriceProCloud:             getEnv("STRIPE_PRICE_PRO_CLOUD", ""),

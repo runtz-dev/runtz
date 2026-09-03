@@ -367,7 +367,7 @@ func emailLoginCodeMatches(storedHash, email, code string) bool {
 // styled to match the runtz.dev / app brand's dark surface — canvas
 // #050912, ink #eaf4ff, accent #6db5ff — with JetBrains Mono for the
 // wordmark and the code itself.
-const loginCodeEmailHTML = `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your Runtz sign-in code — expires in 10 minutes.</div>
+const loginCodeEmailHTML = `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your runtz sign-in code — expires in 10 minutes.</div>
 <div style="background-color:#050912;padding:40px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="max-width:440px;margin:0 auto;">
     <tr>
@@ -377,7 +377,7 @@ const loginCodeEmailHTML = `<div style="display:none;max-height:0;overflow:hidde
     </tr>
     <tr>
       <td style="background-color:#0d1420;border:1px solid #223149;border-radius:12px;padding:40px 32px;text-align:center;">
-        <p style="margin:0 0 24px;font-size:15px;line-height:1.5;color:#eaf4ff;">Use the code below to sign in to Runtz:</p>
+        <p style="margin:0 0 24px;font-size:15px;line-height:1.5;color:#eaf4ff;">Use the code below to sign in to runtz platform:</p>
         <div style="display:inline-block;background-color:#111b2b;border:1px solid #223149;border-radius:8px;padding:16px 24px;">
           <span style="font-family:ui-monospace,'JetBrains Mono',SFMono-Regular,Menlo,monospace;font-size:28px;font-weight:700;letter-spacing:6px;color:#6db5ff;">%s</span>
         </div>
@@ -396,7 +396,7 @@ func (s *Server) sendLoginCode(ctx context.Context, email, code string) error {
 	payload := map[string]any{
 		"from":    s.cfg.ResendFromEmail,
 		"to":      []string{email},
-		"subject": "Your Runtz access code",
+		"subject": "Your runtz access code",
 		"html":    fmt.Sprintf(loginCodeEmailHTML, html.EscapeString(code)),
 	}
 	body, err := json.Marshal(payload)

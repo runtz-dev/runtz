@@ -24,7 +24,7 @@ services:
       retries: 10
 
   backend:
-    image: runtzdev/runtz-engine:${RUNTZ_VERSION:-1.0.0-rc21}
+    image: runtzdev/runtz-engine:${RUNTZ_VERSION:-1.0.0-rc22}
     container_name: runtz
     restart: unless-stopped
     depends_on:
@@ -40,7 +40,7 @@ services:
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
-      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-Runtz <login@runtz.dev>}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-runtz <login@runtz.dev>}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       STRIPE_PRICE_PRO_CLOUD: ${STRIPE_PRICE_PRO_CLOUD:-}
@@ -52,7 +52,7 @@ services:
       - "${BACKEND_PORT:-8080}:8080"
 
   frontend:
-    image: runtzdev/runtz-frontend:${RUNTZ_VERSION:-1.0.0-rc21}
+    image: runtzdev/runtz-frontend:${RUNTZ_VERSION:-1.0.0-rc22}
     container_name: runtz-frontend
     restart: unless-stopped
     depends_on:

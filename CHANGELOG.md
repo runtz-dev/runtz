@@ -9,6 +9,8 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc22] - 2026-09-05
+
 ### Added
 
 - Cloud workspace owners can permanently delete a workspace from Settings,
@@ -17,6 +19,12 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 - Settings now includes a cloud-only **Account** tab for permanent account and
   owned-data deletion. The confirmation shows the affected workspaces, scans,
   API keys, shared access and subscription before proceeding.
+
+### Changed
+
+- Redesigned the passwordless sign-in email with runtz's dark brand identity
+  (JetBrains Mono wordmark, accent-blue code) instead of the plain-text
+  layout, and lowercased every "Runtz" mention to match the wordmark.
 
 ### Security
 

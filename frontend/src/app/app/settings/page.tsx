@@ -11,13 +11,13 @@ import {
   PlusIcon,
   RefreshCcwIcon,
   SendIcon,
-  Share2Icon,
   Trash2Icon,
   TriangleAlertIcon,
   UsersIcon,
 } from "lucide-react"
 
 import { useWorkspace } from "@/components/runtz/workspace-context"
+import { WorkspaceSharingDialog } from "@/components/runtz/workspace-sharing-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -390,7 +390,6 @@ function CloudWorkspacesPanel() {
     }
   }
 
-  const [shareUpgradeOpen, setShareUpgradeOpen] = React.useState(false)
   const [workspaceToDelete, setWorkspaceToDelete] = React.useState<Workspace | null>(null)
   const canShareWorkspace = entitlement.plan === "pro" || entitlement.plan === "enterprise"
 
@@ -458,14 +457,7 @@ function CloudWorkspacesPanel() {
                         <TableCell>
                           <div className="flex justify-end gap-2">
                             {isOwner ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setShareUpgradeOpen(true)}
-                              >
-                                <Share2Icon data-icon="inline-start" />
-                                Share
-                              </Button>
+                              <WorkspaceSharingDialog workspace={workspace} onUpgrade={openBillingTab} />
                             ) : null}
                             {isOwner ? (
                               <Button
@@ -521,11 +513,6 @@ function CloudWorkspacesPanel() {
           </form>
         </DialogContent>
       </Dialog>
-      <WorkspaceShareUpgradeDialog
-        canShareWorkspace={canShareWorkspace}
-        open={shareUpgradeOpen}
-        onOpenChange={setShareUpgradeOpen}
-      />
       <WorkspaceDeletionDialog
         workspace={workspaceToDelete}
         open={Boolean(workspaceToDelete)}
@@ -682,51 +669,6 @@ function WorkspaceDeletionDialog({
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function WorkspaceShareUpgradeDialog({
-  canShareWorkspace,
-  open,
-  onOpenChange,
-}: {
-  canShareWorkspace: boolean
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
-  function goToBilling() {
-    onOpenChange(false)
-    openBillingTab()
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <div className="mb-2 flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Share2Icon className="size-5" />
-          </div>
-          <DialogTitle>
-            {canShareWorkspace
-              ? "Sharing unlocked"
-              : "Workspace sharing is Pro"}
-          </DialogTitle>
-          <DialogDescription>
-            {canShareWorkspace
-              ? "Your plan already unlocks shared workspaces for teams."
-              : "Activate Pro to invite people and unlock advanced authentication, smart alerts and the AI Alert Agent in Slack threads."}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-2 pt-2 sm:grid-cols-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Not now
-          </Button>
-          <Button onClick={canShareWorkspace ? () => onOpenChange(false) : goToBilling}>
-            {canShareWorkspace ? "Got it" : "Upgrade to Pro"}
-          </Button>
-        </div>
       </DialogContent>
     </Dialog>
   )

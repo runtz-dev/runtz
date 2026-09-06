@@ -415,6 +415,11 @@ export function AppShell({
                 </SelectContent>
               </Select>
             </div>
+            {!isPlayground ? (
+              <Badge variant="secondary" aria-label={`Current plan: ${entitlement.plan}`}>
+                {entitlement.plan === "enterprise" ? "Enterprise" : entitlement.plan === "pro" ? "Pro" : "Free"}
+              </Badge>
+            ) : null}
             <Badge
               variant="outline"
               className="border-[#2f7eff]/20 bg-[#dcecff]/70 text-[#1d5fc7] dark:border-[#6db5ff]/24 dark:bg-[#101827] dark:text-[#b8cbe4]"

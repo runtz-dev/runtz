@@ -291,6 +291,12 @@ func (s *Server) workspaceFromAPIKey(ctx context.Context, rawKey string) (Worksp
 	if err := s.workspaces.FindOne(ctx, bson.M{"_id": apiKey.WorkspaceID}).Decode(&workspace); err != nil {
 		return Workspace{}, APIKey{}, err
 	}
+	if s.cfg.DeploymentMode == hostingCloud {
+		var creator User
+		if err := s.users.FindOne(ctx, bson.M{"_id": apiKey.CreatedBy, "workspace_ids": workspace.ID}).Decode(&creator); err != nil {
+			return Workspace{}, APIKey{}, errors.New("api key creator no longer has workspace access")
+		}
+	}
 
 	now := time.Now().UTC()
 	_, _ = s.apiKeys.UpdateOne(ctx, bson.M{"_id": apiKey.ID}, bson.M{

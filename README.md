@@ -188,6 +188,15 @@ self-updater and pipeline examples.
 - CVE fix-availability filters across dashboards and package vulnerability
   results.
 - Workspaces, users, profiles, usage tracking and paid-plan billing.
+- The app header shows the current account plan next to the deployment mode.
+- Cloud workspace owners on Pro or Enterprise can open **Settings → Workspaces
+  → Share** to grant access by email to an existing Runtz account, list members,
+  and remove access. Members can view scans and manage workspace API keys; only
+  the owner manages sharing. New teammates must sign up before being added.
+  Pro allows 50 distinct users across the owner's workspaces (including the
+  owner); sharing another workspace with an existing teammate uses the same seat.
+  Removing a member revokes their workspace API keys. Owners can still remove
+  access after downgrading to Free.
 - In cloud, deleting a workspace removes its scans and API keys without creating
   a replacement, including after signing in again. Create another from
   **Settings → Workspaces → New workspace**, using the button in the
@@ -299,7 +308,9 @@ Copyright © 2026 Runtz · RAW DEVOPS LTDA (CNPJ 51.460.107/0001-53). All rights
 ### Workspace regression tests
 
 Use a disposable MongoDB instance and run
-`RUNTZ_TEST_MONGO_URI=mongodb://127.0.0.1:27029 go test ./internal/api -run TestCloudWorkspaceLifecycle -v`
-from `engine/`. The test creates and drops a randomly named test database and
+`RUNTZ_TEST_MONGO_URI=mongodb://127.0.0.1:27029 go test ./internal/api -run TestCloudWorkspace -v`
+from `engine/`. Each test creates and drops a randomly named test database and
 covers last-workspace deletion, data removal, repeat sign-in, Free creation and
-limits, name collisions, account isolation, and self-hosted permissions.
+limits, name collisions, account isolation, and self-hosted permissions. Sharing
+coverage includes owner-only management, plan and seat limits, duplicate additions,
+member visibility, removal after downgrade, and revocation of member API keys.

@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { UserPlusIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -12,10 +11,12 @@ import { apiRequest, type Workspace } from "@/lib/api"
 export function WorkspaceSharingDialog({
   workspace,
   onAdded,
+  onOpen,
   disabled = false,
 }: {
   workspace: Workspace
   onAdded: (email: string) => void
+  onOpen: () => void
   disabled?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
@@ -26,6 +27,7 @@ export function WorkspaceSharingDialog({
   function handleOpenChange(nextOpen: boolean) {
     if (pending) return
     setOpen(nextOpen)
+    if (nextOpen) onOpen()
     setEmail("")
     setError("")
   }
@@ -53,9 +55,8 @@ export function WorkspaceSharingDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger render={<Button disabled={disabled} />}>
-        <UserPlusIcon data-icon="inline-start" />
-        Add member
+      <DialogTrigger render={<Button variant="outline" size="sm" disabled={disabled} />}>
+        Share
       </DialogTrigger>
       <DialogContent className="sm:max-w-md" showCloseButton={!pending}>
         <DialogHeader>

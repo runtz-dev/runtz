@@ -329,6 +329,10 @@ func (s *Server) handleGetCheckoutSessionStatus(w http.ResponseWriter, r *http.R
 	}
 
 	response := serializeBillingSubscription(subscription, false)
+	if subscription.DeploymentMode == hostingCloud {
+		user, signedIn := s.optionalUserFromSession(r)
+		response["accountMatches"] = signedIn && billingSubscriptionBelongsToUser(subscription, user)
+	}
 	if subscription.DeploymentMode == hostingSelfHosted && subscriptionStatusActive(subscription.Status) {
 		licenseKey, generated, err := s.ensureLicenseKey(r.Context(), subscription)
 		if err != nil {
@@ -343,6 +347,16 @@ func (s *Server) handleGetCheckoutSessionStatus(w http.ResponseWriter, r *http.R
 	}
 
 	writeJSON(w, http.StatusOK, response)
+}
+
+func billingSubscriptionBelongsToUser(subscription BillingSubscription, user User) bool {
+	// Once linked, the account ID is authoritative. A matching billing email
+	// must not make a purchase owned by another account look activated here.
+	if !subscription.UserID.IsZero() {
+		return subscription.UserID == user.ID
+	}
+	email := strings.TrimSpace(subscription.Email)
+	return email != "" && strings.EqualFold(email, strings.TrimSpace(user.Email))
 }
 
 func (s *Server) handleStripeWebhook(w http.ResponseWriter, r *http.Request) {

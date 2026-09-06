@@ -275,3 +275,63 @@ func TestBillingWebhookUsesCurrentSubscription(t *testing.T) {
 		})
 	}
 }
+
+func TestBillingCheckoutAccountMatch(t *testing.T) {
+	s, ctx := billingTestServer(t)
+	owner, session, sub := billingFixtures()
+	sub.Metadata["plan"] = planEnterprise
+	if err := s.storeStripeSubscription(ctx, sub, session.ID, owner.Email, owner.ID.Hex()); err != nil {
+		t.Fatal(err)
+	}
+	other := User{ID: bson.NewObjectID(), Email: "other@example.com"}
+	for _, user := range []User{owner, other} {
+		user.Username = user.ID.Hex()
+		if _, err := s.users.InsertOne(ctx, user); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The other account is already paid: that alone must never count as
+	// activation of the owner's Enterprise checkout.
+	otherSub := stripeSubscription{ID: "sub_other_pro", Status: "active", Metadata: map[string]string{"plan": planPro, "deployment_mode": hostingCloud, "user_id": other.ID.Hex()}}
+	if err := s.storeStripeSubscription(ctx, otherSub, "", other.Email, other.ID.Hex()); err != nil {
+		t.Fatal(err)
+	}
+	if ent := s.cloudEntitlement(ctx, &other); ent.Plan != planPro {
+		t.Fatalf("other account plan = %s", ent.Plan)
+	}
+	for _, tc := range []struct {
+		name    string
+		user    *User
+		matches bool
+	}{
+		{"owner", &owner, true},
+		{"different_paid_account", &other, false},
+		{"anonymous", nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, "/api/v1/billing/checkout-session/"+session.ID, nil).WithContext(ctx)
+			if tc.user != nil {
+				token, err := s.issueSession(ctx, *tc.user, r)
+				if err != nil {
+					t.Fatal(err)
+				}
+				r.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+			}
+			w := httptest.NewRecorder()
+			s.Handler().ServeHTTP(w, r)
+			if w.Code != http.StatusOK {
+				t.Fatalf("HTTP %d: %s", w.Code, w.Body.String())
+			}
+			var response struct {
+				Plan           string `json:"plan"`
+				AccountMatches *bool  `json:"accountMatches"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+				t.Fatal(err)
+			}
+			if response.Plan != planEnterprise || response.AccountMatches == nil || *response.AccountMatches != tc.matches {
+				t.Fatalf("unexpected checkout response: %s", w.Body.String())
+			}
+		})
+	}
+}

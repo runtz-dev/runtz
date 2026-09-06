@@ -157,6 +157,14 @@ export function AppShell({
     React.useState(ALL_WORKSPACES)
   const [loading, setLoading] = React.useState(true)
 
+  const refreshEntitlement = React.useCallback(async () => {
+    if (isPlayground) return
+    const response = await apiRequest<{ entitlement: Entitlement }>(
+      "/api/v1/billing/status"
+    )
+    setEntitlement(response.entitlement)
+  }, [isPlayground])
+
   const refreshWorkspaces = React.useCallback(async () => {
     if (isPlayground) {
       setWorkspaces(PLAYGROUND_WORKSPACES)
@@ -263,6 +271,7 @@ export function AppShell({
           selectedWorkspaceId,
           setSelectedWorkspaceId,
           refreshWorkspaces,
+          refreshEntitlement,
         }}
       >
         <SidebarProvider className="runtz-app-surface">

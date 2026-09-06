@@ -190,8 +190,10 @@ self-updater and pipeline examples.
 - Workspaces, users, profiles, usage tracking and paid-plan billing.
 - In cloud, deleting a workspace removes its scans and API keys without creating
   a replacement, including after signing in again. Create another from
-  **Settings → Workspaces**; Free includes one owned workspace, with `personal`
-  as an editable default name. Pages without any workspace link to this form.
+  **Settings → Workspaces → New workspace**, using the button in the
+  **Your workspaces** header. Free includes one owned workspace, with `personal`
+  as an editable default name in the creation dialog. Pages without any workspace
+  link to these settings.
 - Docker Compose and Helm deployments for self-hosting.
 - OpenTelemetry traces and metrics for the engine and frontend.
 

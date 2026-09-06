@@ -36,6 +36,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog"
 import {
   Field,
@@ -365,6 +366,7 @@ function CloudWorkspacesPanel() {
   const [name, setName] = React.useState("personal")
   const [pending, setPending] = React.useState(false)
   const [error, setError] = React.useState("")
+  const [createOpen, setCreateOpen] = React.useState(false)
   const ownedWorkspaceCount = workspaces.filter((workspace) => workspace.createdBy === currentUser.id).length
   const workspaceLimit = entitlement.plan === "free" ? 1 : entitlement.plan === "pro" ? 5 : Infinity
   const canCreateWorkspace = ownedWorkspaceCount < workspaceLimit
@@ -380,6 +382,7 @@ function CloudWorkspacesPanel() {
       })
       await refreshWorkspaces()
       setName("personal")
+      setCreateOpen(false)
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to create workspace")
     } finally {
@@ -393,116 +396,131 @@ function CloudWorkspacesPanel() {
 
   return (
     <div className="flex flex-col gap-6">
-      {canCreateWorkspace ? (
+      <Dialog open={createOpen} onOpenChange={(open) => {
+        if (pending) return
+        setCreateOpen(open)
+        if (open) {
+          setError("")
+          setName("personal")
+        }
+      }}>
         <Card>
           <CardHeader>
-            <CardTitle>New workspace</CardTitle>
-            <CardDescription>
-              {entitlement.plan === "free"
-                ? "Your Free plan includes one workspace. Use the default name or choose your own."
-                : "Create a workspace to organize your scans."}
-            </CardDescription>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Your workspaces</CardTitle>
+                <CardDescription>
+                  Manage the workspaces you own or have access to.
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 sm:shrink-0">
+                <Badge variant={canShareWorkspace ? "secondary" : "outline"}>
+                  Current plan: {planLabel(entitlement.plan)}
+                </Badge>
+                {canCreateWorkspace ? (
+                  <DialogTrigger render={<Button variant="outline" size="sm" className="h-10 sm:h-8" />}>
+                    <PlusIcon data-icon="inline-start" />
+                    New workspace
+                  </DialogTrigger>
+                ) : null}
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <form onSubmit={createWorkspace} className="max-w-sm">
-              <FieldGroup>
-                <Field data-invalid={Boolean(error)}>
-                  <FieldLabel htmlFor="cloud-workspace-name">Workspace name</FieldLabel>
-                  <Input
-                    id="cloud-workspace-name"
-                    value={name}
-                    placeholder="personal"
-                    onChange={(event) => setName(event.target.value)}
-                    disabled={pending}
-                    aria-invalid={Boolean(error)}
-                    aria-describedby={error ? "cloud-workspace-error" : undefined}
-                  />
-                  {error ? <FieldError id="cloud-workspace-error" role="alert">{error}</FieldError> : null}
-                </Field>
-                <Button type="submit" disabled={pending}>
-                  <PlusIcon data-icon="inline-start" />
-                  {pending ? "Creating workspace…" : "Create workspace"}
-                </Button>
-              </FieldGroup>
-            </form>
+            {workspaces.length === 0 ? (
+              <Empty>
+                <EmptyHeader>
+                  <EmptyTitle>No workspaces yet</EmptyTitle>
+                  <EmptyDescription>Select New workspace to organize your scans and get started.</EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            ) : <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Slug</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {workspaces.map((workspace) => {
+                    const isOwner = workspace.createdBy === currentUser.id
+
+                    return (
+                      <TableRow key={workspace.id}>
+                        <TableCell className="font-medium">{workspace.name}</TableCell>
+                        <TableCell>{workspace.slug}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{isOwner ? "Owner" : "Shared"}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-end gap-2">
+                            {isOwner ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShareUpgradeOpen(true)}
+                              >
+                                <Share2Icon data-icon="inline-start" />
+                                Share
+                              </Button>
+                            ) : null}
+                            {isOwner ? (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => setWorkspaceToDelete(workspace)}
+                              >
+                                <Trash2Icon data-icon="inline-start" />
+                                Delete
+                              </Button>
+                            ) : null}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>}
           </CardContent>
         </Card>
-      ) : null}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <CardTitle>Your workspaces</CardTitle>
-              <CardDescription>
-                Manage the workspaces you own or have access to.
-              </CardDescription>
-            </div>
-            <Badge variant={canShareWorkspace ? "secondary" : "outline"}>
-              Current plan: {planLabel(entitlement.plan)}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {workspaces.length === 0 ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyTitle>No workspaces yet</EmptyTitle>
-                <EmptyDescription>Create a workspace using the form above to start running scans.</EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          ) : <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Slug</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {workspaces.map((workspace) => {
-                  const isOwner = workspace.createdBy === currentUser.id
-
-                  return (
-                    <TableRow key={workspace.id}>
-                      <TableCell className="font-medium">{workspace.name}</TableCell>
-                      <TableCell>{workspace.slug}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{isOwner ? "Owner" : "Shared"}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex justify-end gap-2">
-                          {isOwner ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setShareUpgradeOpen(true)}
-                            >
-                              <Share2Icon data-icon="inline-start" />
-                              Share
-                            </Button>
-                          ) : null}
-                          {isOwner ? (
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => setWorkspaceToDelete(workspace)}
-                            >
-                              <Trash2Icon data-icon="inline-start" />
-                              Delete
-                            </Button>
-                          ) : null}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </div>}
-        </CardContent>
-      </Card>
+        <DialogContent className="sm:max-w-md" showCloseButton={!pending}>
+          <DialogHeader>
+            <DialogTitle>New workspace</DialogTitle>
+            <DialogDescription>
+              {entitlement.plan === "free"
+                ? "Your Free plan includes one workspace. Use the default name or choose your own."
+                : "Give your workspace a name to keep your scans organized."}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={createWorkspace} className="grid gap-5">
+            <Field data-invalid={Boolean(error)}>
+              <FieldLabel htmlFor="cloud-workspace-name">Workspace name</FieldLabel>
+              <Input
+                id="cloud-workspace-name"
+                value={name}
+                placeholder="personal"
+                onChange={(event) => setName(event.target.value)}
+                disabled={pending}
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? "cloud-workspace-error" : undefined}
+              />
+              {error ? <FieldError id="cloud-workspace-error" role="alert">{error}</FieldError> : null}
+            </Field>
+            <DialogFooter>
+              <Button type="button" variant="outline" disabled={pending} onClick={() => setCreateOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={pending || !canCreateWorkspace}>
+                {pending ? "Creating workspace…" : "Create workspace"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
       <WorkspaceShareUpgradeDialog
         canShareWorkspace={canShareWorkspace}
         open={shareUpgradeOpen}
@@ -1238,7 +1256,7 @@ type BillingStatusResponse = {
 }
 
 function BillingPanel() {
-  const { deploymentMode, entitlement } = useWorkspace()
+  const { deploymentMode, entitlement, refreshEntitlement } = useWorkspace()
   const [status, setStatus] = React.useState<BillingStatusResponse | null>(null)
   const [message, setMessage] = React.useState("")
   const [error, setError] = React.useState("")
@@ -1248,6 +1266,7 @@ function BillingPanel() {
   const loadStatus = React.useCallback(async () => {
     const response = await apiRequest<BillingStatusResponse>("/api/v1/billing/status")
     setStatus(response)
+    return response
   }, [])
 
   React.useEffect(() => {
@@ -1271,7 +1290,8 @@ function BillingPanel() {
       method: "POST",
       body: { sessionId },
     })
-      .then(() => {
+      .then(async () => {
+        await refreshEntitlement()
         setMessage("License activated automatically.")
         window.history.replaceState(null, "", "/app/settings?tab=billing")
         return loadStatus()
@@ -1282,33 +1302,69 @@ function BillingPanel() {
         )
       })
       .finally(() => setPending(false))
-  }, [loadStatus])
+  }, [loadStatus, refreshEntitlement])
 
   React.useEffect(() => {
     const sessionId = new URLSearchParams(window.location.search).get(
       "billing_checkout_session"
     )
-    if (!sessionId || activatedSessionRef.current === sessionId) {
+    if (!sessionId) {
       return
     }
-    activatedSessionRef.current = sessionId
 
+    let cancelled = false
     setPending(true)
     setError("")
     setMessage("Confirming subscription...")
-    apiRequest(`/api/v1/billing/checkout-session/${encodeURIComponent(sessionId)}`)
-      .then(() => {
-        setMessage("Subscription activated.")
-        window.history.replaceState(null, "", "/app/settings?tab=billing")
-        return loadStatus()
-      })
-      .catch((error) => {
-        setError(
-          error instanceof Error ? error.message : "Failed to confirm subscription"
-        )
-      })
-      .finally(() => setPending(false))
-  }, [loadStatus])
+    async function confirmSubscription() {
+      try {
+        for (let attempt = 0; attempt < 10 && !cancelled; attempt++) {
+          const checkout = await apiRequest<{
+            status: string
+            plan: Entitlement["plan"]
+            accountMatches: boolean
+          }>(
+            `/api/v1/billing/checkout-session/${encodeURIComponent(sessionId!)}`
+          )
+          if (cancelled) return
+          if (checkout.status === "active" || checkout.status === "trialing") {
+            if (checkout.accountMatches !== true) {
+              throw new Error("This checkout belongs to a different account. Sign in with the account used for the purchase, then reopen this return URL.")
+            }
+            const billing = await loadStatus()
+            if (cancelled) return
+            if (
+              billing.entitlement.plan !== checkout.plan ||
+              !["active", "trialing"].includes(billing.entitlement.status)
+            ) {
+              throw new Error(`Your account has not activated the ${planLabel(checkout.plan)} plan yet. Refresh this page to check again, or contact support if it persists.`)
+            }
+            await refreshEntitlement()
+            if (cancelled) return
+            setMessage("Subscription activated.")
+            window.history.replaceState(null, "", "/app/settings?tab=billing")
+            return
+          }
+          if (checkout.status === "expired" || checkout.status === "canceled") {
+            throw new Error("This checkout did not activate a subscription.")
+          }
+          if (attempt < 9) await new Promise((resolve) => setTimeout(resolve, 2000))
+        }
+        if (!cancelled) {
+          setMessage("Payment confirmation is still pending. Refresh this page in a moment to check again.")
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setMessage("")
+          setError(error instanceof Error ? error.message : "Failed to confirm subscription")
+        }
+      } finally {
+        if (!cancelled) setPending(false)
+      }
+    }
+    void confirmSubscription()
+    return () => { cancelled = true }
+  }, [loadStatus, refreshEntitlement])
 
   async function startCheckout(plan: "pro" | "enterprise") {
     setError("")

@@ -377,12 +377,12 @@ export function AppShell({
               </SidebarMenu>
             </SidebarFooter>
           </Sidebar>
-          <SidebarInset>
+          <SidebarInset className="min-w-0">
           <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-4 text-[#071222] backdrop-blur dark:border-[#213047] dark:bg-[#050912]/88 dark:text-[#eaf4ff]">
             <SidebarTrigger />
             <Separator orientation="vertical" className="h-5" />
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <span className="hidden shrink-0 text-sm font-medium text-muted-foreground sm:inline">
+              <span className="hidden shrink-0 text-sm font-medium text-muted-foreground lg:inline">
                 Workspace
               </span>
               <Select
@@ -398,7 +398,7 @@ export function AppShell({
                   ...workspaces.map((workspace) => ({ value: workspace.id, label: workspace.name })),
                 ]}
               >
-                <SelectTrigger className="w-full min-w-0 sm:w-56" aria-label="Workspace">
+                <SelectTrigger className="w-full min-w-0 sm:w-56 sm:max-w-full" aria-label="Workspace">
                   <SelectValue placeholder={workspaces.length === 0 ? "No workspaces" : "Select"} />
                 </SelectTrigger>
                 <SelectContent>

@@ -9,6 +9,40 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc23] - 2026-09-06
+
+### Added
+
+- Cloud workspace owners on Pro and Enterprise can share access with existing
+  Runtz accounts by email, view members and remove access. Members can view the
+  roster of workspaces shared with them.
+- The application header displays the current account plan.
+
+### Changed
+
+- Workspaces are selectable with a highlighted row and a minimal member list
+  below. Share and Delete remain in each owned workspace row; adding a member
+  uses a compact email-only dialog.
+- Deleting the last cloud workspace leaves the account empty. Subsequent sign-in
+  does not recreate it; users can create another workspace from Settings.
+- Workspace creation uses a compact dialog, selects the new workspace, respects
+  plan limits and permits different accounts to use the same display name.
+- Improved empty-account navigation and responsive workspace layouts.
+
+### Fixed
+
+- Checkout activation now verifies the purchased plan and account ownership
+  before reporting success.
+- Subscription reconciliation handles duplicate and out-of-order Stripe webhook
+  deliveries, preserving confirmed subscription state and checkout associations.
+
+### Security
+
+- Workspace sharing enforces ownership and account-wide plan seat limits on the
+  server. Only owners may add or remove members.
+- Removing a member revokes their workspace API keys. Cloud API keys require
+  their creator to retain workspace membership.
+
 ## [1.0.0-rc22] - 2026-09-05
 
 ### Added

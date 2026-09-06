@@ -4,8 +4,8 @@ description: >-
   runtz is a source-available DevSecOps platform: SCA, SAST, host, container
   and Kubernetes scanning with a web dashboard, ingestion API and CLI.
 type: application
-version: 1.0.0-rc22
-appVersion: "1.0.0-rc22"
+version: 1.0.0-rc23
+appVersion: "1.0.0-rc23"
 kubeVersion: ">=1.25.0-0"
 home: https://runtz.dev
 icon: https://runtz.dev/home/brand/runtz-logo-light.svg

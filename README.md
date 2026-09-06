@@ -189,14 +189,15 @@ self-updater and pipeline examples.
   results.
 - Workspaces, users, profiles, usage tracking and paid-plan billing.
 - The app header shows the current account plan next to the deployment mode.
-- In **Settings → Workspaces**, select a workspace to open its overview and member
-  list below. The first workspace opens by default; newly created workspaces are
+- In **Settings → Workspaces**, select a workspace to show its member list below.
+  The selected row is highlighted. The first workspace opens by default; newly created workspaces are
   selected automatically. Owner and Shared tags identify your relationship to each
   workspace. Members can view their team's roster, scans and workspace API keys;
   only the owner manages sharing or deletes the workspace.
-- Cloud owners on Pro or Enterprise can use **Add member** in the details panel
+- Cloud owners on Pro or Enterprise can use **Share** in the workspace row
   to grant access to an existing Runtz account through a compact email-only form.
-  Members are managed directly in the panel. New teammates must sign up first.
+  Members are managed directly in the list below; **Delete** stays in the workspace
+  row. New teammates must sign up first.
   Pro allows 50 distinct users across the owner's workspaces (including the
   owner); sharing another workspace with an existing teammate uses the same seat.
   Removing a member revokes their workspace API keys. Owners can still remove

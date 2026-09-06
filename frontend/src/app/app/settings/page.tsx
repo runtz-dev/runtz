@@ -5,9 +5,6 @@ import {
   ActivityIcon,
   ArrowUpRightIcon,
   CopyIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-  FolderIcon,
   CreditCardIcon,
   CrownIcon,
   KeyRoundIcon,
@@ -21,6 +18,7 @@ import {
 
 import { useWorkspace } from "@/components/runtz/workspace-context"
 import { WorkspaceDetailsPanel } from "@/components/runtz/workspace-details-panel"
+import { WorkspaceSharingDialog } from "@/components/runtz/workspace-sharing-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -367,6 +365,8 @@ function SelfHostedWorkspacesLimitPanel() {
 function CloudWorkspacesPanel() {
   const { currentUser, entitlement, workspaces, selectedWorkspaceId, refreshWorkspaces } = useWorkspace()
   const [activeWorkspaceId, setActiveWorkspaceId] = React.useState(selectedWorkspaceId)
+  const [membersVersion, setMembersVersion] = React.useState(0)
+  const canShareWorkspace = entitlement.plan === "pro" || entitlement.plan === "enterprise"
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? workspaces[0]
   const [name, setName] = React.useState("personal")
   const [pending, setPending] = React.useState(false)
@@ -414,7 +414,7 @@ function CloudWorkspacesPanel() {
               <div>
                 <CardTitle>Your workspaces <span className="ml-1 text-muted-foreground">({workspaces.length})</span></CardTitle>
                 <CardDescription>
-                  Select a workspace to view its details and members.
+                  Select a workspace to view its members.
                 </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-3 sm:shrink-0">
@@ -437,34 +437,55 @@ function CloudWorkspacesPanel() {
               </Empty>
             ) : (
               <div className="flex flex-col gap-2">
-                <div aria-hidden="true" className="grid grid-cols-[minmax(0,1fr)_76px_20px] gap-3 px-3 text-xs text-muted-foreground lg:grid-cols-[minmax(0,1fr)_100px_140px_20px]">
+                <div aria-hidden="true" className="grid grid-cols-[minmax(0,1fr)_120px] gap-3 px-3 text-xs text-muted-foreground lg:grid-cols-[minmax(0,1fr)_80px_120px_120px]">
                   <span>Workspace</span>
-                  <span>Type</span>
+                  <span className="hidden lg:block">Type</span>
                   <span className="hidden lg:block">Created</span>
-                  <span />
+                  <span className="text-right">Actions</span>
                 </div>
                 <ul aria-label="Workspaces" className="flex max-h-72 flex-col gap-1 overflow-y-auto p-1">
                   {workspaces.map((workspace) => {
                     const isActive = workspace.id === activeWorkspace?.id
                     const isOwner = workspace.createdBy === currentUser.id
                     return (
-                      <li key={workspace.id}>
+                      <li key={workspace.id} className="relative">
                         <Button
                           variant={isActive ? "secondary" : "ghost"}
-                          className="grid h-auto w-full grid-cols-[minmax(0,1fr)_76px_20px] items-center justify-stretch gap-3 px-3 py-3 text-left lg:grid-cols-[minmax(0,1fr)_100px_140px_20px]"
+                          className="absolute inset-0 size-full"
                           aria-label={`View ${workspace.name} workspace`}
                           aria-pressed={isActive}
                           aria-controls="workspace-details"
                           onClick={() => setActiveWorkspaceId(workspace.id)}
                         >
-                          <span className="flex min-w-0 items-center gap-3">
-                            <FolderIcon aria-hidden="true" />
-                            <span className="truncate" title={workspace.name}>{workspace.name}</span>
-                          </span>
-                          <Badge variant="outline" className="justify-self-start">{isOwner ? "Owner" : "Shared"}</Badge>
-                          <span className="hidden text-xs font-normal text-muted-foreground lg:block">{new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(workspace.createdAt))}</span>
-                          {isActive ? <ChevronDownIcon aria-hidden="true" /> : <ChevronRightIcon aria-hidden="true" />}
+                          <span className="sr-only">{workspace.name}</span>
                         </Button>
+                        <div className="pointer-events-none relative grid grid-cols-[minmax(0,1fr)_120px] items-center gap-3 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_80px_120px_120px]">
+                          <div className="flex min-w-0 flex-col items-start gap-1.5">
+                            <span className="w-full truncate text-sm font-medium" title={workspace.name}>{workspace.name}</span>
+                            <Badge variant="outline" className="lg:hidden">{isOwner ? "Owner" : "Shared"}</Badge>
+                          </div>
+                          <Badge variant="outline" className="hidden justify-self-start lg:inline-flex">{isOwner ? "Owner" : "Shared"}</Badge>
+                          <span className="hidden text-xs text-muted-foreground lg:block">{new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(workspace.createdAt))}</span>
+                          <div className="pointer-events-auto flex justify-end gap-2">
+                            {isOwner ? (
+                              <>
+                                {canShareWorkspace ? (
+                                  <WorkspaceSharingDialog
+                                    workspace={workspace}
+                                    onOpen={() => setActiveWorkspaceId(workspace.id)}
+                                    onAdded={() => {
+                                      setActiveWorkspaceId(workspace.id)
+                                      setMembersVersion((version) => version + 1)
+                                    }}
+                                  />
+                                ) : (
+                                  <Button variant="outline" size="sm" onClick={() => { setActiveWorkspaceId(workspace.id); openBillingTab() }}>Share</Button>
+                                )}
+                                <Button variant="destructive" size="sm" onClick={() => setWorkspaceToDelete(workspace)}>Delete</Button>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
                       </li>
                     )
                   })}
@@ -511,8 +532,7 @@ function CloudWorkspacesPanel() {
         <WorkspaceDetailsPanel
           key={activeWorkspace.id}
           workspace={activeWorkspace}
-          onUpgrade={openBillingTab}
-          onDelete={() => setWorkspaceToDelete(activeWorkspace)}
+          refreshKey={membersVersion}
         />
       ) : null}
       <WorkspaceDeletionDialog

@@ -294,7 +294,7 @@ func (s *Server) findOrCreateEmailUser(ctx context.Context, email string) (User,
 	if user.AuthProvider == "" {
 		set["auth_provider"] = "email"
 	}
-	if len(user.WorkspaceIDs) == 0 {
+	if s.cfg.DeploymentMode != hostingCloud && len(user.WorkspaceIDs) == 0 {
 		workspace, err := s.createInitialWorkspace(ctx, googleProfile{
 			Workspace: workspaceName,
 			Kind:      workspaceKind,

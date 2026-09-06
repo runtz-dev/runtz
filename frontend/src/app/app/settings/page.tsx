@@ -45,6 +45,7 @@ import {
   FieldLabel,
   FieldSet,
 } from "@/components/ui/field"
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -86,7 +87,6 @@ type WorkspaceDeletionImpact = {
   scanCount: number
   apiKeyCount: number
   otherMemberCount: number
-  replacementWorkspaceWillBeCreated: boolean
 }
 
 type AccountDeletionImpact = {
@@ -362,19 +362,79 @@ function SelfHostedWorkspacesLimitPanel() {
 
 function CloudWorkspacesPanel() {
   const { currentUser, entitlement, workspaces, refreshWorkspaces } = useWorkspace()
+  const [name, setName] = React.useState("personal")
+  const [pending, setPending] = React.useState(false)
+  const [error, setError] = React.useState("")
+  const ownedWorkspaceCount = workspaces.filter((workspace) => workspace.createdBy === currentUser.id).length
+  const workspaceLimit = entitlement.plan === "free" ? 1 : entitlement.plan === "pro" ? 5 : Infinity
+  const canCreateWorkspace = ownedWorkspaceCount < workspaceLimit
+
+  async function createWorkspace(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setPending(true)
+    setError("")
+    try {
+      await apiRequest("/api/v1/workspaces", {
+        method: "POST",
+        body: { name: name.trim() || "personal" },
+      })
+      await refreshWorkspaces()
+      setName("personal")
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to create workspace")
+    } finally {
+      setPending(false)
+    }
+  }
+
   const [shareUpgradeOpen, setShareUpgradeOpen] = React.useState(false)
   const [workspaceToDelete, setWorkspaceToDelete] = React.useState<Workspace | null>(null)
   const canShareWorkspace = entitlement.plan === "pro" || entitlement.plan === "enterprise"
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
+      {canCreateWorkspace ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>New workspace</CardTitle>
+            <CardDescription>
+              {entitlement.plan === "free"
+                ? "Your Free plan includes one workspace. Use the default name or choose your own."
+                : "Create a workspace to organize your scans."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={createWorkspace} className="max-w-sm">
+              <FieldGroup>
+                <Field data-invalid={Boolean(error)}>
+                  <FieldLabel htmlFor="cloud-workspace-name">Workspace name</FieldLabel>
+                  <Input
+                    id="cloud-workspace-name"
+                    value={name}
+                    placeholder="personal"
+                    onChange={(event) => setName(event.target.value)}
+                    disabled={pending}
+                    aria-invalid={Boolean(error)}
+                    aria-describedby={error ? "cloud-workspace-error" : undefined}
+                  />
+                  {error ? <FieldError id="cloud-workspace-error" role="alert">{error}</FieldError> : null}
+                </Field>
+                <Button type="submit" disabled={pending}>
+                  <PlusIcon data-icon="inline-start" />
+                  {pending ? "Creating workspace…" : "Create workspace"}
+                </Button>
+              </FieldGroup>
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <CardTitle>Your workspace</CardTitle>
+              <CardTitle>Your workspaces</CardTitle>
               <CardDescription>
-                The personal workspace remains available on the free plan.
+                Manage the workspaces you own or have access to.
               </CardDescription>
             </div>
             <Badge variant={canShareWorkspace ? "secondary" : "outline"}>
@@ -383,7 +443,14 @@ function CloudWorkspacesPanel() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          {workspaces.length === 0 ? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>No workspaces yet</EmptyTitle>
+                <EmptyDescription>Create a workspace using the form above to start running scans.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -433,7 +500,7 @@ function CloudWorkspacesPanel() {
                 })}
               </TableBody>
             </Table>
-          </div>
+          </div>}
         </CardContent>
       </Card>
       <WorkspaceShareUpgradeDialog
@@ -451,7 +518,7 @@ function CloudWorkspacesPanel() {
         }}
         onDeleted={refreshWorkspaces}
       />
-    </>
+    </div>
   )
 }
 
@@ -558,9 +625,7 @@ function WorkspaceDeletionDialog({
                     <strong>{impact.otherMemberCount}</strong> other members will lose access.
                   </p>
                 ) : null}
-                {impact.replacementWorkspaceWillBeCreated ? (
-                  <p>A new empty personal workspace will be created for your account.</p>
-                ) : null}
+                <p>You can create a new workspace later from Settings → Workspaces.</p>
               </div>
             ) : error ? null : (
               <Skeleton className="h-24 w-full" />
@@ -980,8 +1045,7 @@ function UsagePanel() {
   const monthlyLimit = usage?.limits.monthly ?? 0
   const workspaces = usage?.workspaces ?? EMPTY_ACCOUNT_LIMIT
   const users = usage?.users ?? EMPTY_ACCOUNT_LIMIT
-  // Free is fixed at 1/1 by design (personal, single-user use) rather than a
-  // cap that's just low — call that out so it doesn't read as a bug.
+  // Free allows up to one owned workspace and one user.
   const accountLimitCaption = usage?.plan === "free" ? "Personal Free Plan" : undefined
 
   return (

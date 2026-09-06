@@ -19,6 +19,8 @@ import {
 } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Badge } from "@/components/ui/badge"
 import {
   Select,
@@ -214,6 +216,7 @@ export function AppShell({
         setSelectedWorkspaceIdState(nextWorkspaceId)
         if (
           response.deploymentMode === "cloud" &&
+          workspaces.length > 0 &&
           !response.user.onboardingCompleted &&
           !sessionStorage.getItem("runtz_onboarding_seen")
         ) {
@@ -370,20 +373,24 @@ export function AppShell({
             <SidebarTrigger />
             <Separator orientation="vertical" className="h-5" />
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <span className="text-sm font-medium text-muted-foreground">
+              <span className="hidden shrink-0 text-sm font-medium text-muted-foreground sm:inline">
                 Workspace
               </span>
               <Select
-                value={selectedWorkspaceId}
+                value={workspaces.length === 0 ? null : selectedWorkspaceId}
                 onValueChange={(value) => {
                   if (value) {
                     setSelectedWorkspaceId(value)
                   }
                 }}
-                disabled={isPlayground}
+                disabled={isPlayground || workspaces.length === 0}
+                items={[
+                  { value: ALL_WORKSPACES, label: "All workspaces" },
+                  ...workspaces.map((workspace) => ({ value: workspace.id, label: workspace.name })),
+                ]}
               >
-                <SelectTrigger className="w-56">
-                  <SelectValue placeholder="Select" />
+                <SelectTrigger className="w-full min-w-0 sm:w-56" aria-label="Workspace">
+                  <SelectValue placeholder={workspaces.length === 0 ? "No workspaces" : "Select"} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
@@ -407,7 +414,24 @@ export function AppShell({
             </Badge>
             <ThemeToggle />
           </header>
-          <main className="min-h-0 flex-1 bg-transparent">{children}</main>
+          <main className="min-h-0 flex-1 bg-transparent">
+            {workspaces.length === 0 && pathname !== "/app/settings" && pathname !== "/app/upgrade" ? (
+              <Empty className="min-h-[calc(100svh-3.5rem)]">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon"><BoxesIcon /></EmptyMedia>
+                  <EmptyTitle>No workspaces yet</EmptyTitle>
+                  <EmptyDescription>
+                    Create a workspace to start running scans and see your results here.
+                  </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button render={<Link href="/app/settings?tab=workspaces" />} nativeButton={false}>
+                    Create workspace
+                  </Button>
+                </EmptyContent>
+              </Empty>
+            ) : children}
+          </main>
           </SidebarInset>
         </SidebarProvider>
       </WorkspaceProvider>

@@ -85,15 +85,6 @@ func (s *Server) handleDeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Prepare a blank replacement before purging the user's last workspace.
-	// That keeps the account usable even if a later database operation fails
-	// and the user has to retry the deletion.
-	replacement, err := s.ensureCloudUserHasWorkspaceBesides(r.Context(), user, workspace.ID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to prepare a replacement workspace")
-		return
-	}
-
 	if err := s.purgeWorkspaces(r.Context(), []bson.ObjectID{workspace.ID}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete workspace data")
 		return
@@ -103,9 +94,6 @@ func (s *Server) handleDeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 		"status":         "workspace_deleted",
 		"deletedScans":   impact.ScanCount,
 		"deletedAPIKeys": impact.APIKeyCount,
-	}
-	if replacement != nil {
-		response["replacementWorkspace"] = serializeWorkspace(*replacement)
 	}
 	writeJSON(w, http.StatusOK, response)
 }
@@ -217,10 +205,6 @@ func (s *Server) workspaceDeletionImpact(ctx context.Context, workspace Workspac
 	if err != nil {
 		return workspaceDeletionImpact{}, err
 	}
-	_, hasRemainingWorkspace, err := s.cloudUserWorkspaceState(ctx, ownerID, workspace.ID)
-	if err != nil {
-		return workspaceDeletionImpact{}, err
-	}
 
 	return workspaceDeletionImpact{
 		WorkspaceID:                       workspace.ID.Hex(),
@@ -228,7 +212,7 @@ func (s *Server) workspaceDeletionImpact(ctx context.Context, workspace Workspac
 		ScanCount:                         scanCount,
 		APIKeyCount:                       apiKeyCount,
 		OtherMemberCount:                  otherMemberCount,
-		ReplacementWorkspaceWillBeCreated: !hasRemainingWorkspace,
+		ReplacementWorkspaceWillBeCreated: false,
 	}, nil
 }
 
@@ -350,50 +334,6 @@ func (s *Server) purgeWorkspaces(ctx context.Context, workspaceIDs []bson.Object
 		return fmt.Errorf("remove workspace memberships: %w", err)
 	}
 	return nil
-}
-
-func (s *Server) ensureCloudUserHasWorkspaceBesides(ctx context.Context, user User, deletingWorkspaceID bson.ObjectID) (*Workspace, error) {
-	refreshed, hasRemainingWorkspace, err := s.cloudUserWorkspaceState(ctx, user.ID, deletingWorkspaceID)
-	if err != nil {
-		return nil, err
-	}
-	if hasRemainingWorkspace {
-		return nil, nil
-	}
-
-	_, workspaceName, workspaceKind := workspaceDefaultsForEmail(refreshed.Email)
-	workspace, err := s.createInitialWorkspace(ctx, googleProfile{
-		Workspace: workspaceName,
-		Kind:      workspaceKind,
-	}, refreshed.ID)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := s.users.UpdateOne(ctx, bson.M{"_id": refreshed.ID}, bson.M{
-		"$addToSet": bson.M{"workspace_ids": workspace.ID},
-	}); err != nil {
-		_, _ = s.workspaces.DeleteOne(ctx, bson.M{"_id": workspace.ID})
-		return nil, err
-	}
-
-	return &workspace, nil
-}
-
-func (s *Server) cloudUserWorkspaceState(ctx context.Context, userID, deletingWorkspaceID bson.ObjectID) (User, bool, error) {
-	var user User
-	if err := s.users.FindOne(ctx, bson.M{"_id": userID}).Decode(&user); err != nil {
-		return User{}, false, err
-	}
-	remainingWorkspaceCount, err := s.workspaces.CountDocuments(ctx, bson.M{
-		"_id": bson.M{
-			"$in": user.WorkspaceIDs,
-			"$ne": deletingWorkspaceID,
-		},
-	})
-	if err != nil {
-		return User{}, false, err
-	}
-	return user, remainingWorkspaceCount > 0, nil
 }
 
 func (s *Server) cancelCloudSubscriptionForDeletion(ctx context.Context, user User) error {

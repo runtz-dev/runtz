@@ -189,6 +189,11 @@ Usage, then exercise the premium features. Also test cancellation in the portal
 and verify the matching webhook returns HTTP 200 and the account status updates.
 The checkout return status check can recover the initial purchase without a webhook;
 renewals and cancellations still require the webhook to stay synchronized.
+The return page waits for an active or trialing subscription, verifies the account's
+entitlement, and refreshes the plan displayed throughout the app. Pending payments
+remain pending; synchronization failures are reported and can be retried by
+refreshing the return page. Checkout and subscription webhooks reconcile the same
+billing record, including when deliveries arrive concurrently or in either order.
 
 References: [Stripe test cards](https://docs.stripe.com/testing) and
 [subscription webhooks](https://docs.stripe.com/billing/subscriptions/webhooks).

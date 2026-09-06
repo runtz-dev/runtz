@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -211,8 +212,12 @@ func (s *Server) handleCreateCheckoutSession(w http.ResponseWriter, r *http.Requ
 	}
 
 	now := time.Now().UTC()
+	// A completion webhook may arrive before this write. Never reset a
+	// confirmed checkout to pending when the create request finishes later.
 	record := bson.M{
-		"$set": bson.M{
+		"$setOnInsert": bson.M{
+			"_id":                        bson.NewObjectID(),
+			"created_at":                 now,
 			"email":                      email,
 			"plan":                       plan,
 			"deployment_mode":            deploymentMode,
@@ -221,23 +226,24 @@ func (s *Server) handleCreateCheckoutSession(w http.ResponseWriter, r *http.Requ
 			"stripe_price_id":            priceID,
 			"updated_at":                 now,
 		},
-		"$setOnInsert": bson.M{
-			"_id":        bson.NewObjectID(),
-			"created_at": now,
-		},
 	}
 	if hasUser {
-		record["$set"].(bson.M)["user_id"] = user.ID
+		record["$setOnInsert"].(bson.M)["user_id"] = user.ID
 	}
 	if strings.TrimSpace(request.InstallationID) != "" {
-		record["$set"].(bson.M)["installation_id"] = strings.TrimSpace(request.InstallationID)
+		record["$setOnInsert"].(bson.M)["installation_id"] = strings.TrimSpace(request.InstallationID)
 	}
-	_, _ = s.billingSubscriptions.UpdateOne(
+	_, err := s.billingSubscriptions.UpdateOne(
 		r.Context(),
 		bson.M{"stripe_checkout_session_id": session.ID},
 		record,
 		options.UpdateOne().SetUpsert(true),
 	)
+	if err != nil {
+		slog.Error("store pending checkout", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to store checkout session")
+		return
+	}
 
 	writeJSON(w, http.StatusOK, map[string]string{
 		"id":  session.ID,
@@ -311,7 +317,14 @@ func (s *Server) handleGetCheckoutSessionStatus(w http.ResponseWriter, r *http.R
 
 	subscription, err := s.ensureCheckoutSessionStored(r.Context(), sessionID)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "checkout session not found")
+		var stripeErr stripeHTTPError
+		switch {
+		case errors.Is(err, mongo.ErrNoDocuments), errors.As(err, &stripeErr) && stripeErr.StatusCode == http.StatusNotFound:
+			writeError(w, http.StatusNotFound, "checkout session not found")
+		default:
+			slog.Error("synchronize checkout", "error", err)
+			writeError(w, http.StatusBadGateway, "failed to confirm subscription; please try again")
+		}
 		return
 	}
 
@@ -364,6 +377,7 @@ func (s *Server) handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := s.storeCheckoutSession(r.Context(), session); err != nil {
+			slog.Error("synchronize checkout webhook", "event_id", event.ID, "error", err)
 			writeError(w, http.StatusInternalServerError, "failed to store checkout session")
 			return
 		}
@@ -373,7 +387,21 @@ func (s *Server) handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid subscription object")
 			return
 		}
+		// Deliveries can arrive out of order. Read Stripe's current state so an
+		// older created/updated event cannot undo a payment or cancellation.
+		if strings.TrimSpace(subscription.ID) == "" {
+			writeError(w, http.StatusBadRequest, "stripe subscription id is required")
+			return
+		}
+		var latest stripeSubscription
+		if err := s.stripeGet(r.Context(), "/subscriptions/"+url.PathEscape(subscription.ID), nil, &latest); err != nil {
+			slog.Error("refresh subscription webhook", "event_id", event.ID, "error", err)
+			writeError(w, http.StatusBadGateway, "failed to retrieve subscription")
+			return
+		}
+		subscription = latest
 		if err := s.storeStripeSubscription(r.Context(), subscription, "", "", ""); err != nil {
+			slog.Error("synchronize subscription webhook", "event_id", event.ID, "error", err)
 			writeError(w, http.StatusInternalServerError, "failed to store subscription")
 			return
 		}
@@ -388,11 +416,17 @@ func (s *Server) ensureCheckoutSessionStored(ctx context.Context, sessionID stri
 	if err == nil && subscriptionStatusActive(existing.Status) {
 		return existing, nil
 	}
+	if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
+		return BillingSubscription{}, err
+	}
 
 	if strings.TrimSpace(s.cfg.StripeSecretKey) != "" {
 		var session stripeCheckoutSession
-		if stripeErr := s.stripeGet(ctx, "/checkout/sessions/"+url.PathEscape(sessionID), nil, &session); stripeErr == nil {
-			_ = s.storeCheckoutSession(ctx, session)
+		if err := s.stripeGet(ctx, "/checkout/sessions/"+url.PathEscape(sessionID), nil, &session); err != nil {
+			return BillingSubscription{}, err
+		}
+		if err := s.storeCheckoutSession(ctx, session); err != nil {
+			return BillingSubscription{}, err
 		}
 	}
 
@@ -406,14 +440,16 @@ func (s *Server) ensureCheckoutSessionStored(ctx context.Context, sessionID stri
 func (s *Server) storeCheckoutSession(ctx context.Context, session stripeCheckoutSession) error {
 	plan := normalizePlan(session.Metadata["plan"])
 	deploymentMode := normalizeHostingMode(session.Metadata["deployment_mode"])
-	userID, _ := bson.ObjectIDFromHex(strings.TrimSpace(session.Metadata["user_id"]))
+	userIDValue := firstNonEmpty(session.Metadata["user_id"], session.ClientReference)
+	userID, _ := bson.ObjectIDFromHex(strings.TrimSpace(userIDValue))
 	email := strings.ToLower(strings.TrimSpace(session.CustomerDetails.Email))
 
 	if session.Subscription != "" {
 		var subscription stripeSubscription
-		if err := s.stripeGet(ctx, "/subscriptions/"+url.PathEscape(session.Subscription), nil, &subscription); err == nil {
-			return s.storeStripeSubscription(ctx, subscription, session.ID, email, userID.Hex())
+		if err := s.stripeGet(ctx, "/subscriptions/"+url.PathEscape(session.Subscription), nil, &subscription); err != nil {
+			return err
 		}
+		return s.storeStripeSubscription(ctx, subscription, session.ID, email, userIDValue)
 	}
 
 	now := time.Now().UTC()
@@ -421,11 +457,14 @@ func (s *Server) storeCheckoutSession(ctx context.Context, session stripeCheckou
 		"plan":                       plan,
 		"deployment_mode":            deploymentMode,
 		"status":                     firstNonEmpty(session.Status, "checkout_complete"),
-		"email":                      email,
-		"stripe_customer_id":         session.Customer,
-		"stripe_subscription_id":     session.Subscription,
 		"stripe_checkout_session_id": session.ID,
 		"updated_at":                 now,
+	}
+	if email != "" {
+		set["email"] = email
+	}
+	if session.Customer != "" {
+		set["stripe_customer_id"] = session.Customer
 	}
 	if !userID.IsZero() {
 		set["user_id"] = userID
@@ -434,17 +473,25 @@ func (s *Server) storeCheckoutSession(ctx context.Context, session stripeCheckou
 		set["installation_id"] = installationID
 	}
 
-	_, err := s.billingSubscriptions.UpdateOne(ctx, bson.M{"stripe_checkout_session_id": session.ID}, bson.M{
+	_, err := s.billingSubscriptions.UpdateOne(ctx, pendingCheckoutFilter(session.ID), bson.M{
 		"$set": set,
 		"$setOnInsert": bson.M{
 			"_id":        bson.NewObjectID(),
 			"created_at": now,
 		},
 	}, options.UpdateOne().SetUpsert(true))
+	// A concurrent confirmation already linked this checkout. Do not replace
+	// its subscription status with an earlier open/expired checkout snapshot.
+	if mongo.IsDuplicateKeyError(err) {
+		return nil
+	}
 	return err
 }
 
 func (s *Server) storeStripeSubscription(ctx context.Context, subscription stripeSubscription, checkoutSessionID, email, userIDValue string) error {
+	if strings.TrimSpace(subscription.ID) == "" {
+		return errors.New("stripe subscription id is required")
+	}
 	plan, deploymentMode, priceID := s.planFromStripeSubscription(subscription)
 	userID, _ := bson.ObjectIDFromHex(strings.TrimSpace(firstNonEmpty(userIDValue, subscription.Metadata["user_id"])))
 	installationID := strings.TrimSpace(subscription.Metadata["installation_id"])
@@ -476,11 +523,20 @@ func (s *Server) storeStripeSubscription(ctx context.Context, subscription strip
 		set["current_period_end"] = time.Unix(periodEnd, 0).UTC()
 	}
 
-	filter := bson.M{"stripe_subscription_id": subscription.ID}
-	if subscription.ID == "" && checkoutSessionID != "" {
-		filter = bson.M{"stripe_checkout_session_id": checkoutSessionID}
+	if checkoutSessionID != "" {
+		// Promote the original checkout in place. A subscription webhook can
+		// win this race and create its own row, in which case reconcile below.
+		result, err := s.billingSubscriptions.UpdateOne(ctx, pendingCheckoutFilter(checkoutSessionID), bson.M{"$set": set})
+		if err != nil && !mongo.IsDuplicateKeyError(err) {
+			return err
+		}
+		if err == nil && result.MatchedCount > 0 {
+			return nil
+		}
 	}
 
+	filter := bson.M{"stripe_subscription_id": subscription.ID}
+	delete(set, "stripe_checkout_session_id")
 	_, err := s.billingSubscriptions.UpdateOne(ctx, filter, bson.M{
 		"$set": set,
 		"$setOnInsert": bson.M{
@@ -488,7 +544,29 @@ func (s *Server) storeStripeSubscription(ctx context.Context, subscription strip
 			"created_at": now,
 		},
 	}, options.UpdateOne().SetUpsert(true))
+	if mongo.IsDuplicateKeyError(err) {
+		// Another delivery inserted the same subscription concurrently.
+		_, err = s.billingSubscriptions.UpdateOne(ctx, filter, bson.M{"$set": set})
+	}
+	if err != nil || checkoutSessionID == "" {
+		return err
+	}
+
+	// The canonical subscription now has the confirmed checkout's identity
+	// and billing data. Remove only an unlinked placeholder before assigning
+	// its unique checkout ID. Retrying after either write is safe.
+	if _, err := s.billingSubscriptions.DeleteOne(ctx, pendingCheckoutFilter(checkoutSessionID)); err != nil {
+		return err
+	}
+	_, err = s.billingSubscriptions.UpdateOne(ctx, filter, bson.M{"$set": bson.M{"stripe_checkout_session_id": checkoutSessionID}})
 	return err
+}
+
+func pendingCheckoutFilter(sessionID string) bson.M {
+	return bson.M{
+		"stripe_checkout_session_id": sessionID,
+		"stripe_subscription_id":     bson.M{"$in": []any{nil, ""}},
+	}
 }
 
 func (s *Server) createCentralCheckoutSession(ctx context.Context, checkout createCheckoutRequest) (stripeCheckoutSession, error) {

@@ -1238,7 +1238,7 @@ type BillingStatusResponse = {
 }
 
 function BillingPanel() {
-  const { deploymentMode, entitlement } = useWorkspace()
+  const { deploymentMode, entitlement, refreshEntitlement } = useWorkspace()
   const [status, setStatus] = React.useState<BillingStatusResponse | null>(null)
   const [message, setMessage] = React.useState("")
   const [error, setError] = React.useState("")
@@ -1248,6 +1248,7 @@ function BillingPanel() {
   const loadStatus = React.useCallback(async () => {
     const response = await apiRequest<BillingStatusResponse>("/api/v1/billing/status")
     setStatus(response)
+    return response
   }, [])
 
   React.useEffect(() => {
@@ -1271,7 +1272,8 @@ function BillingPanel() {
       method: "POST",
       body: { sessionId },
     })
-      .then(() => {
+      .then(async () => {
+        await refreshEntitlement()
         setMessage("License activated automatically.")
         window.history.replaceState(null, "", "/app/settings?tab=billing")
         return loadStatus()
@@ -1282,33 +1284,59 @@ function BillingPanel() {
         )
       })
       .finally(() => setPending(false))
-  }, [loadStatus])
+  }, [loadStatus, refreshEntitlement])
 
   React.useEffect(() => {
     const sessionId = new URLSearchParams(window.location.search).get(
       "billing_checkout_session"
     )
-    if (!sessionId || activatedSessionRef.current === sessionId) {
+    if (!sessionId) {
       return
     }
-    activatedSessionRef.current = sessionId
 
+    let cancelled = false
     setPending(true)
     setError("")
     setMessage("Confirming subscription...")
-    apiRequest(`/api/v1/billing/checkout-session/${encodeURIComponent(sessionId)}`)
-      .then(() => {
-        setMessage("Subscription activated.")
-        window.history.replaceState(null, "", "/app/settings?tab=billing")
-        return loadStatus()
-      })
-      .catch((error) => {
-        setError(
-          error instanceof Error ? error.message : "Failed to confirm subscription"
-        )
-      })
-      .finally(() => setPending(false))
-  }, [loadStatus])
+    async function confirmSubscription() {
+      try {
+        for (let attempt = 0; attempt < 10 && !cancelled; attempt++) {
+          const checkout = await apiRequest<{ status: string }>(
+            `/api/v1/billing/checkout-session/${encodeURIComponent(sessionId!)}`
+          )
+          if (cancelled) return
+          if (checkout.status === "active" || checkout.status === "trialing") {
+            const billing = await loadStatus()
+            if (cancelled) return
+            if (billing.entitlement.plan === "free") {
+              throw new Error("The subscription was confirmed, but is not linked to this account. Please contact support.")
+            }
+            await refreshEntitlement()
+            if (cancelled) return
+            setMessage("Subscription activated.")
+            window.history.replaceState(null, "", "/app/settings?tab=billing")
+            return
+          }
+          if (checkout.status === "expired" || checkout.status === "canceled") {
+            throw new Error("This checkout did not activate a subscription.")
+          }
+          if (attempt < 9) await new Promise((resolve) => setTimeout(resolve, 2000))
+        }
+        if (!cancelled) {
+          setMessage("Payment confirmation is still pending. Refresh this page in a moment to check again.")
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setMessage("")
+          setError(error instanceof Error ? error.message : "Failed to confirm subscription")
+        }
+      } finally {
+        if (!cancelled) setPending(false)
+      }
+    }
+    void confirmSubscription()
+    return () => { cancelled = true }
+  }, [loadStatus, refreshEntitlement])
 
   async function startCheckout(plan: "pro" | "enterprise") {
     setError("")

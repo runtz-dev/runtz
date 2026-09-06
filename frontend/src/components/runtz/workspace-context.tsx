@@ -14,6 +14,7 @@ type WorkspaceContextValue = {
   selectedWorkspaceId: string
   setSelectedWorkspaceId: (workspaceId: string) => void
   refreshWorkspaces: () => Promise<void>
+  refreshEntitlement: () => Promise<void>
 }
 
 const WorkspaceContext = React.createContext<WorkspaceContextValue | null>(null)

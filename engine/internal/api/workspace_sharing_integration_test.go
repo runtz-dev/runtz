@@ -70,6 +70,7 @@ func TestCloudWorkspaceSharing(t *testing.T) {
 	}
 	request(ownerToken, http.MethodPost, endpoint, `{"email":"invalid"}`, http.StatusBadRequest)
 	request(ownerToken, http.MethodPost, endpoint, `{"email":"unknown@gmail.com"}`, http.StatusNotFound)
+	request(memberToken, http.MethodGet, endpoint, "", http.StatusNotFound)
 	request(memberToken, http.MethodGet, "/api/v1/api-keys?workspaceId="+workspace.ID.Hex(), "", http.StatusForbidden)
 	request(ownerToken, http.MethodPost, endpoint, memberBody, http.StatusOK)
 	request(ownerToken, http.MethodPost, endpoint, memberBody, http.StatusOK)
@@ -96,6 +97,10 @@ func TestCloudWorkspaceSharing(t *testing.T) {
 		t.Fatal("member must see both shared and personal workspaces")
 	}
 	request(memberToken, http.MethodGet, "/api/v1/api-keys?workspaceId="+workspace.ID.Hex(), "", http.StatusOK)
+	memberList := request(memberToken, http.MethodGet, endpoint, "", http.StatusOK)
+	if memberList.Body.String() != list.Body.String() {
+		t.Fatal("members must see the same roster as the owner")
+	}
 	request(memberToken, http.MethodPost, endpoint, memberBody, http.StatusNotFound)
 	request(memberToken, http.MethodDelete, endpoint+"/"+owner.ID.Hex(), "", http.StatusNotFound)
 	request(ownerToken, http.MethodDelete, endpoint+"/"+owner.ID.Hex(), "", http.StatusBadRequest)
@@ -119,6 +124,7 @@ func TestCloudWorkspaceSharing(t *testing.T) {
 	}
 	request(ownerToken, http.MethodGet, endpoint, "", http.StatusOK)
 	request(ownerToken, http.MethodDelete, endpoint+"/"+member.ID.Hex(), "", http.StatusOK)
+	request(memberToken, http.MethodGet, endpoint, "", http.StatusNotFound)
 	request(memberToken, http.MethodGet, "/api/v1/api-keys?workspaceId="+workspace.ID.Hex(), "", http.StatusForbidden)
 	if _, _, err := s.workspaceFromAPIKey(ctx, key.Token); err == nil {
 		t.Fatal("removed member key still works")

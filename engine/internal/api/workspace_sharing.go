@@ -45,8 +45,29 @@ func (s *Server) sharingWorkspace(w http.ResponseWriter, r *http.Request) (Works
 }
 
 func (s *Server) handleListWorkspaceMembers(w http.ResponseWriter, r *http.Request) {
-	workspace, _, ok := s.sharingWorkspace(w, r)
-	if !ok {
+	user, _ := currentUser(r.Context())
+	if s.cfg.DeploymentMode != hostingCloud {
+		writeError(w, http.StatusNotFound, "workspace sharing is only available in cloud mode")
+		return
+	}
+	id, err := bson.ObjectIDFromHex(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid workspace id")
+		return
+	}
+	// Members may view their team's roster. Adding and removing members still
+	// use sharingWorkspace, which requires ownership regardless of global role.
+	var workspace Workspace
+	err = s.workspaces.FindOne(r.Context(), bson.M{
+		"_id": id,
+		"$or": []bson.M{{"created_by": user.ID}, {"_id": bson.M{"$in": user.WorkspaceIDs}}},
+	}).Decode(&workspace)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		writeError(w, http.StatusNotFound, "workspace not found or you do not have access")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load workspace")
 		return
 	}
 	cursor, err := s.users.Find(r.Context(), bson.M{"workspace_ids": workspace.ID}, options.Find().SetSort(bson.D{{Key: "email", Value: 1}}))

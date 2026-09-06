@@ -19,6 +19,8 @@ import {
 } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Badge } from "@/components/ui/badge"
 import {
   Select,
@@ -155,6 +157,14 @@ export function AppShell({
     React.useState(ALL_WORKSPACES)
   const [loading, setLoading] = React.useState(true)
 
+  const refreshEntitlement = React.useCallback(async () => {
+    if (isPlayground) return
+    const response = await apiRequest<{ entitlement: Entitlement }>(
+      "/api/v1/billing/status"
+    )
+    setEntitlement(response.entitlement)
+  }, [isPlayground])
+
   const refreshWorkspaces = React.useCallback(async () => {
     if (isPlayground) {
       setWorkspaces(PLAYGROUND_WORKSPACES)
@@ -214,6 +224,7 @@ export function AppShell({
         setSelectedWorkspaceIdState(nextWorkspaceId)
         if (
           response.deploymentMode === "cloud" &&
+          workspaces.length > 0 &&
           !response.user.onboardingCompleted &&
           !sessionStorage.getItem("runtz_onboarding_seen")
         ) {
@@ -260,6 +271,7 @@ export function AppShell({
           selectedWorkspaceId,
           setSelectedWorkspaceId,
           refreshWorkspaces,
+          refreshEntitlement,
         }}
       >
         <SidebarProvider className="runtz-app-surface">
@@ -365,25 +377,29 @@ export function AppShell({
               </SidebarMenu>
             </SidebarFooter>
           </Sidebar>
-          <SidebarInset>
+          <SidebarInset className="min-w-0">
           <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-4 text-[#071222] backdrop-blur dark:border-[#213047] dark:bg-[#050912]/88 dark:text-[#eaf4ff]">
             <SidebarTrigger />
             <Separator orientation="vertical" className="h-5" />
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <span className="text-sm font-medium text-muted-foreground">
+              <span className="hidden shrink-0 text-sm font-medium text-muted-foreground lg:inline">
                 Workspace
               </span>
               <Select
-                value={selectedWorkspaceId}
+                value={workspaces.length === 0 ? null : selectedWorkspaceId}
                 onValueChange={(value) => {
                   if (value) {
                     setSelectedWorkspaceId(value)
                   }
                 }}
-                disabled={isPlayground}
+                disabled={isPlayground || workspaces.length === 0}
+                items={[
+                  { value: ALL_WORKSPACES, label: "All workspaces" },
+                  ...workspaces.map((workspace) => ({ value: workspace.id, label: workspace.name })),
+                ]}
               >
-                <SelectTrigger className="w-56">
-                  <SelectValue placeholder="Select" />
+                <SelectTrigger className="w-full min-w-0 sm:w-56 sm:max-w-full" aria-label="Workspace">
+                  <SelectValue placeholder={workspaces.length === 0 ? "No workspaces" : "Select"} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
@@ -399,6 +415,11 @@ export function AppShell({
                 </SelectContent>
               </Select>
             </div>
+            {!isPlayground ? (
+              <Badge variant="secondary" aria-label={`Current plan: ${entitlement.plan}`}>
+                {entitlement.plan === "enterprise" ? "Enterprise" : entitlement.plan === "pro" ? "Pro" : "Free"}
+              </Badge>
+            ) : null}
             <Badge
               variant="outline"
               className="border-[#2f7eff]/20 bg-[#dcecff]/70 text-[#1d5fc7] dark:border-[#6db5ff]/24 dark:bg-[#101827] dark:text-[#b8cbe4]"
@@ -407,7 +428,24 @@ export function AppShell({
             </Badge>
             <ThemeToggle />
           </header>
-          <main className="min-h-0 flex-1 bg-transparent">{children}</main>
+          <main className="min-h-0 flex-1 bg-transparent">
+            {workspaces.length === 0 && pathname !== "/app/settings" && pathname !== "/app/upgrade" ? (
+              <Empty className="min-h-[calc(100svh-3.5rem)]">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon"><BoxesIcon /></EmptyMedia>
+                  <EmptyTitle>No workspaces yet</EmptyTitle>
+                  <EmptyDescription>
+                    Create a workspace to start running scans and see your results here.
+                  </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button render={<Link href="/app/settings?tab=workspaces" />} nativeButton={false}>
+                    Create workspace
+                  </Button>
+                </EmptyContent>
+              </Empty>
+            ) : children}
+          </main>
           </SidebarInset>
         </SidebarProvider>
       </WorkspaceProvider>

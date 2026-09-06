@@ -188,6 +188,26 @@ self-updater and pipeline examples.
 - CVE fix-availability filters across dashboards and package vulnerability
   results.
 - Workspaces, users, profiles, usage tracking and paid-plan billing.
+- The app header shows the current account plan next to the deployment mode.
+- In **Settings → Workspaces**, select a workspace to show its member list below.
+  The selected row is highlighted. The first workspace opens by default; newly created workspaces are
+  selected automatically. Owner and Shared tags identify your relationship to each
+  workspace. Members can view their team's roster, scans and workspace API keys;
+  only the owner manages sharing or deletes the workspace.
+- Cloud owners on Pro or Enterprise can use **Share** in the workspace row
+  to grant access to an existing Runtz account through a compact email-only form.
+  Members are managed directly in the list below; **Delete** stays in the workspace
+  row. New teammates must sign up first.
+  Pro allows 50 distinct users across the owner's workspaces (including the
+  owner); sharing another workspace with an existing teammate uses the same seat.
+  Removing a member revokes their workspace API keys. Owners can still remove
+  access after downgrading to Free.
+- In cloud, deleting a workspace removes its scans and API keys without creating
+  a replacement, including after signing in again. Create another from
+  **Settings → Workspaces → New workspace**, using the button in the
+  **Your workspaces** header. Free includes one owned workspace, with `personal`
+  as an editable default name in the creation dialog. Pages without any workspace
+  link to these settings.
 - Docker Compose and Helm deployments for self-hosting.
 - OpenTelemetry traces and metrics for the engine and frontend.
 
@@ -289,3 +309,13 @@ For commercial licensing, contact licensing@runtz.dev.
 ---
 
 Copyright © 2026 Runtz · RAW DEVOPS LTDA (CNPJ 51.460.107/0001-53). All rights reserved.
+
+### Workspace regression tests
+
+Use a disposable MongoDB instance and run
+`RUNTZ_TEST_MONGO_URI=mongodb://127.0.0.1:27029 go test ./internal/api -run TestCloudWorkspace -v`
+from `engine/`. Each test creates and drops a randomly named test database and
+covers last-workspace deletion, data removal, repeat sign-in, Free creation and
+limits, name collisions, account isolation, and self-hosted permissions. Sharing
+coverage includes owner-only management, plan and seat limits, duplicate additions,
+member visibility, removal after downgrade, and revocation of member API keys.

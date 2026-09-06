@@ -209,6 +209,7 @@ export type ContainerScan = PackageScan & {
 type RequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "DELETE"
   body?: unknown
+  signal?: AbortSignal
 }
 
 export class ApiError extends Error {
@@ -229,6 +230,7 @@ export async function apiRequest<T>(
   // point: a script injected into the dashboard cannot reach the credential.
   const response = await fetch(`${API_URL}${path}`, {
     method: options.method ?? "GET",
+    signal: options.signal,
     credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",

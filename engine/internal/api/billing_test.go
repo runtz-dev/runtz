@@ -8,7 +8,30 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
+
+func TestBillingSubscriptionAccountIdentity(t *testing.T) {
+	user := User{ID: bson.NewObjectID(), Email: "owner@example.com"}
+	for _, tc := range []struct {
+		name    string
+		sub     BillingSubscription
+		matches bool
+	}{
+		{"linked_account", BillingSubscription{UserID: user.ID, Email: "billing@example.com"}, true},
+		{"different_id_same_email", BillingSubscription{UserID: bson.NewObjectID(), Email: user.Email}, false},
+		{"unlinked_matching_email", BillingSubscription{Email: " OWNER@example.com "}, true},
+		{"unlinked_other_email", BillingSubscription{Email: "other@example.com"}, false},
+		{"missing_identity", BillingSubscription{}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := billingSubscriptionBelongsToUser(tc.sub, user); got != tc.matches {
+				t.Fatalf("account match = %v, want %v", got, tc.matches)
+			}
+		})
+	}
+}
 
 func TestVerifyStripeSignature(t *testing.T) {
 	payload := []byte(`{"id":"evt_test"}`)

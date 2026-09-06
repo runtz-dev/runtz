@@ -165,3 +165,37 @@ chart one.
 Copy `helm/runtz/values.secrets.example.yaml` next to the environment's
 `values.yaml` as `values.secrets.yaml` (gitignored) and add a second `-f`
 flag to the helm command.
+
+## Testing premium purchases in dev
+
+Use the dev frontend with Stripe sandbox keys and prices from the same sandbox.
+Before testing, verify the running engine has `STRIPE_SECRET_KEY` in test mode,
+the four `STRIPE_PRICE_*` values refer to active recurring test prices, and
+`STRIPE_WEBHOOK_SECRET` contains the signing secret for the **dev** endpoint.
+Never copy the live signing secret or live prices into dev.
+
+Register the sandbox webhook at the dev engine's `/api/v1/billing/webhook`,
+using the same API version as `stripeAPIVersion` in `engine/internal/api/billing.go`.
+Enable `checkout.session.completed`, `customer.subscription.created`,
+`customer.subscription.updated`, and `customer.subscription.deleted`.
+After changing Kubernetes Secrets or ConfigMaps, restart the dev engine so it
+loads the new values. Configure the sandbox Customer Portal too, to test
+subscription management from Billing.
+
+Sign in on dev, open **Settings → Billing**, and select a paid plan. In the
+Stripe test checkout use `4242 4242 4242 4242`, any future expiration date, and
+any three-digit CVC. After returning, verify the plan and limits in Billing and
+Usage, then exercise the premium features. Also test cancellation in the portal
+and verify the matching webhook returns HTTP 200 and the account status updates.
+The checkout return status check can recover the initial purchase without a webhook;
+renewals and cancellations still require the webhook to stay synchronized.
+The return page waits for an active or trialing subscription, verifies the account's
+identity and that its entitlement matches the purchased plan, and refreshes the plan
+displayed throughout the app. A mismatched account or plan keeps the checkout URL
+available for retry instead of announcing activation. Pending payments
+remain pending; synchronization failures are reported and can be retried by
+refreshing the return page. Checkout and subscription webhooks reconcile the same
+billing record, including when deliveries arrive concurrently or in either order.
+
+References: [Stripe test cards](https://docs.stripe.com/testing) and
+[subscription webhooks](https://docs.stripe.com/billing/subscriptions/webhooks).

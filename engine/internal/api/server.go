@@ -113,7 +113,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/me/password", s.auth(http.HandlerFunc(s.handleChangePassword)))
 	mux.Handle("GET /api/v1/usage", s.auth(http.HandlerFunc(s.handleUsage)))
 	mux.Handle("GET /api/v1/workspaces", s.auth(http.HandlerFunc(s.handleListWorkspaces)))
-	mux.Handle("POST /api/v1/workspaces", s.adminOnly(http.HandlerFunc(s.handleCreateWorkspace)))
+	mux.Handle("POST /api/v1/workspaces", s.auth(http.HandlerFunc(s.handleCreateWorkspace)))
+	mux.Handle("GET /api/v1/workspaces/{id}/members", s.auth(http.HandlerFunc(s.handleListWorkspaceMembers)))
+	mux.Handle("POST /api/v1/workspaces/{id}/members", s.auth(http.HandlerFunc(s.handleAddWorkspaceMember)))
+	mux.Handle("DELETE /api/v1/workspaces/{id}/members/{memberID}", s.auth(http.HandlerFunc(s.handleRemoveWorkspaceMember)))
 	mux.Handle("GET /api/v1/workspaces/{id}/deletion-impact", s.auth(http.HandlerFunc(s.handleWorkspaceDeletionImpact)))
 	mux.Handle("DELETE /api/v1/workspaces/{id}", s.auth(http.HandlerFunc(s.handleDeleteWorkspace)))
 	mux.Handle("GET /api/v1/api-keys", s.auth(http.HandlerFunc(s.handleListAPIKeys)))
@@ -641,6 +644,10 @@ func (s *Server) handleListWorkspaces(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	user, _ := currentUser(r.Context())
+	if s.cfg.DeploymentMode != hostingCloud && user.Role != "admin" {
+		writeError(w, http.StatusForbidden, "admin role required")
+		return
+	}
 	plan := s.currentEntitlement(r.Context(), &user).Plan
 	if limit := workspaceLimitForPlan(plan); limit >= 0 {
 		count, err := s.workspaceCountForOwner(r.Context(), user.ID)
@@ -664,16 +671,29 @@ func (s *Server) handleCreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := strings.TrimSpace(request.Name)
+	if name == "" && s.cfg.DeploymentMode == hostingCloud {
+		name = "personal"
+	}
 	if name == "" {
 		writeError(w, http.StatusBadRequest, "workspace name is required")
 		return
+	}
+
+	slug := slugify(name)
+	if s.cfg.DeploymentMode == hostingCloud {
+		var err error
+		slug, err = s.uniqueWorkspaceSlug(r.Context(), slug)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to generate workspace slug")
+			return
+		}
 	}
 
 	now := time.Now().UTC()
 	workspace := Workspace{
 		ID:        bson.NewObjectID(),
 		Name:      name,
-		Slug:      slugify(name),
+		Slug:      slug,
 		Kind:      "manual",
 		CreatedBy: user.ID,
 		CreatedAt: now,
@@ -682,6 +702,18 @@ func (s *Server) handleCreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	if _, err := s.workspaces.InsertOne(r.Context(), workspace); err != nil {
 		writeError(w, http.StatusConflict, "workspace slug already exists")
 		return
+	}
+
+	if s.cfg.DeploymentMode == hostingCloud {
+		result, err := s.users.UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{
+			"$addToSet": bson.M{"workspace_ids": workspace.ID},
+			"$set":      bson.M{"updated_at": now},
+		})
+		if err != nil || result.MatchedCount == 0 {
+			_, _ = s.workspaces.DeleteOne(r.Context(), bson.M{"_id": workspace.ID})
+			writeError(w, http.StatusInternalServerError, "failed to assign workspace to your account")
+			return
+		}
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]any{"workspace": serializeWorkspace(workspace)})

@@ -279,7 +279,7 @@ func (s *Server) findOrCreateGitHubUser(ctx context.Context, profile githubProfi
 	if user.DisplayName == "" {
 		set["display_name"] = profile.Name
 	}
-	if len(user.WorkspaceIDs) == 0 {
+	if s.cfg.DeploymentMode != hostingCloud && len(user.WorkspaceIDs) == 0 {
 		workspace, err := s.createInitialWorkspace(ctx, googleProfile{
 			Workspace: workspaceName,
 			Kind:      workspaceKind,

@@ -183,7 +183,7 @@ func (s *Server) findOrCreateGoogleUser(ctx context.Context, profile googleProfi
 		set["username"] = profile.Username
 	}
 
-	if len(user.WorkspaceIDs) == 0 {
+	if s.cfg.DeploymentMode != hostingCloud && len(user.WorkspaceIDs) == 0 {
 		workspace, err := s.createInitialWorkspace(ctx, profile, user.ID)
 		if err != nil {
 			return User{}, nil, err

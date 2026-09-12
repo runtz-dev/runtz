@@ -9,6 +9,14 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc24] - 2026-09-12
+
+### Changed
+
+- The platform now lives at the domain root instead of under `/app` — for
+  example `runtz.dev/app/sca` is now `runtz.dev/sca`. Every old `/app/...`
+  link still works via a permanent redirect.
+
 ## [1.0.0-rc23] - 2026-09-06
 
 ### Added

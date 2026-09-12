@@ -17,13 +17,13 @@
   <a href="LICENSE"><img alt="License: BUSL-1.1" src="https://img.shields.io/badge/License-BUSL--1.1-blue.svg"></a>
   <a href="https://hub.docker.com/u/runtzdev"><img alt="Docker Hub" src="https://img.shields.io/badge/Docker%20Hub-runtzdev-2496ED?logo=docker&logoColor=white"></a>
   <a href="helm/runtz/README.md"><img alt="Helm" src="https://img.shields.io/badge/Helm-helm.runtz.dev-0F1689?logo=helm&logoColor=white"></a>
-  <a href="https://runtz.dev/home/docs"><img alt="Documentation" src="https://img.shields.io/badge/Docs-runtz.dev-2f7eff"></a>
+  <a href="https://runtz.dev/docs"><img alt="Documentation" src="https://img.shields.io/badge/Docs-runtz.dev-2f7eff"></a>
 </p>
 
 <p align="center">
   <a href="https://runtz.dev/playground/overview">Live playground</a>
   ·
-  <a href="https://runtz.dev/home/docs">Documentation</a>
+  <a href="https://runtz.dev/docs">Documentation</a>
   ·
   <a href="https://github.com/runtz-dev/runtz-cli">CLI</a>
   ·

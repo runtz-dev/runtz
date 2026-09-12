@@ -1,1 +1,1 @@
-export { default } from "../../app/sca/page"
+export { default } from "../../(platform)/sca/page"

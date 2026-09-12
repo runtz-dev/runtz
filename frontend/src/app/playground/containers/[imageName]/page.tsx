@@ -1,1 +1,1 @@
-export { default } from "../../../app/containers/[imageName]/page"
+export { default } from "../../../(platform)/containers/[imageName]/page"

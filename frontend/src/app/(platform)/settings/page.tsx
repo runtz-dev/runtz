@@ -1257,7 +1257,7 @@ function BillingPanel() {
       .then(async () => {
         await refreshEntitlement()
         setMessage("License activated automatically.")
-        window.history.replaceState(null, "", "/app/settings?tab=billing")
+        window.history.replaceState(null, "", "/settings?tab=billing")
         return loadStatus()
       })
       .catch((error) => {
@@ -1306,7 +1306,7 @@ function BillingPanel() {
             await refreshEntitlement()
             if (cancelled) return
             setMessage("Subscription activated.")
-            window.history.replaceState(null, "", "/app/settings?tab=billing")
+            window.history.replaceState(null, "", "/settings?tab=billing")
             return
           }
           if (checkout.status === "expired" || checkout.status === "canceled") {
@@ -1343,10 +1343,10 @@ function BillingPanel() {
           successUrl:
             deploymentMode === "self-hosted"
               ? window.location.origin +
-                "/app/settings?tab=billing&license_checkout_session={CHECKOUT_SESSION_ID}"
+                "/settings?tab=billing&license_checkout_session={CHECKOUT_SESSION_ID}"
               : window.location.origin +
-                "/app/settings?tab=billing&billing_checkout_session={CHECKOUT_SESSION_ID}",
-          cancelUrl: window.location.origin + "/app/settings?tab=billing",
+                "/settings?tab=billing&billing_checkout_session={CHECKOUT_SESSION_ID}",
+          cancelUrl: window.location.origin + "/settings?tab=billing",
         },
       })
       window.location.assign(response.url)
@@ -1363,7 +1363,7 @@ function BillingPanel() {
     try {
       const response = await apiRequest<{ url: string }>("/api/v1/billing/portal", {
         method: "POST",
-        body: { returnUrl: window.location.origin + "/app/settings?tab=billing" },
+        body: { returnUrl: window.location.origin + "/settings?tab=billing" },
       })
       window.location.assign(response.url)
     } catch (error) {

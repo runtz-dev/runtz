@@ -1114,7 +1114,7 @@ func pgVuln(id, packageName, severity, installedVersion, vulnerableRange, firstP
 		ID: id, PackageName: packageName, InstalledPackage: packageName,
 		Ecosystem: ecosystem, InstalledVersion: installedVersion,
 		VulnerableRange: vulnerableRange, FirstPatchedVersion: firstPatchedVersion,
-		Severity: severity, Summary: summary, AdvisoryURL: "https://runtz.dev/home",
+		Severity: severity, Summary: summary, AdvisoryURL: "https://runtz.dev",
 	}
 }
 

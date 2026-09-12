@@ -1,1 +1,1 @@
-export { default } from "../../../app/hosts/[hostname]/page"
+export { default } from "../../../(platform)/hosts/[hostname]/page"

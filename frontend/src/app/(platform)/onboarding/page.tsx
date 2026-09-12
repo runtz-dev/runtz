@@ -104,7 +104,7 @@ export default function OnboardingPage() {
           method: "PATCH",
         })
       }
-      router.replace("/app/overview")
+      router.replace("/overview")
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to complete onboarding")
       setPending(false)

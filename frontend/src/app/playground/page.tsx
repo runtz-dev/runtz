@@ -1,1 +1,1 @@
-export { default } from "../app/overview/page"
+export { default } from "../(platform)/overview/page"

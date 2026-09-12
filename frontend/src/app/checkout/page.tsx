@@ -139,10 +139,10 @@ function CheckoutFlow() {
 
         const successUrl =
           params.get("successUrl") ||
-          `${window.location.origin}/app/settings?tab=billing&billing_checkout_session={CHECKOUT_SESSION_ID}`
+          `${window.location.origin}/settings?tab=billing&billing_checkout_session={CHECKOUT_SESSION_ID}`
         const cancelUrl =
           params.get("cancelUrl") ||
-          `${window.location.origin}/app/settings?tab=billing`
+          `${window.location.origin}/settings?tab=billing`
 
         const checkout = await apiRequest<{ url: string }>("/api/v1/billing/checkout", {
           method: "POST",
@@ -216,14 +216,14 @@ function CheckoutShell({
           {error ? (
             <>
               <Link
-                href="/app/settings?tab=billing"
+                href="/settings?tab=billing"
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#6db5ff] px-5 text-sm font-bold text-[#071222] transition hover:bg-[#9fd6ff]"
               >
                 Billing settings
                 <ArrowRightIcon className="size-4" />
               </Link>
               <Link
-                href="/app/overview"
+                href="/overview"
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-[#6db5ff]/24 bg-transparent px-5 text-sm font-medium text-[#eaf4ff] transition hover:bg-[#101827] hover:text-[#eaf4ff]"
               >
                 <ArrowLeftIcon className="size-4" />
@@ -239,7 +239,7 @@ function CheckoutShell({
                 Your current plan
               </Button>
               <Link
-                href="/app/overview"
+                href="/overview"
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#6db5ff] px-5 text-sm font-bold text-[#071222] transition hover:bg-[#9fd6ff]"
               >
                 Open Runtz

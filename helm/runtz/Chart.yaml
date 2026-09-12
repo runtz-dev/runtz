@@ -8,7 +8,7 @@ version: 1.0.0-rc23
 appVersion: "1.0.0-rc23"
 kubeVersion: ">=1.25.0-0"
 home: https://runtz.dev
-icon: https://runtz.dev/home/brand/runtz-logo-light.svg
+icon: https://runtz.dev/brand/runtz-logo-light.svg
 sources:
   - https://github.com/runtz-dev/runtz
 keywords:
@@ -25,6 +25,6 @@ annotations:
   artifacthub.io/license: BUSL-1.1
   artifacthub.io/links: |
     - name: Documentation
-      url: https://runtz.dev/home/docs
+      url: https://runtz.dev/docs
     - name: Source
       url: https://github.com/runtz-dev/runtz

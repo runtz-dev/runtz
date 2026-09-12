@@ -142,7 +142,7 @@ export function AppShell({
   const router = useRouter()
   const pathname = usePathname()
   const isPlayground = mode === "playground"
-  const basePath = isPlayground ? "/playground" : "/app"
+  const basePath = isPlayground ? "/playground" : ""
   const codeItems = React.useMemo(() => buildCodeItems(basePath), [basePath])
   const hostItems = React.useMemo(() => buildHostItems(basePath), [basePath])
   const [authenticated, setAuthenticated] = React.useState(false)
@@ -229,7 +229,7 @@ export function AppShell({
           !sessionStorage.getItem("runtz_onboarding_seen")
         ) {
           sessionStorage.setItem("runtz_onboarding_seen", "1")
-          router.replace("/app/onboarding")
+          router.replace("/onboarding")
         }
       })
       .catch(() => {
@@ -350,18 +350,18 @@ export function AppShell({
                 <SidebarItem
                   item={{
                     label: "API Keys",
-                    href: isPlayground ? undefined : "/app/api-keys",
+                    href: isPlayground ? undefined : "/api-keys",
                     icon: KeyRoundIcon,
                   }}
-                  active={!isPlayground && pathname === "/app/api-keys"}
+                  active={!isPlayground && pathname === "/api-keys"}
                 />
                 <SidebarItem
                   item={{
                     label: "Settings",
-                    href: isPlayground ? undefined : "/app/settings",
+                    href: isPlayground ? undefined : "/settings",
                     icon: SettingsIcon,
                   }}
-                  active={!isPlayground && pathname === "/app/settings"}
+                  active={!isPlayground && pathname === "/settings"}
                 />
               </SidebarMenu>
               <SidebarMenu>
@@ -369,8 +369,8 @@ export function AppShell({
                   <AccountMenu
                     user={user}
                     isPlayground={isPlayground}
-                    onProfile={() => router.push("/app/settings")}
-                    onOnboarding={() => router.push("/app/onboarding")}
+                    onProfile={() => router.push("/settings")}
+                    onOnboarding={() => router.push("/onboarding")}
                     onLogout={logout}
                   />
                 </SidebarMenuItem>
@@ -429,7 +429,7 @@ export function AppShell({
             <ThemeToggle />
           </header>
           <main className="min-h-0 flex-1 bg-transparent">
-            {workspaces.length === 0 && pathname !== "/app/settings" && pathname !== "/app/upgrade" ? (
+            {workspaces.length === 0 && pathname !== "/settings" && pathname !== "/upgrade" ? (
               <Empty className="min-h-[calc(100svh-3.5rem)]">
                 <EmptyHeader>
                   <EmptyMedia variant="icon"><BoxesIcon /></EmptyMedia>
@@ -439,7 +439,7 @@ export function AppShell({
                   </EmptyDescription>
                 </EmptyHeader>
                 <EmptyContent>
-                  <Button render={<Link href="/app/settings?tab=workspaces" />} nativeButton={false}>
+                  <Button render={<Link href="/settings?tab=workspaces" />} nativeButton={false}>
                     Create workspace
                   </Button>
                 </EmptyContent>

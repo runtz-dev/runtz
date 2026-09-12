@@ -15,7 +15,7 @@ export default function DastRoadmap() {
           <Badge variant="secondary">Coming soon</Badge>
         </EmptyHeader>
         <EmptyContent>
-          <a href="/home/roadmap" className={buttonVariants({ size: "lg" })}>
+          <a href="/roadmap" className={buttonVariants({ size: "lg" })}>
             View roadmap
             <ArrowUpRightIcon data-icon="inline-end" />
           </a>

@@ -1,1 +1,1 @@
-export { default } from "../../app/sast/page"
+export { default } from "../../(platform)/sast/page"

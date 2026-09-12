@@ -169,11 +169,11 @@ func (s *Server) handleCreateCheckoutSession(w http.ResponseWriter, r *http.Requ
 
 	successURL := strings.TrimSpace(request.SuccessURL)
 	if successURL == "" {
-		successURL = s.cfg.PublicURL + "/home/pricing/success?session_id={CHECKOUT_SESSION_ID}"
+		successURL = s.cfg.PublicURL + "/pricing/success?session_id={CHECKOUT_SESSION_ID}"
 	}
 	cancelURL := strings.TrimSpace(request.CancelURL)
 	if cancelURL == "" {
-		cancelURL = s.cfg.PublicURL + "/home/pricing"
+		cancelURL = s.cfg.PublicURL + "/pricing"
 	}
 	if !s.checkoutReturnURLAllowed(deploymentMode, successURL) || !s.checkoutReturnURLAllowed(deploymentMode, cancelURL) {
 		writeError(w, http.StatusBadRequest, "successUrl and cancelUrl must use an allowed origin")
@@ -272,7 +272,7 @@ func (s *Server) handleCreateBillingPortalSession(w http.ResponseWriter, r *http
 	}
 	returnURL := strings.TrimSpace(request.ReturnURL)
 	if returnURL == "" {
-		returnURL = s.cfg.PublicURL + "/app/settings"
+		returnURL = s.cfg.PublicURL + "/settings"
 	}
 	if !s.externalURLAllowed(returnURL) {
 		writeError(w, http.StatusBadRequest, "returnUrl must use an allowed origin")

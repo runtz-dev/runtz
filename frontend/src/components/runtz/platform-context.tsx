@@ -8,13 +8,13 @@ export type PlatformMode = "app" | "playground"
 
 type PlatformContextValue = {
   mode: PlatformMode
-  basePath: "/app" | "/playground"
+  basePath: "" | "/playground"
   isPlayground: boolean
 }
 
 const DEFAULT_PLATFORM: PlatformContextValue = {
   mode: "app",
-  basePath: "/app",
+  basePath: "",
   isPlayground: false,
 }
 
@@ -31,7 +31,7 @@ export function PlatformProvider({
   const value = React.useMemo<PlatformContextValue>(
     () => ({
       mode,
-      basePath: mode === "playground" ? "/playground" : "/app",
+      basePath: mode === "playground" ? "/playground" : "",
       isPlayground: mode === "playground",
     }),
     [mode]

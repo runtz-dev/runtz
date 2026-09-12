@@ -90,7 +90,7 @@ const authButtonClassName =
 
 function safeNextPath(value: string | null) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/app/overview"
+    return "/overview"
   }
 
   return value

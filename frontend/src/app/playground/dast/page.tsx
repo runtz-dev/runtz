@@ -1,1 +1,1 @@
-export { default, metadata } from "../../app/dast/page"
+export { default, metadata } from "../../(platform)/dast/page"

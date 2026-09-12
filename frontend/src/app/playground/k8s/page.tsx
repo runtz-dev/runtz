@@ -1,1 +1,1 @@
-export { default } from "../../app/k8s/page"
+export { default } from "../../(platform)/k8s/page"

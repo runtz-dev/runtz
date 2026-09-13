@@ -141,19 +141,18 @@ func (s *Server) findOrCreateGoogleUser(ctx context.Context, profile googleProfi
 		}
 
 		user = User{
-			ID:                    bson.NewObjectID(),
-			Username:              username,
-			Email:                 profile.Email,
-			DisplayName:           profile.Name,
-			AvatarURL:             profile.Picture,
-			AuthProvider:          "google",
-			GoogleSubject:         profile.Subject,
-			Role:                  "member",
-			WorkspaceIDs:          []bson.ObjectID{workspace.ID},
-			RequirePasswordChange: false,
-			LastLoginAt:           &now,
-			CreatedAt:             now,
-			UpdatedAt:             now,
+			ID:            bson.NewObjectID(),
+			Username:      username,
+			Email:         profile.Email,
+			DisplayName:   profile.Name,
+			AvatarURL:     profile.Picture,
+			AuthProvider:  "google",
+			GoogleSubject: profile.Subject,
+			Role:          "viewer",
+			WorkspaceIDs:  []bson.ObjectID{workspace.ID},
+			LastLoginAt:   &now,
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		}
 		if _, err := s.users.InsertOne(ctx, user); err != nil {
 			return User{}, nil, err
@@ -167,17 +166,16 @@ func (s *Server) findOrCreateGoogleUser(ctx context.Context, profile googleProfi
 	}
 
 	set := bson.M{
-		"email":                   profile.Email,
-		"display_name":            profile.Name,
-		"avatar_url":              profile.Picture,
-		"auth_provider":           "google",
-		"google_subject":          profile.Subject,
-		"require_password_change": false,
-		"last_login_at":           now,
-		"updated_at":              now,
+		"email":          profile.Email,
+		"display_name":   profile.Name,
+		"avatar_url":     profile.Picture,
+		"auth_provider":  "google",
+		"google_subject": profile.Subject,
+		"last_login_at":  now,
+		"updated_at":     now,
 	}
 	if user.Role == "" {
-		set["role"] = "member"
+		set["role"] = "viewer"
 	}
 	if user.Username == "" {
 		set["username"] = profile.Username

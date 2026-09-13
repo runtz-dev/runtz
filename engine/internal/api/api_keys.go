@@ -62,6 +62,17 @@ func (s *Server) handleListAPIKeys(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	user, _ := currentUser(r.Context())
+	// Self-hosted installations only let admins mint keys — viewers can use
+	// the platform and read findings but shouldn't be able to pull scan data
+	// out via the API. Cloud is intentionally exempt: its account role is
+	// vestigial (team access there runs through workspace sharing, a
+	// separate owner/member concept), so gating on it would lock cloud users
+	// out of their own keys.
+	if s.cfg.DeploymentMode != hostingCloud && user.Role != "admin" {
+		writeError(w, http.StatusForbidden, "admin role required")
+		return
+	}
+
 	var request struct {
 		WorkspaceID   string   `json:"workspaceId"`
 		Name          string   `json:"name"`

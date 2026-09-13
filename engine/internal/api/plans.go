@@ -266,6 +266,15 @@ func (s *Server) selfHostedEntitlement(ctx context.Context) Entitlement {
 		return entitlement
 	}
 
+	// No license has ever been stored for this installation (e.g. someone
+	// clicked "Upgrade to Pro" and never finished checkout, which is enough
+	// to create the InstanceState row via ensureInstanceState). That's the
+	// normal Free state, not a failure — only report "validation_failed"
+	// below when a payload/signature *is* stored but doesn't check out.
+	if strings.TrimSpace(state.LicensePayloadRaw) == "" || strings.TrimSpace(state.LicenseSignature) == "" {
+		return entitlement
+	}
+
 	// Re-verify the signed certificate on every read: never trust the plan or
 	// features stored in the database without checking the signature first.
 	payload, ok := s.verifiedStoredLicense(state)

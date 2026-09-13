@@ -60,6 +60,46 @@ func TestValidateLicenseWithNothingActivatedReturns400(t *testing.T) {
 	}
 }
 
+// TestSelfHostedEntitlementStaysFreeWithoutAStoredLicense pins the fix for
+// the Billing tab showing "Status: Validation failed" on an install that
+// never activated anything: an InstanceState row with just an installation
+// id (created the moment someone clicks "Upgrade to Pro", even if they never
+// finish checkout) must not read as a failed validation.
+func TestSelfHostedEntitlementStaysFreeWithoutAStoredLicense(t *testing.T) {
+	uri := os.Getenv("RUNTZ_TEST_MONGO_URI")
+	if uri == "" {
+		t.Skip("set RUNTZ_TEST_MONGO_URI to run MongoDB integration tests")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	s, err := New(ctx, config.Config{DeploymentMode: hostingSelfHosted, MongoURI: uri, MongoDatabase: "runtz_test_" + bson.NewObjectID().Hex()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close(context.Background())
+	defer s.db.Drop(context.Background())
+
+	now := time.Now().UTC()
+	state := InstanceState{
+		ID:             bson.NewObjectID(),
+		Key:            instanceStateKey,
+		InstallationID: "rti_test0000000000000000000000",
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	if _, err := s.instanceState.InsertOne(ctx, state); err != nil {
+		t.Fatal(err)
+	}
+
+	entitlement := s.selfHostedEntitlement(ctx)
+	if entitlement.Status != "free" {
+		t.Fatalf("status = %q, want %q (nothing was ever activated)", entitlement.Status, "free")
+	}
+	if entitlement.Plan != planFree {
+		t.Fatalf("plan = %q, want %q", entitlement.Plan, planFree)
+	}
+}
+
 // signedInstanceState builds an InstanceState carrying a license certificate
 // signed by priv, as storeValidatedLicense would persist it.
 func signedInstanceState(t *testing.T, priv ed25519.PrivateKey, installationID, plan string) InstanceState {

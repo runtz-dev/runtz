@@ -2,6 +2,11 @@
 #
 #   docker compose up -d
 #
+# Images default to :rc — the newest published build (release candidate or
+# stable), so `docker compose pull && docker compose up -d` is the whole
+# upgrade path. Pin a specific version instead by setting RUNTZ_VERSION in
+# .env, e.g. RUNTZ_VERSION=1.0.0-rc25.
+#
 # No secrets to set: sessions, API keys and login codes are issued and stored
 # by the engine. Copy .env.example to .env only to change ports or add OAuth.
 #
@@ -24,7 +29,7 @@ services:
       retries: 10
 
   backend:
-    image: runtzdev/runtz-engine:${RUNTZ_VERSION:-1.0.0-rc24}
+    image: runtzdev/runtz-engine:${RUNTZ_VERSION:-rc}
     container_name: runtz
     restart: unless-stopped
     depends_on:
@@ -45,7 +50,7 @@ services:
       - "${BACKEND_PORT:-8080}:8080"
 
   frontend:
-    image: runtzdev/runtz-frontend:${RUNTZ_VERSION:-1.0.0-rc24}
+    image: runtzdev/runtz-frontend:${RUNTZ_VERSION:-rc}
     container_name: runtz-frontend
     restart: unless-stopped
     depends_on:

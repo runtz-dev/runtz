@@ -17,22 +17,34 @@ type Workspace struct {
 }
 
 type User struct {
-	ID                    bson.ObjectID   `bson:"_id,omitempty" json:"id"`
-	Username              string          `bson:"username" json:"username"`
-	Email                 string          `bson:"email,omitempty" json:"email,omitempty"`
-	DisplayName           string          `bson:"display_name,omitempty" json:"displayName,omitempty"`
-	AvatarURL             string          `bson:"avatar_url,omitempty" json:"avatarUrl,omitempty"`
-	AuthProvider          string          `bson:"auth_provider,omitempty" json:"authProvider,omitempty"`
-	GoogleSubject         string          `bson:"google_subject,omitempty" json:"-"`
-	GitHubSubject         string          `bson:"github_subject,omitempty" json:"-"`
-	PasswordHash          string          `bson:"password_hash" json:"-"`
-	Role                  string          `bson:"role" json:"role"`
-	WorkspaceIDs          []bson.ObjectID `bson:"workspace_ids" json:"workspaceIds"`
-	RequirePasswordChange bool            `bson:"require_password_change" json:"requirePasswordChange"`
-	OnboardingCompleted   bool            `bson:"onboarding_completed" json:"onboardingCompleted"`
-	LastLoginAt           *time.Time      `bson:"last_login_at,omitempty" json:"lastLoginAt,omitempty"`
-	CreatedAt             time.Time       `bson:"created_at" json:"createdAt"`
-	UpdatedAt             time.Time       `bson:"updated_at" json:"updatedAt"`
+	ID                  bson.ObjectID   `bson:"_id,omitempty" json:"id"`
+	Username            string          `bson:"username" json:"username"`
+	Email               string          `bson:"email,omitempty" json:"email,omitempty"`
+	DisplayName         string          `bson:"display_name,omitempty" json:"displayName,omitempty"`
+	AvatarURL           string          `bson:"avatar_url,omitempty" json:"avatarUrl,omitempty"`
+	AuthProvider        string          `bson:"auth_provider,omitempty" json:"authProvider,omitempty"`
+	GoogleSubject       string          `bson:"google_subject,omitempty" json:"-"`
+	GitHubSubject       string          `bson:"github_subject,omitempty" json:"-"`
+	PasswordHash        string          `bson:"password_hash" json:"-"`
+	Role                string          `bson:"role" json:"role"`
+	WorkspaceIDs        []bson.ObjectID `bson:"workspace_ids" json:"workspaceIds"`
+	OnboardingCompleted bool            `bson:"onboarding_completed" json:"onboardingCompleted"`
+	LastLoginAt         *time.Time      `bson:"last_login_at,omitempty" json:"lastLoginAt,omitempty"`
+	CreatedAt           time.Time       `bson:"created_at" json:"createdAt"`
+	UpdatedAt           time.Time       `bson:"updated_at" json:"updatedAt"`
+}
+
+// Invite is a one-time, time-limited link an admin hands a new self-hosted
+// user to set their own password. Only the token's hash is stored — same
+// reasoning as Session.TokenHash — so a database leak yields no usable
+// invite.
+type Invite struct {
+	ID        bson.ObjectID `bson:"_id,omitempty"`
+	UserID    bson.ObjectID `bson:"user_id"`
+	TokenHash string        `bson:"token_hash"`
+	CreatedAt time.Time     `bson:"created_at"`
+	ExpiresAt time.Time     `bson:"expires_at"`
+	UsedAt    *time.Time    `bson:"used_at,omitempty"`
 }
 
 type APIKey struct {
@@ -205,19 +217,22 @@ type Scan struct {
 }
 
 type publicUser struct {
-	ID                    string   `json:"id"`
-	Username              string   `json:"username"`
-	Email                 string   `json:"email,omitempty"`
-	DisplayName           string   `json:"displayName,omitempty"`
-	AvatarURL             string   `json:"avatarUrl,omitempty"`
-	AuthProvider          string   `json:"authProvider,omitempty"`
-	Role                  string   `json:"role"`
-	WorkspaceIDs          []string `json:"workspaceIds"`
-	RequirePasswordChange bool     `json:"requirePasswordChange"`
-	OnboardingCompleted   bool     `json:"onboardingCompleted"`
-	LastLoginAt           string   `json:"lastLoginAt,omitempty"`
-	CreatedAt             string   `json:"createdAt"`
-	UpdatedAt             string   `json:"updatedAt"`
+	ID                  string   `json:"id"`
+	Username            string   `json:"username"`
+	Email               string   `json:"email,omitempty"`
+	DisplayName         string   `json:"displayName,omitempty"`
+	AvatarURL           string   `json:"avatarUrl,omitempty"`
+	AuthProvider        string   `json:"authProvider,omitempty"`
+	Role                string   `json:"role"`
+	WorkspaceIDs        []string `json:"workspaceIds"`
+	// PasswordSet is false for a user created via handleCreateUser who has
+	// not yet accepted their invite (no password set). Lets the Users table
+	// show an "Invited" status instead of the removed "Password change" flag.
+	PasswordSet         bool   `json:"passwordSet"`
+	OnboardingCompleted bool   `json:"onboardingCompleted"`
+	LastLoginAt         string `json:"lastLoginAt,omitempty"`
+	CreatedAt           string `json:"createdAt"`
+	UpdatedAt           string `json:"updatedAt"`
 }
 
 type publicWorkspace struct {
@@ -251,18 +266,18 @@ func serializeUser(user User) publicUser {
 	}
 
 	response := publicUser{
-		ID:                    user.ID.Hex(),
-		Username:              user.Username,
-		Email:                 user.Email,
-		DisplayName:           user.DisplayName,
-		AvatarURL:             user.AvatarURL,
-		AuthProvider:          user.AuthProvider,
-		Role:                  user.Role,
-		WorkspaceIDs:          workspaceIDs,
-		RequirePasswordChange: user.RequirePasswordChange,
-		OnboardingCompleted:   user.OnboardingCompleted,
-		CreatedAt:             user.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:             user.UpdatedAt.Format(time.RFC3339),
+		ID:                  user.ID.Hex(),
+		Username:            user.Username,
+		Email:               user.Email,
+		DisplayName:         user.DisplayName,
+		AvatarURL:           user.AvatarURL,
+		AuthProvider:        user.AuthProvider,
+		Role:                user.Role,
+		WorkspaceIDs:        workspaceIDs,
+		PasswordSet:         user.PasswordHash != "",
+		OnboardingCompleted: user.OnboardingCompleted,
+		CreatedAt:           user.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:           user.UpdatedAt.Format(time.RFC3339),
 	}
 	if user.LastLoginAt != nil {
 		response.LastLoginAt = user.LastLoginAt.Format(time.RFC3339)

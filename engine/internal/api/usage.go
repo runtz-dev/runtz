@@ -105,7 +105,7 @@ func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"weekly":      weekly,
 		"monthly":     monthly,
-		"limits":      usageLimitsForPlan(plan),
+		"limits":      usageLimitsForPlan(plan, s.cfg.DeploymentMode),
 		"plan":        plan,
 		"scanTypes":   usageScanTypes,
 		"workspaces":  limitUsage{Total: workspaceCount, Limit: workspaceLimitForPlan(plan)},
@@ -170,7 +170,7 @@ func (s *Server) enforceScanUsageLimit(ctx context.Context, workspaceID, workspa
 		return err
 	}
 
-	return scanUsageLimitError(weekly.Total, monthly.Total, usageLimitsForPlan(plan))
+	return scanUsageLimitError(weekly.Total, monthly.Total, usageLimitsForPlan(plan, s.cfg.DeploymentMode))
 }
 
 func (s *Server) planForWorkspace(ctx context.Context, workspaceOwnerID bson.ObjectID) (string, error) {

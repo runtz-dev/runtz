@@ -29,7 +29,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -45,7 +44,6 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
-  FieldSet,
 } from "@/components/ui/field"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
@@ -700,10 +698,9 @@ function UsersPanel() {
   const { workspaces } = useWorkspace()
   const [users, setUsers] = React.useState<User[]>([])
   const [username, setUsername] = React.useState("")
-  const [password, setPassword] = React.useState("")
-  const [role, setRole] = React.useState<"admin" | "member">("member")
+  const [email, setEmail] = React.useState("")
+  const [role, setRole] = React.useState<"admin" | "viewer">("viewer")
   const [workspaceId, setWorkspaceId] = React.useState("")
-  const [requirePasswordChange, setRequirePasswordChange] = React.useState(true)
   const [error, setError] = React.useState("")
   const [inviteLink, setInviteLink] = React.useState("")
   const [pending, setPending] = React.useState(false)
@@ -730,34 +727,24 @@ function UsersPanel() {
     setError("")
     setPending(true)
     try {
-      await apiRequest("/api/v1/users", {
+      const response = await apiRequest<{ inviteLink: string }>("/api/v1/users", {
         method: "POST",
         body: {
           username,
-          password,
+          email: email || undefined,
           role,
           workspaceIds: workspaceId ? [workspaceId] : [],
-          requirePasswordChange,
         },
       })
       setUsername("")
-      setPassword("")
-      setRequirePasswordChange(true)
+      setEmail("")
+      setInviteLink(response.inviteLink)
       await loadUsers()
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to create user")
     } finally {
       setPending(false)
     }
-  }
-
-  async function togglePasswordChange(user: User) {
-
-    await apiRequest(`/api/v1/users/${user.id}`, {
-      method: "PATCH",
-      body: { requirePasswordChange: !user.requirePasswordChange },
-    })
-    await loadUsers()
   }
 
   async function createInvite(user: User) {
@@ -774,7 +761,10 @@ function UsersPanel() {
       <Card>
         <CardHeader>
           <CardTitle>New user</CardTitle>
-          <CardDescription>Create access with an initial password.</CardDescription>
+          <CardDescription>
+            Only a username is required — they set their own password from the
+            invite link.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={createUser}>
@@ -789,14 +779,12 @@ function UsersPanel() {
                 />
               </Field>
               <Field>
-                <FieldLabel htmlFor="user-password">Password</FieldLabel>
+                <FieldLabel htmlFor="user-email">Email (optional)</FieldLabel>
                 <Input
-                  id="user-password"
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  minLength={8}
-                  required
+                  id="user-email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
                 />
               </Field>
               <Field>
@@ -804,7 +792,7 @@ function UsersPanel() {
                 <Select
                   value={role}
                   onValueChange={(value) => {
-                    if (value === "admin" || value === "member") {
+                    if (value === "admin" || value === "viewer") {
                       setRole(value)
                     }
                   }}
@@ -814,7 +802,7 @@ function UsersPanel() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      <SelectItem value="member">member</SelectItem>
+                      <SelectItem value="viewer">viewer</SelectItem>
                       <SelectItem value="admin">admin</SelectItem>
                     </SelectGroup>
                   </SelectContent>
@@ -844,19 +832,6 @@ function UsersPanel() {
                   </SelectContent>
                 </Select>
               </Field>
-              <FieldSet>
-                <Field orientation="horizontal">
-                  <Checkbox
-                    checked={requirePasswordChange}
-                    onCheckedChange={(checked) =>
-                      setRequirePasswordChange(Boolean(checked))
-                    }
-                  />
-                  <FieldDescription>
-                    Require a password change after first sign-in
-                  </FieldDescription>
-                </Field>
-              </FieldSet>
               {error ? (
                 <Field>
                   <FieldError>{error}</FieldError>
@@ -891,7 +866,7 @@ function UsersPanel() {
                 <TableRow>
                   <TableHead>Username</TableHead>
                   <TableHead>Role</TableHead>
-                  <TableHead>Password change</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -907,12 +882,8 @@ function UsersPanel() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant={
-                          user.requirePasswordChange ? "outline" : "secondary"
-                        }
-                      >
-                        {user.requirePasswordChange ? "yes" : "no"}
+                      <Badge variant={user.passwordSet ? "secondary" : "outline"}>
+                        {user.passwordSet ? "Active" : "Invited"}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -920,18 +891,10 @@ function UsersPanel() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => togglePasswordChange(user)}
-                        >
-                          <KeyRoundIcon data-icon="inline-start" />
-                          Toggle
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
                           onClick={() => createInvite(user)}
                         >
                           <SendIcon data-icon="inline-start" />
-                          Invite
+                          {user.passwordSet ? "Reset" : "Resend"} invite
                         </Button>
                       </div>
                     </TableCell>
@@ -1095,7 +1058,11 @@ function UsageWindowRow({
   limit: number
   loading: boolean
 }) {
-  const percentage = limit > 0 ? Math.min(100, (total / limit) * 100) : 0
+  // Self-hosted never caps scan volume (any plan), so the engine reports
+  // limit as -1 there the same way cloud Enterprise does — render both as
+  // "Unlimited" rather than a nonsensical "42/-1".
+  const unlimited = limit < 0
+  const percentage = !unlimited && limit > 0 ? Math.min(100, (total / limit) * 100) : 0
   const progressColor =
     percentage >= 100
       ? "bg-destructive"
@@ -1111,11 +1078,11 @@ function UsageWindowRow({
           <Skeleton className="h-4 w-16" />
         ) : (
           <span className="text-xs font-medium tabular-nums text-muted-foreground">
-            {total}/{limit}
+            {unlimited ? `${total} · Unlimited` : `${total}/${limit}`}
           </span>
         )}
       </div>
-      {loading ? (
+      {unlimited ? null : loading ? (
         <Skeleton className="h-2 w-full rounded-full" />
       ) : (
         <div
@@ -1404,6 +1371,10 @@ function BillingPanel() {
     : activeEntitlement.plan === "free"
       ? "No active renewal"
       : "Renewal awaiting confirmation"
+  // Nothing to refresh on a Free install that has never activated a license
+  // or started a Stripe checkout — showing the button there just leads to a
+  // guaranteed "no self-hosted license has been activated" error.
+  const canRefreshLicense = Boolean(status?.instance?.licenseKeyPrefix) || isPaidPlan
 
   return (
     <div className="grid max-w-xl content-start gap-4">
@@ -1473,7 +1444,7 @@ function BillingPanel() {
               Manage subscription
             </Button>
           ) : null}
-          {deploymentMode === "self-hosted" ? (
+          {deploymentMode === "self-hosted" && canRefreshLicense ? (
             <Button type="button" variant="outline" onClick={refreshLicense} disabled={pending}>
               <RefreshCcwIcon data-icon="inline-start" />
               Validate license
@@ -1763,16 +1734,93 @@ function CloudProfilePanel() {
 }
 
 function SelfHostedProfilePanel() {
+  const { currentUser } = useWorkspace()
+  const [email, setEmail] = React.useState(currentUser.email ?? "")
+  const [emailMessage, setEmailMessage] = React.useState("")
+  const [emailError, setEmailError] = React.useState("")
+  const [emailPending, setEmailPending] = React.useState(false)
+  const [passwordDialogOpen, setPasswordDialogOpen] = React.useState(false)
+
+  async function saveEmail(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    setEmailMessage("")
+    setEmailError("")
+    setEmailPending(true)
+    try {
+      await apiRequest("/api/v1/me/profile", {
+        method: "PATCH",
+        body: { email },
+      })
+      setEmailMessage("Email updated.")
+    } catch (error) {
+      setEmailError(error instanceof Error ? error.message : "Failed to update email")
+    } finally {
+      setEmailPending(false)
+    }
+  }
+
+  return (
+    <Card className="max-w-md">
+      <CardHeader>
+        <CardTitle>Profile</CardTitle>
+        <CardDescription>Your account on this installation.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={saveEmail}>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="profile-username">Username</FieldLabel>
+              <Input id="profile-username" value={currentUser.username} readOnly />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="profile-email">Email</FieldLabel>
+              <Input
+                id="profile-email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+              />
+            </Field>
+            {emailMessage ? (
+              <Field>
+                <FieldDescription>{emailMessage}</FieldDescription>
+              </Field>
+            ) : null}
+            {emailError ? (
+              <Field>
+                <FieldError>{emailError}</FieldError>
+              </Field>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={emailPending}>
+                Save email
+              </Button>
+              <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+                <DialogTrigger render={<Button type="button" variant="outline" />}>
+                  <KeyRoundIcon data-icon="inline-start" />
+                  Change password
+                </DialogTrigger>
+                <ChangePasswordDialogContent onDone={() => setPasswordDialogOpen(false)} />
+              </Dialog>
+            </div>
+          </FieldGroup>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ChangePasswordDialogContent({ onDone }: { onDone: () => void }) {
   const [currentPassword, setCurrentPassword] = React.useState("")
   const [newPassword, setNewPassword] = React.useState("")
-  const [message, setMessage] = React.useState("")
   const [error, setError] = React.useState("")
   const [pending, setPending] = React.useState(false)
 
   async function changePassword(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    setMessage("")
     setError("")
     setPending(true)
     try {
@@ -1782,7 +1830,7 @@ function SelfHostedProfilePanel() {
       })
       setCurrentPassword("")
       setNewPassword("")
-      setMessage("Password updated.")
+      onDone()
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to change password")
     } finally {
@@ -1791,52 +1839,50 @@ function SelfHostedProfilePanel() {
   }
 
   return (
-    <Card className="max-w-md">
-      <CardHeader>
-        <CardTitle>Profile</CardTitle>
-        <CardDescription>Change the current user&apos;s password.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={changePassword}>
-          <FieldGroup>
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Change password</DialogTitle>
+        <DialogDescription>
+          Requires your current password.
+        </DialogDescription>
+      </DialogHeader>
+      <form onSubmit={changePassword}>
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="current-password">Current password</FieldLabel>
+            <Input
+              id="current-password"
+              type="password"
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              required
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="new-password">New password</FieldLabel>
+            <Input
+              id="new-password"
+              type="password"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              minLength={8}
+              required
+            />
+          </Field>
+          {error ? (
             <Field>
-              <FieldLabel htmlFor="current-password">Current password</FieldLabel>
-              <Input
-                id="current-password"
-                type="password"
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-              />
+              <FieldError>{error}</FieldError>
             </Field>
-            <Field>
-              <FieldLabel htmlFor="new-password">New password</FieldLabel>
-              <Input
-                id="new-password"
-                type="password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                minLength={8}
-                required
-              />
-            </Field>
-            {message ? (
-              <Field>
-                <FieldDescription>{message}</FieldDescription>
-              </Field>
-            ) : null}
-            {error ? (
-              <Field>
-                <FieldError>{error}</FieldError>
-              </Field>
-            ) : null}
-            <Button type="submit" disabled={pending}>
-              <KeyRoundIcon data-icon="inline-start" />
-              Update password
-            </Button>
-          </FieldGroup>
-        </form>
-      </CardContent>
-    </Card>
+          ) : null}
+        </FieldGroup>
+        <DialogFooter className="mt-4">
+          <Button type="submit" disabled={pending}>
+            <KeyRoundIcon data-icon="inline-start" />
+            Update password
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
   )
 }
 

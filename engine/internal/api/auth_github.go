@@ -245,7 +245,7 @@ func (s *Server) findOrCreateGitHubUser(ctx context.Context, profile githubProfi
 			DisplayName:         profile.Name,
 			AuthProvider:        "github",
 			GitHubSubject:       profile.Subject,
-			Role:                "member",
+			Role:                "viewer",
 			WorkspaceIDs:        []bson.ObjectID{workspace.ID},
 			OnboardingCompleted: false,
 			LastLoginAt:         &now,
@@ -271,7 +271,7 @@ func (s *Server) findOrCreateGitHubUser(ctx context.Context, profile githubProfi
 		"updated_at":     now,
 	}
 	if user.Role == "" {
-		set["role"] = "member"
+		set["role"] = "viewer"
 	}
 	if user.Username == "" {
 		set["username"] = username

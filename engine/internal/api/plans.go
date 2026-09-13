@@ -130,7 +130,16 @@ func planRank(plan string) int {
 	}
 }
 
-func usageLimitsForPlan(plan string) scanUsageLimits {
+// usageLimitsForPlan returns the scan allowance for plan. Self-hosted never
+// caps scan volume — the installation runs on the customer's own infra, so
+// there's no cost to runtz in letting them scan as much as they want — the
+// Usage panel still shows the running counter, it just never blocks. Only
+// cloud plans split by tier.
+func usageLimitsForPlan(plan, deploymentMode string) scanUsageLimits {
+	if normalizeHostingMode(deploymentMode) == hostingSelfHosted {
+		return scanUsageLimits{Weekly: unlimitedLimit, Monthly: unlimitedLimit}
+	}
+
 	switch normalizePlan(plan) {
 	case planEnterprise:
 		return scanUsageLimits{Weekly: unlimitedLimit, Monthly: unlimitedLimit}

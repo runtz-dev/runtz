@@ -5,10 +5,12 @@
 # Images default to :rc — the newest published build (release candidate or
 # stable), so `docker compose pull && docker compose up -d` is the whole
 # upgrade path. Pin a specific version instead by setting RUNTZ_VERSION in
-# .env, e.g. RUNTZ_VERSION=1.0.0-rc25.
+# .env, e.g. RUNTZ_VERSION=1.0.0-rc26.
 #
 # No secrets to set: sessions, API keys and login codes are issued and stored
-# by the engine. Copy .env.example to .env only to change ports or add OAuth.
+# by the engine. Copy .env.example to .env only to change ports; access is
+# granted by username + admin-issued invite link, so there's nothing else to
+# configure to get a working install.
 #
 # To build from source instead, add the dev override:
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
@@ -40,11 +42,6 @@ services:
       MONGODB_URI: ${MONGODB_URI:-mongodb://mongodb:27017}
       MONGODB_DATABASE: ${MONGODB_DATABASE:-runtz}
       RUNTZ_PUBLIC_URL: ${RUNTZ_PUBLIC_URL:-http://localhost:3000}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-runtz <login@runtz.dev>}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
     ports:
       - "${BACKEND_PORT:-8080}:8080"

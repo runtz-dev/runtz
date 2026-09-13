@@ -19,9 +19,9 @@ export type User = {
   displayName?: string
   avatarUrl?: string
   authProvider?: "password" | "email" | "google" | "github"
-  role: "admin" | "member"
+  role: "admin" | "viewer"
   workspaceIds: string[]
-  requirePasswordChange: boolean
+  passwordSet: boolean
   onboardingCompleted: boolean
   lastLoginAt?: string
   createdAt: string

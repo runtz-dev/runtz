@@ -9,6 +9,15 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc27] - 2026-09-13
+
+### Fixed
+
+- Self-hosted Billing showed "Status: Validation failed" on an install that
+  never activated a license at all (any `InstanceState` row without one, for
+  example from clicking "Upgrade to Pro" and abandoning checkout). Now stays
+  "Free" until a license is actually stored and fails to verify.
+
 ## [1.0.0-rc26] - 2026-09-13
 
 ### Added

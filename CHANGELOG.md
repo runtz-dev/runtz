@@ -9,6 +9,25 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc25] - 2026-09-13
+
+### Changed
+
+- Published images now also tag `:rc`, which always points at the newest
+  build (release candidate or stable). The self-hosted `docker-compose.yml`
+  defaults to it, so `docker compose pull && docker compose up -d` is the
+  whole upgrade path — set `RUNTZ_VERSION` in `.env` to pin a specific
+  release instead. `:latest` is unchanged: still reserved for the first
+  stable (non `-rc`) release.
+
+### Removed
+
+- Dropped `RUNTZ_DEPLOYMENT_MODE` and the Stripe variables from the
+  self-hosted `docker-compose.yml` / `.env.example`. Neither ever did
+  anything for a self-hosted install: Stripe billing only runs on the
+  central engine, and self-hosted Pro/Enterprise activates from
+  `Settings -> Billing` regardless.
+
 ## [1.0.0-rc24] - 2026-09-12
 
 ### Changed

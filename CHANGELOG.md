@@ -9,6 +9,8 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc27] - 2026-09-13
+
 ### Fixed
 
 - Self-hosted Billing showed "Status: Validation failed" on an install that

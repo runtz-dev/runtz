@@ -283,7 +283,13 @@ export function AppShell({
                   <SidebarMenuButton
                     size="lg"
                     className="rounded-xl hover:bg-sidebar-accent data-active:bg-sidebar-accent"
-                    render={<Link href={`${basePath}/overview`} />}
+                    render={
+                      isPlayground ? (
+                        <a href="https://runtz.dev" />
+                      ) : (
+                        <Link href={`${basePath}/overview`} />
+                      )
+                    }
                   >
                     {/* The wordmark already ends in the cursor block, so the
                         mark tile would repeat it: show the tile only when the

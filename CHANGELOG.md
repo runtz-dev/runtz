@@ -9,6 +9,8 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc26] - 2026-09-13
+
 ### Added
 
 - Self-hosted user creation now only needs a username (email is optional,

@@ -71,7 +71,11 @@ import { apiRequest, type ApiKey } from "@/lib/api"
 const ALL_WORKSPACES = "all"
 
 export default function APIKeysPage() {
-  const { workspaces, selectedWorkspaceId } = useWorkspace()
+  const { workspaces, selectedWorkspaceId, currentUser, deploymentMode } = useWorkspace()
+  // Self-hosted only lets admins mint keys (see handleCreateAPIKey on the
+  // engine) — viewers can use the platform but shouldn't pull scan data out
+  // via the API. Cloud has no such restriction.
+  const canCreateKeys = deploymentMode !== "self-hosted" || currentUser.role === "admin"
   const [apiKeys, setAPIKeys] = React.useState<ApiKey[]>([])
   const [workspaceId, setWorkspaceId] = React.useState("")
   const [name, setName] = React.useState("CLI key")
@@ -265,17 +269,19 @@ export default function APIKeysPage() {
             Create and manage keys used to send scans from the CLI.
           </p>
         </div>
-        <Button
-          size="lg"
-          className="w-full shadow-sm sm:w-auto"
-          onClick={() => {
-            setError("")
-            setCreateOpen(true)
-          }}
-        >
-          <PlusIcon data-icon="inline-start" />
-          Create API key
-        </Button>
+        {canCreateKeys ? (
+          <Button
+            size="lg"
+            className="w-full shadow-sm sm:w-auto"
+            onClick={() => {
+              setError("")
+              setCreateOpen(true)
+            }}
+          >
+            <PlusIcon data-icon="inline-start" />
+            Create API key
+          </Button>
+        ) : null}
       </div>
 
       {error && !createOpen && !editingKey && !deletingKey ? (

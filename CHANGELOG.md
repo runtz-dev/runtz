@@ -9,6 +9,45 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+### Added
+
+- Self-hosted user creation now only needs a username (email is optional,
+  no password). The admin gets back a 7-day invite link that lets the new
+  user set their own password.
+- Profile (self-hosted) now shows the signed-in user's username and lets
+  them add or update an email; changing the password moved behind its own
+  "Change password" dialog.
+
+### Changed
+
+- Self-hosted no longer caps weekly/monthly scan volume on any plan — it's
+  the customer's own infra. The Usage tab still shows the running count, it
+  just never blocks. Self-hosted Pro vs Free now differs only by user and
+  workspace seat limits.
+- Renamed the `member` account role to `viewer`, to reflect that non-admins
+  can use the platform and view CVEs but not manage users, workspaces or
+  API keys.
+- Self-hosted API keys can now only be created by admins (cloud is
+  unaffected — its team access runs through a separate workspace-sharing
+  role).
+
+### Fixed
+
+- "Validate license" no longer fails with a confusing 502 on a fresh
+  self-hosted install that has never activated a license or started
+  checkout — the button stays hidden until there's something to validate.
+- Invite links now use the installation's configured public URL instead of
+  a hardcoded `http://localhost:3000`.
+
+### Removed
+
+- Dropped `GOOGLE_CLIENT_ID`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`,
+  `RESEND_API_KEY` and `RESEND_FROM_EMAIL` from the self-hosted
+  `docker-compose.yml` / `.env.example` — cloud-only concerns; self-hosted
+  access is username + invite link.
+- Removed "require password change on first sign-in", superseded by
+  invite-set passwords.
+
 ## [1.0.0-rc25] - 2026-09-13
 
 ### Changed

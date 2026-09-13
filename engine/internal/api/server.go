@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -38,6 +39,7 @@ type Server struct {
 	sessions             *mongo.Collection
 	billingSubscriptions *mongo.Collection
 	instanceState        *mongo.Collection
+	invites              *mongo.Collection
 
 	playgroundMu        sync.Mutex
 	playgroundReadyDay  string
@@ -76,6 +78,7 @@ func New(ctx context.Context, cfg config.Config) (*Server, error) {
 		sessions:             db.Collection("sessions"),
 		billingSubscriptions: db.Collection("billing_subscriptions"),
 		instanceState:        db.Collection("instance_state"),
+		invites:              db.Collection("invites"),
 	}
 
 	if err := server.ensureIndexes(ctx); err != nil {
@@ -111,6 +114,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/me", s.auth(http.HandlerFunc(s.handleDeleteAccount)))
 	mux.Handle("PATCH /api/v1/me/onboarding", s.auth(http.HandlerFunc(s.handleCompleteOnboarding)))
 	mux.Handle("PATCH /api/v1/me/password", s.auth(http.HandlerFunc(s.handleChangePassword)))
+	mux.Handle("PATCH /api/v1/me/profile", s.auth(http.HandlerFunc(s.handleUpdateProfile)))
 	mux.Handle("GET /api/v1/usage", s.auth(http.HandlerFunc(s.handleUsage)))
 	mux.Handle("GET /api/v1/workspaces", s.auth(http.HandlerFunc(s.handleListWorkspaces)))
 	mux.Handle("POST /api/v1/workspaces", s.auth(http.HandlerFunc(s.handleCreateWorkspace)))
@@ -138,6 +142,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/users", s.adminOnly(http.HandlerFunc(s.handleCreateUser)))
 	mux.Handle("PATCH /api/v1/users/{id}", s.adminOnly(http.HandlerFunc(s.handleUpdateUser)))
 	mux.Handle("POST /api/v1/users/{id}/invite", s.adminOnly(http.HandlerFunc(s.handleCreateInvite)))
+	mux.HandleFunc("GET /api/v1/invites/{token}", s.handleGetInvite)
+	mux.HandleFunc("POST /api/v1/invites/{token}/accept", s.handleAcceptInvite)
 	mux.HandleFunc("GET /api/v1/keys/verify", s.handleVerifyKey)
 	mux.HandleFunc("POST /api/v1/ingest/sca", s.handleIngestSCA)
 	mux.HandleFunc("POST /api/v1/ingest/sast", s.handleIngestSAST)
@@ -332,6 +338,22 @@ func (s *Server) ensureIndexes(ctx context.Context) error {
 		return fmt.Errorf("create instance state indexes: %w", err)
 	}
 
+	_, err = s.invites.Indexes().CreateMany(ctx, []mongo.IndexModel{
+		{
+			Keys:    bson.D{{Key: "token_hash", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		},
+		{Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "created_at", Value: -1}}},
+		{
+			// Mongo reaps expired invites on its own, same as sessions above.
+			Keys:    bson.D{{Key: "expires_at", Value: 1}},
+			Options: options.Index().SetExpireAfterSeconds(0),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create invite indexes: %w", err)
+	}
+
 	return nil
 }
 
@@ -490,15 +512,14 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := User{
-		ID:                    bson.NewObjectID(),
-		Username:              request.Username,
-		AuthProvider:          "password",
-		PasswordHash:          passwordHash,
-		Role:                  "admin",
-		WorkspaceIDs:          []bson.ObjectID{workspace.ID},
-		RequirePasswordChange: false,
-		CreatedAt:             now,
-		UpdatedAt:             now,
+		ID:           bson.NewObjectID(),
+		Username:     request.Username,
+		AuthProvider: "password",
+		PasswordHash: passwordHash,
+		Role:         "admin",
+		WorkspaceIDs: []bson.ObjectID{workspace.ID},
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
 	if _, err := s.users.InsertOne(r.Context(), user); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create admin user")
@@ -605,7 +626,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "new password must have at least 8 characters")
 		return
 	}
-	if !user.RequirePasswordChange && bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(request.CurrentPassword)) != nil {
+	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(request.CurrentPassword)) != nil {
 		writeError(w, http.StatusUnauthorized, "current password is invalid")
 		return
 	}
@@ -618,9 +639,8 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 
 	_, err = s.users.UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{
 		"$set": bson.M{
-			"password_hash":           passwordHash,
-			"require_password_change": false,
-			"updated_at":              time.Now().UTC(),
+			"password_hash": passwordHash,
+			"updated_at":    time.Now().UTC(),
 		},
 	})
 	if err != nil {
@@ -629,6 +649,44 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "password_updated"})
+}
+
+// handleUpdateProfile lets the signed-in user set or clear their own email.
+// Self-hosted users are created with just a username (see handleCreateUser),
+// so this is how they add an email afterwards from Settings -> Profile.
+func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
+	user, _ := currentUser(r.Context())
+	var request struct {
+		Email string `json:"email"`
+	}
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+
+	email := strings.TrimSpace(request.Email)
+	if email != "" {
+		normalized, err := normalizeEmail(email)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "valid email is required")
+			return
+		}
+		email = normalized
+	}
+
+	result := s.users.FindOneAndUpdate(
+		r.Context(),
+		bson.M{"_id": user.ID},
+		bson.M{"$set": bson.M{"email": email, "updated_at": time.Now().UTC()}},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	)
+
+	var updated User
+	if err := result.Decode(&updated); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update profile")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"user": serializeUser(updated)})
 }
 
 func (s *Server) handleListWorkspaces(w http.ResponseWriter, r *http.Request) {
@@ -776,20 +834,29 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var request struct {
-		Username              string   `json:"username"`
-		Password              string   `json:"password"`
-		Role                  string   `json:"role"`
-		WorkspaceIDs          []string `json:"workspaceIds"`
-		RequirePasswordChange bool     `json:"requirePasswordChange"`
+		Username     string   `json:"username"`
+		Email        string   `json:"email"`
+		Role         string   `json:"role"`
+		WorkspaceIDs []string `json:"workspaceIds"`
 	}
 	if !decodeJSON(w, r, &request) {
 		return
 	}
 
 	username := strings.TrimSpace(request.Username)
-	if username == "" || len(request.Password) < 8 {
-		writeError(w, http.StatusBadRequest, "username and password with at least 8 characters are required")
+	if username == "" {
+		writeError(w, http.StatusBadRequest, "username is required")
 		return
+	}
+
+	email := strings.TrimSpace(request.Email)
+	if email != "" {
+		normalized, err := normalizeEmail(email)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "valid email is required")
+			return
+		}
+		email = normalized
 	}
 
 	role := normalizeRole(request.Role)
@@ -799,23 +866,20 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	passwordHash, err := hashPassword(request.Password)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to secure password")
-		return
-	}
-
+	// No password is set here: the account starts with an empty
+	// PasswordHash (login fails until it is set) and access is granted by
+	// the invite link generated below, which lets the invitee choose their
+	// own password.
 	now := time.Now().UTC()
 	user := User{
-		ID:                    bson.NewObjectID(),
-		Username:              username,
-		AuthProvider:          "password",
-		PasswordHash:          passwordHash,
-		Role:                  role,
-		WorkspaceIDs:          workspaceIDs,
-		RequirePasswordChange: request.RequirePasswordChange,
-		CreatedAt:             now,
-		UpdatedAt:             now,
+		ID:           bson.NewObjectID(),
+		Username:     username,
+		Email:        email,
+		AuthProvider: "password",
+		Role:         role,
+		WorkspaceIDs: workspaceIDs,
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
 
 	if _, err := s.users.InsertOne(r.Context(), user); err != nil {
@@ -823,7 +887,16 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, map[string]any{"user": serializeUser(user)})
+	inviteLink, err := s.createInvite(r.Context(), user.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "user created but failed to generate invite link")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"user":       serializeUser(user),
+		"inviteLink": inviteLink,
+	})
 }
 
 func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
@@ -834,10 +907,9 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var request struct {
-		Password              *string  `json:"password"`
-		Role                  *string  `json:"role"`
-		WorkspaceIDs          []string `json:"workspaceIds"`
-		RequirePasswordChange *bool    `json:"requirePasswordChange"`
+		Password     *string  `json:"password"`
+		Role         *string  `json:"role"`
+		WorkspaceIDs []string `json:"workspaceIds"`
 	}
 	if !decodeJSON(w, r, &request) {
 		return
@@ -847,9 +919,8 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	if request.Role != nil {
 		set["role"] = normalizeRole(*request.Role)
 	}
-	if request.RequirePasswordChange != nil {
-		set["require_password_change"] = *request.RequirePasswordChange
-	}
+	// Admin-set password is a fallback (e.g. resetting a locked-out
+	// teammate) — normal access is granted via the invite link instead.
 	if request.Password != nil && strings.TrimSpace(*request.Password) != "" {
 		if len(*request.Password) < 8 {
 			writeError(w, http.StatusBadRequest, "password must have at least 8 characters")
@@ -887,22 +958,136 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"user": serializeUser(updated)})
 }
 
+// inviteTTL is how long an invite link stays valid before the invitee has to
+// be re-invited.
+const inviteTTL = 7 * 24 * time.Hour
+
+// createInvite mints a new invite for userID and returns the link to hand
+// them. Only the token's hash is persisted (see Invite), mirroring how
+// sessions and API keys store their secrets.
+func (s *Server) createInvite(ctx context.Context, userID bson.ObjectID) (string, error) {
+	token, err := randomToken()
+	if err != nil {
+		return "", err
+	}
+
+	now := time.Now().UTC()
+	invite := Invite{
+		ID:        bson.NewObjectID(),
+		UserID:    userID,
+		TokenHash: hashSecret(token),
+		CreatedAt: now,
+		ExpiresAt: now.Add(inviteTTL),
+	}
+	if _, err := s.invites.InsertOne(ctx, invite); err != nil {
+		return "", err
+	}
+
+	return s.cfg.PublicURL + "/invite/" + token, nil
+}
+
 func (s *Server) handleCreateInvite(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("id")
-	if _, err := bson.ObjectIDFromHex(userID); err != nil {
+	userID, err := bson.ObjectIDFromHex(r.PathValue("id"))
+	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid user id")
 		return
 	}
-
-	token, err := randomToken()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to generate invite token")
+	if err := s.users.FindOne(r.Context(), bson.M{"_id": userID}).Err(); err != nil {
+		writeError(w, http.StatusNotFound, "user not found")
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{
-		"inviteLink": fmt.Sprintf("http://localhost:3000/invite/%s?token=%s", userID, token),
-	})
+	inviteLink, err := s.createInvite(r.Context(), userID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to generate invite link")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"inviteLink": inviteLink})
+}
+
+// findValidInvite looks up an unexpired, unused invite by its raw token and
+// the user it belongs to. Kept small and shared by the two public endpoints
+// below so both apply the exact same checks.
+func (s *Server) findValidInvite(ctx context.Context, token string) (Invite, User, error) {
+	var invite Invite
+	err := s.invites.FindOne(ctx, bson.M{
+		"token_hash": hashSecret(token),
+		"used_at":    bson.M{"$exists": false},
+		"expires_at": bson.M{"$gt": time.Now().UTC()},
+	}).Decode(&invite)
+	if err != nil {
+		return Invite{}, User{}, errors.New("invite link is invalid or has expired")
+	}
+
+	var user User
+	if err := s.users.FindOne(ctx, bson.M{"_id": invite.UserID}).Decode(&user); err != nil {
+		return Invite{}, User{}, errors.New("invite link is invalid or has expired")
+	}
+
+	return invite, user, nil
+}
+
+// handleGetInvite backs the invite acceptance page: it only ever reveals the
+// target username, never anything else about the account.
+func (s *Server) handleGetInvite(w http.ResponseWriter, r *http.Request) {
+	_, user, err := s.findValidInvite(r.Context(), r.PathValue("token"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"username": user.Username})
+}
+
+// handleAcceptInvite lets the invitee set their own password, consumes the
+// invite, and signs them straight in — the same session flow handleLogin
+// uses.
+func (s *Server) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
+	invite, user, err := s.findValidInvite(r.Context(), r.PathValue("token"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	var request struct {
+		Password string `json:"password"`
+	}
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	if len(request.Password) < 8 {
+		writeError(w, http.StatusBadRequest, "password must have at least 8 characters")
+		return
+	}
+
+	passwordHash, err := hashPassword(request.Password)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to secure password")
+		return
+	}
+
+	now := time.Now().UTC()
+	if _, err := s.users.UpdateOne(r.Context(), bson.M{"_id": user.ID}, bson.M{
+		"$set": bson.M{"password_hash": passwordHash, "updated_at": now},
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to set password")
+		return
+	}
+	if _, err := s.invites.UpdateOne(r.Context(), bson.M{"_id": invite.ID}, bson.M{
+		"$set": bson.M{"used_at": now},
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to accept invite")
+		return
+	}
+
+	user.PasswordHash = passwordHash
+	if err := s.startSession(w, r, user); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to start session")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"user": serializeUser(user)})
 }
 
 func (s *Server) handleIngestSCA(w http.ResponseWriter, r *http.Request) {
@@ -1436,12 +1621,15 @@ func hashPassword(password string) (string, error) {
 	return string(hash), nil
 }
 
+// normalizeRole collapses any role value to "admin" or "viewer" — the only
+// two account roles. A viewer can use the platform and read CVEs/findings but
+// cannot manage users, workspaces or API keys.
 func normalizeRole(role string) string {
 	if strings.EqualFold(role, "admin") {
 		return "admin"
 	}
 
-	return "member"
+	return "viewer"
 }
 
 func serializeWorkspaces(workspaces []Workspace) []publicWorkspace {

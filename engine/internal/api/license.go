@@ -31,6 +31,13 @@ const (
 	licenseHeartbeatEvery = 12 * time.Hour
 )
 
+// errNoLicenseActivated marks the "nothing to refresh yet" case: no license
+// key or checkout session has ever been stored for this installation. It's a
+// local precondition failure, not a central-engine reachability problem, so
+// handleRefreshSelfHostedLicense maps it to 400 instead of the 502 used for
+// centralEngineReachabilityError.
+var errNoLicenseActivated = errors.New("no self-hosted license has been activated")
+
 func centralEngineReachabilityError(err error) error {
 	return fmt.Errorf(
 		"To activate or validate Pro/Enterprise, this installation must be able to connect to %s. Try again when the URL is reachable. Technical details: %v",
@@ -117,7 +124,11 @@ func (s *Server) handleRefreshSelfHostedLicense(w http.ResponseWriter, r *http.R
 	}
 
 	if err := s.refreshStoredSelfHostedLicense(r.Context()); err != nil {
-		writeError(w, http.StatusBadGateway, err.Error())
+		status := http.StatusBadGateway
+		if errors.Is(err, errNoLicenseActivated) {
+			status = http.StatusBadRequest
+		}
+		writeError(w, status, err.Error())
 		return
 	}
 
@@ -538,6 +549,12 @@ func (s *Server) issueSignedLicense(ctx context.Context, subscription BillingSub
 
 func (s *Server) refreshStoredSelfHostedLicense(ctx context.Context) error {
 	state, err := s.getInstanceState(ctx)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		// No installation state at all yet: this instance has never started
+		// a checkout or had a license key entered, so there is nothing to
+		// refresh — same case as an existing-but-empty state below.
+		return errNoLicenseActivated
+	}
 	if err != nil {
 		return err
 	}
@@ -546,7 +563,7 @@ func (s *Server) refreshStoredSelfHostedLicense(ctx context.Context) error {
 		return err
 	}
 	if strings.TrimSpace(state.CheckoutSessionID) == "" {
-		return errors.New("no self-hosted license has been activated")
+		return errNoLicenseActivated
 	}
 	validation, err := s.requestCheckoutLicenseActivation(ctx, state.CheckoutSessionID, state.InstallationID)
 	if err != nil {

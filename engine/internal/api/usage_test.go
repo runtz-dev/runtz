@@ -36,23 +36,28 @@ func TestUsageWindowsAreRolling(t *testing.T) {
 
 func TestUsageLimitsForPlan(t *testing.T) {
 	tests := []struct {
-		plan string
-		want scanUsageLimits
+		plan           string
+		deploymentMode string
+		want           scanUsageLimits
 	}{
-		{plan: planFree, want: scanUsageLimits{Weekly: 250, Monthly: 1_000}},
-		{plan: planPro, want: scanUsageLimits{Weekly: 2_500, Monthly: 10_000}},
-		{plan: planEnterprise, want: scanUsageLimits{Weekly: unlimitedLimit, Monthly: unlimitedLimit}},
+		{plan: planFree, deploymentMode: hostingCloud, want: scanUsageLimits{Weekly: 250, Monthly: 1_000}},
+		{plan: planPro, deploymentMode: hostingCloud, want: scanUsageLimits{Weekly: 2_500, Monthly: 10_000}},
+		{plan: planEnterprise, deploymentMode: hostingCloud, want: scanUsageLimits{Weekly: unlimitedLimit, Monthly: unlimitedLimit}},
+		// Self-hosted never caps scan volume, on any plan: it's the
+		// customer's own infra, so there's nothing for runtz to protect.
+		{plan: planFree, deploymentMode: hostingSelfHosted, want: scanUsageLimits{Weekly: unlimitedLimit, Monthly: unlimitedLimit}},
+		{plan: planPro, deploymentMode: hostingSelfHosted, want: scanUsageLimits{Weekly: unlimitedLimit, Monthly: unlimitedLimit}},
 	}
 
 	for _, test := range tests {
-		if got := usageLimitsForPlan(test.plan); got != test.want {
-			t.Fatalf("usageLimitsForPlan(%q) = %+v, want %+v", test.plan, got, test.want)
+		if got := usageLimitsForPlan(test.plan, test.deploymentMode); got != test.want {
+			t.Fatalf("usageLimitsForPlan(%q, %q) = %+v, want %+v", test.plan, test.deploymentMode, got, test.want)
 		}
 	}
 }
 
 func TestScanUsageLimitErrorAtBoundary(t *testing.T) {
-	limits := usageLimitsForPlan(planFree)
+	limits := usageLimitsForPlan(planFree, hostingCloud)
 	if err := scanUsageLimitError(limits.Weekly-1, limits.Monthly-1, limits); err != nil {
 		t.Fatalf("usage below both limits should be accepted: %v", err)
 	}
@@ -69,7 +74,7 @@ func TestScanUsageLimitErrorAtBoundary(t *testing.T) {
 }
 
 func TestScanUsageLimitErrorNeverBlocksUnlimited(t *testing.T) {
-	enterprise := usageLimitsForPlan(planEnterprise)
+	enterprise := usageLimitsForPlan(planEnterprise, hostingCloud)
 	if err := scanUsageLimitError(1_000_000, 1_000_000, enterprise); err != nil {
 		t.Fatalf("enterprise (unlimited) scan usage must never be blocked, got: %v", err)
 	}

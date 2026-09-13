@@ -1,15 +1,64 @@
 package api
 
 import (
+	"context"
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/runtz-dev/runtz/engine/internal/config"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
+
+// TestValidateLicenseWithNothingActivatedReturns400 pins the fix for the
+// "Validate license" button always failing on a fresh self-hosted install:
+// with no license key or checkout session ever stored, refresh has nothing
+// to check against the central engine, so it must fail fast with 400
+// (errNoLicenseActivated), not the 502 reserved for a real reachability
+// failure against centralEngineURL.
+func TestValidateLicenseWithNothingActivatedReturns400(t *testing.T) {
+	uri := os.Getenv("RUNTZ_TEST_MONGO_URI")
+	if uri == "" {
+		t.Skip("set RUNTZ_TEST_MONGO_URI to run MongoDB integration tests")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	s, err := New(ctx, config.Config{DeploymentMode: hostingSelfHosted, MongoURI: uri, MongoDatabase: "runtz_test_" + bson.NewObjectID().Hex()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close(context.Background())
+	defer s.db.Drop(context.Background())
+
+	now := time.Now().UTC()
+	admin := User{ID: bson.NewObjectID(), Username: "admin", Role: "admin", CreatedAt: now, UpdatedAt: now}
+	if _, err := s.users.InsertOne(ctx, admin); err != nil {
+		t.Fatal(err)
+	}
+	token, err := s.issueSession(ctx, admin, httptest.NewRequest(http.MethodGet, "/", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/license/refresh", nil).WithContext(ctx)
+	r.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	w := httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("refresh with nothing activated: HTTP %d, want %d: %s", w.Code, http.StatusBadRequest, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), errNoLicenseActivated.Error()) {
+		t.Fatalf("unexpected error body: %s", w.Body.String())
+	}
+}
 
 // signedInstanceState builds an InstanceState carrying a license certificate
 // signed by priv, as storeValidatedLicense would persist it.

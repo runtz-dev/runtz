@@ -9,14 +9,14 @@ import (
 
 func TestGlobalDataScopeIsSelfHostedAdminOnly(t *testing.T) {
 	admin := User{Role: "admin"}
-	member := User{Role: "member"}
+	viewer := User{Role: "viewer"}
 
 	selfHosted := &Server{cfg: config.Config{DeploymentMode: hostingSelfHosted}}
 	if !selfHosted.globalDataScope(admin) {
 		t.Fatal("self-hosted admin should read across every workspace")
 	}
-	if selfHosted.globalDataScope(member) {
-		t.Fatal("self-hosted member should be limited to their workspaces")
+	if selfHosted.globalDataScope(viewer) {
+		t.Fatal("self-hosted viewer should be limited to their workspaces")
 	}
 
 	// In cloud each workspace is a different customer, so no role widens data
@@ -26,8 +26,8 @@ func TestGlobalDataScopeIsSelfHostedAdminOnly(t *testing.T) {
 	if cloud.globalDataScope(admin) {
 		t.Fatal("cloud admin must not read across tenants")
 	}
-	if cloud.globalDataScope(member) {
-		t.Fatal("cloud member must not read across tenants")
+	if cloud.globalDataScope(viewer) {
+		t.Fatal("cloud viewer must not read across tenants")
 	}
 }
 

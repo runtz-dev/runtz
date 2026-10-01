@@ -93,8 +93,10 @@ cd runtz
 docker compose up -d
 ```
 
-Open [http://localhost:3000/login](http://localhost:3000/login), create the
-first admin and workspace, then generate a workspace API key from **API Keys**.
+Open [http://localhost:3000](http://localhost:3000). The platform automatically
+opens initial setup on a new installation, sign-in on a configured instance,
+or the dashboard if you already have an active session. Create the first admin
+and workspace, then generate a workspace API key from **API Keys**.
 MongoDB stays private to the Compose network; only the frontend and engine are
 published to the host.
 

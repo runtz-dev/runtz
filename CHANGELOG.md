@@ -9,6 +9,22 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc28] - 2026-10-01
+
+### Changed
+
+- Redesigned self-hosted setup and sign-in with a responsive two-column
+  layout, documentation and website links, and light and dark themes.
+- Added password visibility controls, submission feedback and clearer
+  first-workspace guidance to the self-hosted access form.
+
+### Fixed
+
+- Opening the platform root now redirects into setup, sign-in or the
+  dashboard instead of returning a 404.
+- A failed setup-status request now shows a retry action instead of
+  incorrectly treating a new installation as already configured.
+
 ## [1.0.0-rc27] - 2026-09-13
 
 ### Fixed

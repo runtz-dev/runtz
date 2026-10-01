@@ -7,6 +7,7 @@ import {
   ArrowRightIcon,
   CheckCircle2Icon,
   MailIcon,
+  RefreshCwIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -27,6 +28,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { RuntzWordmark } from "@/components/runtz/logo"
+import { SelfHostedAccess } from "@/components/runtz/self-hosted-access"
 import { ThemeToggle } from "@/components/runtz/theme-provider"
 import { apiRequest, clearClientState } from "@/lib/api"
 import { DEFAULT_GOOGLE_CLIENT_ID } from "@/lib/google"
@@ -101,15 +103,19 @@ export function SetupLogin() {
   const searchParams = useSearchParams()
   const nextPath = safeNextPath(searchParams.get("next"))
   const [status, setStatus] = React.useState<SetupStatusResponse | null>(null)
+  const [statusError, setStatusError] = React.useState(false)
+  const [statusAttempt, setStatusAttempt] = React.useState(0)
   const [restoringSession, setRestoringSession] = React.useState(true)
 
   React.useEffect(() => {
-    apiRequest<SetupStatusResponse>("/api/v1/setup/status")
+    const controller = new AbortController()
+    apiRequest<SetupStatusResponse>("/api/v1/setup/status", { signal: controller.signal })
       .then(setStatus)
-      .catch(() =>
-        setStatus({ configured: true, deploymentMode: "self-hosted" })
-      )
-  }, [])
+      .catch(() => {
+        if (!controller.signal.aborted) setStatusError(true)
+      })
+    return () => controller.abort()
+  }, [statusAttempt])
 
   // A second tab (or coming back from the landing page) may still hold a
   // valid session cookie — ask the engine and send it straight to the app
@@ -135,6 +141,15 @@ export function SetupLogin() {
     }
   }, [nextPath, router])
 
+  if (status?.deploymentMode === "self-hosted" && !restoringSession) {
+    return (
+      <SelfHostedAccess
+        configured={status.configured}
+        onAuthenticated={() => router.replace(nextPath)}
+      />
+    )
+  }
+
   return (
     <div className="relative min-h-svh overflow-hidden bg-[#050912] text-[#eaf4ff]">
       <div aria-hidden="true" className="runtz-dot-map pointer-events-none absolute inset-0 opacity-[0.10]" />
@@ -149,9 +164,30 @@ export function SetupLogin() {
               cursorClassName="bg-[#6db5ff]"
             />
           </div>
-          {!status || restoringSession ? (
+          {statusError ? (
+            <Card className={authCardClassName}>
+              <CardHeader>
+                <CardTitle>Unable to reach your instance</CardTitle>
+                <CardDescription className="text-[#b8cbe4]" role="alert">
+                  Runtz could not check the installation. The engine may still be starting. Try again in a moment.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className={cn(authButtonClassName, "w-full")}
+                  onClick={() => {
+                    setStatusError(false)
+                    setStatusAttempt((attempt) => attempt + 1)
+                  }}
+                >
+                  <RefreshCwIcon aria-hidden="true" data-icon="inline-start" />
+                  Try again
+                </Button>
+              </CardContent>
+            </Card>
+          ) : !status || restoringSession ? (
             <LoginSkeleton />
-          ) : status.deploymentMode === "cloud" ? (
+          ) : (
             <CloudLoginForm
               accountDeleted={searchParams.get("account_deleted") === "1"}
               githubClientId={status.auth?.githubClientId ?? ""}
@@ -159,12 +195,6 @@ export function SetupLogin() {
               nextPath={nextPath}
               onAuthenticated={() => router.replace(nextPath)}
             />
-          ) : status.configured ? (
-            <SelfHostedLoginForm
-              onAuthenticated={() => router.replace(nextPath)}
-            />
-          ) : (
-            <SetupForm onConfigured={() => router.replace(nextPath)} />
           )}
         </div>
       </main>
@@ -548,172 +578,6 @@ function GoogleSignInButton({
         ref={buttonRef}
       />
     </div>
-  )
-}
-
-function SelfHostedLoginForm({
-  onAuthenticated,
-}: {
-  onAuthenticated: () => void
-}) {
-  const [username, setUsername] = React.useState("")
-  const [password, setPassword] = React.useState("")
-  const [error, setError] = React.useState("")
-  const [pending, setPending] = React.useState(false)
-
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setError("")
-    setPending(true)
-    try {
-      await apiRequest<AuthResponse>("/api/v1/auth/login", {
-        method: "POST",
-        body: { username, password },
-      })
-      onAuthenticated()
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Sign-in failed")
-    } finally {
-      setPending(false)
-    }
-  }
-
-  return (
-    <AuthFormCard
-      title="Login self-hosted"
-      description="Use the admin user configured for this installation."
-    >
-      <form onSubmit={submit}>
-        <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="login-username">Username</FieldLabel>
-            <Input
-              id="login-username"
-              autoComplete="username"
-              className={authInputClassName}
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              required
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="login-password">Password</FieldLabel>
-            <Input
-              id="login-password"
-              type="password"
-              autoComplete="current-password"
-              className={authInputClassName}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
-          </Field>
-          <LoginError message={error} />
-          <Button type="submit" className={authButtonClassName} disabled={pending}>
-            Sign in
-            <ArrowRightIcon data-icon="inline-end" />
-          </Button>
-        </FieldGroup>
-      </form>
-    </AuthFormCard>
-  )
-}
-
-function SetupForm({ onConfigured }: { onConfigured: () => void }) {
-  const [username, setUsername] = React.useState("admin")
-  const [password, setPassword] = React.useState("")
-  const [workspaceName, setWorkspaceName] = React.useState("default")
-  const [error, setError] = React.useState("")
-  const [pending, setPending] = React.useState(false)
-
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setError("")
-    setPending(true)
-    try {
-      await apiRequest<AuthResponse>("/api/v1/setup", {
-        method: "POST",
-        body: { username, password, workspaceName },
-      })
-      onConfigured()
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Setup failed")
-    } finally {
-      setPending(false)
-    }
-  }
-
-  return (
-    <AuthFormCard
-      title="Initial setup"
-      description="Create the admin user and the first workspace for this installation."
-    >
-      <form onSubmit={submit}>
-        <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="setup-username">Admin username</FieldLabel>
-            <Input
-              id="setup-username"
-              className={authInputClassName}
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              required
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="setup-password">Password</FieldLabel>
-            <Input
-              id="setup-password"
-              type="password"
-              className={authInputClassName}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              minLength={8}
-              required
-            />
-            <FieldDescription className="text-[#9fb4cf]">
-              Minimum of 8 characters.
-            </FieldDescription>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="setup-workspace">Workspace</FieldLabel>
-            <Input
-              id="setup-workspace"
-              className={authInputClassName}
-              value={workspaceName}
-              onChange={(event) => setWorkspaceName(event.target.value)}
-              required
-            />
-          </Field>
-          <LoginError message={error} />
-          <Button type="submit" className={authButtonClassName} disabled={pending}>
-            Create admin
-            <ArrowRightIcon data-icon="inline-end" />
-          </Button>
-        </FieldGroup>
-      </form>
-    </AuthFormCard>
-  )
-}
-
-function AuthFormCard({
-  title,
-  description,
-  children,
-}: {
-  title: string
-  description: string
-  children: React.ReactNode
-}) {
-  return (
-    <Card className={authCardClassName}>
-      <div aria-hidden="true" className="runtz-dot-map pointer-events-none absolute inset-0 z-0 opacity-[0.18]" />
-      <CardHeader className="relative z-10">
-        <CardTitle className="text-xl font-bold">{title}</CardTitle>
-        <CardDescription className="text-[#b8cbe4]">{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="relative z-10">{children}</CardContent>
-    </Card>
   )
 }
 

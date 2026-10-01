@@ -157,6 +157,65 @@
     cover;
 }
 
+/* A quieter brand palette for first-run setup and self-hosted sign-in. */
+.runtz-welcome {
+  --background: #f6f8fb;
+  --card: #ffffff;
+  --muted-foreground: #596579;
+  --border: rgb(7 18 34 / 10%);
+}
+
+.dark .runtz-welcome {
+  --background: #090e16;
+  --card: #101721;
+  --muted-foreground: #9aa9bd;
+  --border: rgb(180 204 235 / 12%);
+  --input: rgb(180 204 235 / 16%);
+}
+
+.runtz-welcome-grid {
+  background-image: radial-gradient(var(--border) 1px, transparent 1px);
+  background-size: 20px 20px;
+  mask-image: linear-gradient(to bottom, black, transparent);
+}
+
+.runtz-welcome-form {
+  box-shadow: 0 12px 48px rgb(0 0 0 / 5%);
+}
+
+.runtz-welcome-link {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.25rem;
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  transition: color 150ms;
+}
+
+.runtz-welcome-link:hover {
+  color: var(--foreground);
+}
+
+.runtz-welcome-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+}
+
+.runtz-welcome-form button[type="submit"]:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runtz-welcome *,
+  .runtz-welcome *::before,
+  .runtz-welcome *::after {
+    transition: none;
+    animation: none;
+  }
+}
+
 .runtz-soft-shadow {
   box-shadow:
     0 28px 90px rgb(0 0 0 / 34%),

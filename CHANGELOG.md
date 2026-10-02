@@ -9,6 +9,20 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc29] - 2026-10-02
+
+### Changed
+
+- SAST and Kubernetes scan-type help now shows the check name above its
+  description, with refined spacing and a brief hover delay.
+- Scan-type info buttons have a larger hover target and a visible keyboard
+  focus indicator.
+
+### Fixed
+
+- Scan-type tooltips open above the active item instead of covering its label,
+  with their width constrained to fit narrow screens.
+
 ## [1.0.0-rc28] - 2026-10-01
 
 ### Changed

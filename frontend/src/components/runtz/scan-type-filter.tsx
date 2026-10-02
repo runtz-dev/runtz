@@ -123,7 +123,7 @@ export function ScanTypeFilter({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-1">
-        <TooltipProvider>
+        <TooltipProvider delay={200}>
           {categories.map((category) => {
             const info = scanTypeCatalog[scanType][category] ?? {
               label: category,
@@ -150,12 +150,19 @@ export function ScanTypeFilter({
                   <Tooltip>
                     <TooltipTrigger
                       aria-label={`About ${info.label}`}
-                      className="flex shrink-0 items-center text-muted-foreground outline-none hover:text-foreground focus-visible:text-foreground"
+                      className="flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
                     >
                       <InfoIcon className="size-3.5" />
                     </TooltipTrigger>
-                    <TooltipContent side="left" className="max-w-64">
-                      {info.description}
+                    <TooltipContent
+                      side="top"
+                      sideOffset={10}
+                      className="w-64 max-w-[calc(100vw-2rem)] flex-col items-start gap-1 rounded-lg px-3 py-2.5 shadow-lg"
+                    >
+                      <p className="font-semibold">{info.label}</p>
+                      <p className="text-background/80 leading-relaxed">
+                        {info.description}
+                      </p>
                     </TooltipContent>
                   </Tooltip>
                 </div>

@@ -187,6 +187,9 @@ self-updater and pipeline examples.
 - Workspace-scoped API keys for CLI ingestion.
 - Dashboards and detail views for SCA, SAST, host, container and Kubernetes
   scans.
+- SAST and Kubernetes scan-type filters include help on hover or keyboard focus,
+  with the check name above its description and the tooltip positioned clear of
+  the active label.
 - CVE fix-availability filters across dashboards and package vulnerability
   results.
 - Workspaces, users, profiles, usage tracking and paid-plan billing.

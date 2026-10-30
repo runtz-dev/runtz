@@ -144,6 +144,10 @@ export default function APIKeysPage() {
     [workspaces]
   )
 
+  function workspaceNameFor(apiKey: ApiKey) {
+    return workspaceNameById.get(apiKey.workspaceId) ?? apiKey.workspaceId
+  }
+
   const filteredAPIKeys = React.useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     if (!normalizedQuery) {
@@ -344,9 +348,6 @@ export default function APIKeysPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{apiKey.name}</p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {workspaceNameById.get(apiKey.workspaceId) ?? apiKey.workspaceId}
-                        </p>
                       </div>
                       <APIKeyActions
                         apiKey={apiKey}
@@ -358,6 +359,10 @@ export default function APIKeysPage() {
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div className="min-w-0">
+                        <p className="mb-1 text-muted-foreground">Workspace</p>
+                        <p className="truncate py-1">{workspaceNameFor(apiKey)}</p>
+                      </div>
                       <div className="min-w-0">
                         <p className="mb-1 text-muted-foreground">Token</p>
                         <code className="block truncate rounded-md bg-muted px-2 py-1 font-mono">
@@ -372,6 +377,10 @@ export default function APIKeysPage() {
                             : "No activity"}
                         </p>
                       </div>
+                      <div>
+                        <p className="mb-1 text-muted-foreground">Created</p>
+                        <p className="py-1">{formatRelativeDate(apiKey.createdAt)}</p>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -383,6 +392,7 @@ export default function APIKeysPage() {
               <TableHeader className="bg-muted/35">
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="pl-4">Name</TableHead>
+                  <TableHead>Workspace</TableHead>
                   <TableHead>Token</TableHead>
                   <TableHead>Last used</TableHead>
                   <TableHead>Created</TableHead>
@@ -394,14 +404,14 @@ export default function APIKeysPage() {
               <TableBody>
               {loading ? (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={5} className="h-36 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-36 text-center text-muted-foreground">
                     Loading API keys...
                   </TableCell>
                 </TableRow>
               ) : null}
               {!loading && filteredAPIKeys.length === 0 ? (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={5} className="p-0 whitespace-normal">
+                  <TableCell colSpan={6} className="p-0 whitespace-normal">
                     <APIKeysEmptyState hasQuery={Boolean(query)} />
                   </TableCell>
                 </TableRow>
@@ -414,13 +424,13 @@ export default function APIKeysPage() {
                           <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-primary/10 text-primary">
                             <KeyRoundIcon className="size-4" />
                           </div>
-                          <div className="min-w-0">
-                            <p className="max-w-52 truncate">{apiKey.name}</p>
-                            <p className="max-w-52 truncate text-xs font-normal text-muted-foreground">
-                              {workspaceNameById.get(apiKey.workspaceId) ?? apiKey.workspaceId}
-                            </p>
-                          </div>
+                          <p className="max-w-52 truncate">{apiKey.name}</p>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="max-w-52">
+                          <span className="truncate">{workspaceNameFor(apiKey)}</span>
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <code className="rounded-md bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
@@ -573,6 +583,10 @@ export default function APIKeysPage() {
             <DialogTitle>Delete API key</DialogTitle>
             <DialogDescription>
               <strong className="font-medium text-foreground">{deletingKey?.name}</strong>
+              {" in "}
+              <strong className="font-medium text-foreground">
+                {deletingKey ? workspaceNameFor(deletingKey) : ""}
+              </strong>
               {" will stop working immediately. This action cannot be undone."}
             </DialogDescription>
           </DialogHeader>

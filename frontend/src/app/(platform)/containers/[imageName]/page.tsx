@@ -11,7 +11,6 @@ import {
   MetricCard,
   ScanDetailError,
   ScanDetailSkeleton,
-  VulnerabilityTrendChart,
 } from "@/components/runtz/sca-components"
 import { PackageVulnerabilityExplorer } from "@/components/runtz/package-vulnerability-explorer"
 import { usePlatform } from "@/components/runtz/platform-context"
@@ -106,9 +105,12 @@ export default function ContainerDetailPage() {
       ) : null}
 
       {loading ? (
-        <div className="grid gap-4 md:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-28" />
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-[repeat(2,minmax(0,1fr))_minmax(18rem,1.15fr)]">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Skeleton
+              key={index}
+              className="h-24 last:col-span-2 xl:last:col-span-1"
+            />
           ))}
         </div>
       ) : !latestScan || !latestSummary ? (
@@ -125,30 +127,21 @@ export default function ContainerDetailPage() {
         </Empty>
       ) : (
         <>
-          <DashboardSummaryGrid summary={latestSummary}>
-            <MetricCard
-              title="Scans"
-              value={imageScans.length}
-              description="runs for this image"
-            />
+          <DashboardSummaryGrid
+            summary={latestSummary}
+            trendScans={imageScans}
+            trendContext={`Container scanning · ${imageName}`}
+            trendFilter={filter}
+          >
             <MetricCard
               title="Packages"
               value={latestSummary.totalDependencies}
-              description="in the latest scan"
-            />
-            <MetricCard
-              title="CVEs"
-              value={latestSummary.vulnerabilities}
-              description="in the latest scan"
             />
             <MetricCard
               title="Critical/High"
               value={latestSummary.critical + latestSummary.high}
-              description="fix priority"
             />
           </DashboardSummaryGrid>
-
-          <VulnerabilityTrendChart scans={imageScans} filter={filter} />
 
           <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
             <Card>

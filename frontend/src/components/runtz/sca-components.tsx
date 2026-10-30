@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import {
-  ActivityIcon,
   ChartSplineIcon,
   PackageIcon,
   ShieldAlertIcon,
@@ -11,6 +10,7 @@ import {
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -18,6 +18,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import {
   Empty,
   EmptyDescription,
@@ -93,21 +101,16 @@ const SEVERITY_META: Record<
 export function MetricCard({
   title,
   value,
-  description,
 }: {
   title: string
   value: number
-  description: string
 }) {
   return (
-    <Card>
+    <Card className="justify-center">
       <CardHeader>
         <CardDescription>{title}</CardDescription>
         <CardTitle className="text-3xl">{value}</CardTitle>
       </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground">{description}</p>
-      </CardContent>
     </Card>
   )
 }
@@ -115,16 +118,28 @@ export function MetricCard({
 export function DashboardSummaryGrid({
   children,
   summary,
+  trendScans,
+  trendContext,
+  trendFilter = "all",
+  showTrendTrigger = true,
 }: {
   children: React.ReactNode
   summary: ScanSummary
+  trendScans: TrendScan[]
+  trendContext: string
+  trendFilter?: CVEFixFilter
+  showTrendTrigger?: boolean
 }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_minmax(18rem,1.15fr)]">
+    <div className="grid grid-cols-2 gap-4 xl:grid-cols-[repeat(2,minmax(0,1fr))_minmax(18rem,1.15fr)]">
       {children}
       <SeverityCard
         summary={summary}
-        className="md:col-span-2 xl:col-span-1"
+        className="col-span-2 xl:col-span-1"
+        trendScans={trendScans}
+        trendContext={trendContext}
+        trendFilter={trendFilter}
+        showTrendTrigger={showTrendTrigger}
       />
     </div>
   )
@@ -229,15 +244,31 @@ function SeverityTooltip({
 export function SeverityCard({
   summary,
   className,
+  trendScans,
+  trendContext,
+  trendFilter,
+  showTrendTrigger = true,
 }: {
   summary: ScanSummary
   className?: string
+  trendScans: TrendScan[]
+  trendContext: string
+  trendFilter: CVEFixFilter
+  showTrendTrigger?: boolean
 }) {
   return (
-    <Card className={className}>
+    <Card size="sm" className={className}>
       <CardHeader>
-        <CardTitle>Vulnerabilities</CardTitle>
-        <CardDescription>Distribution by severity.</CardDescription>
+        <div className="flex items-center gap-1">
+          <CardTitle>Vulnerabilities</CardTitle>
+          {showTrendTrigger ? (
+            <VulnerabilityTrendDialog
+              scans={trendScans}
+              context={trendContext}
+              filter={trendFilter}
+            />
+          ) : null}
+        </div>
       </CardHeader>
       <CardContent>
         <SeverityDistribution summary={summary} className="max-w-none" />
@@ -259,305 +290,272 @@ const TREND_SERIES = [
   { key: "unknown", label: "Unknown", color: "#8fa0b7" },
 ] as const
 
-// Render order bottom to top so critical is the topmost visual layer.
-const STACK_ORDER = ["unknown", "low", "medium", "high", "critical"] as const
+const SCAN_TYPE_SERIES = [
+  { key: "sca", label: "SCA", color: "#6db5ff" },
+  { key: "sast", label: "SAST", color: "#b39aff" },
+  { key: "container", label: "Containers", color: "#51cfb4" },
+  { key: "host", label: "Hosts", color: "#ffb267" },
+  { key: "k8s", label: "K8s", color: "#e58ecb" },
+] as const
 
-export function VulnerabilityTrendChart({
-  scans,
-  filter = "all",
-}: {
-  scans: TrendScan[]
-  filter?: CVEFixFilter
-}) {
-  return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(22rem,2fr)]">
-      <VulnerabilityChart scans={scans} filter={filter} />
-      <DailyScansChart scans={scans} />
-    </div>
+type TrendGrouping = "severity" | "scan-type"
+
+function trendSeries(scans: TrendScan[], grouping: TrendGrouping) {
+  if (grouping === "severity") return TREND_SERIES
+  const hasOther = scans.some((scan) =>
+    !SCAN_TYPE_SERIES.some((series) => series.key === scan.type)
   )
+  return hasOther
+    ? [...SCAN_TYPE_SERIES, { key: "other", label: "Other scans", color: "#8fa0b7" }]
+    : SCAN_TYPE_SERIES
 }
 
-function VulnerabilityChart({
+export function OverviewVulnerabilityTrends({
   scans,
   filter,
 }: {
   scans: TrendScan[]
   filter: CVEFixFilter
 }) {
-  const [period, setPeriod] = React.useState<TrendPeriod>(30)
-  const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null)
-  const chart = React.useMemo(
-    () => buildTrendChart(scans, period, filter),
-    [filter, period, scans]
-  )
-  const hoveredDay = hoveredIndex === null ? null : chart.days[hoveredIndex]
-
   return (
-    <Card className="overflow-hidden">
-      <CardHeader>
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <ActivityIcon className="size-4 text-primary" />
-              Vulnerability trend
+    <div className="grid gap-4 xl:grid-cols-2">
+      {(["severity", "scan-type"] as const).map((grouping) => (
+        <Card key={grouping} className="min-w-0">
+          <CardHeader>
+            <CardTitle>
+              {grouping === "severity" ? "Vulnerability trend" : "Vulnerabilities by scan type"}
             </CardTitle>
-            <CardDescription>
-              Latest known severity state per asset each day.
-            </CardDescription>
-          </div>
-          <TrendPeriodSelector
-            period={period}
-            onChange={(value) => {
-              setHoveredIndex(null)
-              setPeriod(value)
-            }}
-          />
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-1 flex-col px-2 pb-3 sm:px-6">
-        <div className="min-w-0 flex-1 overflow-x-auto">
-          <svg
-            viewBox="0 0 920 340"
-            className="h-[300px] min-w-[620px] w-full sm:h-[340px]"
-            role="img"
-            aria-label={`Vulnerability trend over the last ${period} days`}
-            onMouseLeave={() => setHoveredIndex(null)}
-          >
-            {chart.gridLines.map((line) => (
-              <g key={line.value}>
-                <line
-                  x1="42"
-                  x2="904"
-                  y1={line.y}
-                  y2={line.y}
-                  stroke="currentColor"
-                  className="text-border"
-                />
-                <text
-                  x="30"
-                  y={line.y + 4}
-                  textAnchor="end"
-                  className="fill-muted-foreground text-[10px]"
-                >
-                  {line.value}
-                </text>
-              </g>
-            ))}
-            {/* Stacked filled areas rendered bottom to top. */}
-            {chart.bands.map((band) => (
-              <g key={band.key}>
-                <polygon
-                  points={band.fillPoints}
-                  fill={band.color}
-                  fillOpacity="0.20"
-                />
-                <polyline
-                  points={band.topPoints}
-                  fill="none"
-                  stroke={band.color}
-                  strokeWidth="1.5"
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                />
-              </g>
-            ))}
-            {hoveredDay ? (
-              <>
-                <line
-                  x1={hoveredDay.x}
-                  x2={hoveredDay.x}
-                  y1={chart.top}
-                  y2={chart.bottom}
-                  stroke="currentColor"
-                  strokeDasharray="4 4"
-                  className="text-primary/70"
-                />
-                <circle
-                  cx={hoveredDay.x}
-                  cy={hoveredDay.y}
-                  r="4"
-                  className="fill-primary stroke-card"
-                  strokeWidth="2"
-                />
-                <SvgChartTooltip
-                  x={hoveredDay.tooltipX}
-                  y={chart.top + 8}
-                  title={hoveredDay.label}
-                  totalLabel="Total"
-                  totalValue={hoveredDay.total}
-                  items={hoveredDay.items}
-                />
-              </>
-            ) : null}
-            {chart.labels.map((label) => (
-              <text
-                key={label.key}
-                x={label.x}
-                y="326"
-                textAnchor={label.textAnchor}
-                className="fill-muted-foreground text-[10px]"
-              >
-                {label.label}
-              </text>
-            ))}
-            {chart.days.map((day, index) => (
-              <rect
-                key={day.key}
-                x={day.hitboxX}
-                y={chart.top}
-                width={day.hitboxWidth}
-                height={chart.bottom - chart.top}
-                fill="transparent"
-                className="cursor-crosshair"
-                onMouseEnter={() => setHoveredIndex(index)}
-              />
-            ))}
-          </svg>
-        </div>
-        <div className="mt-auto flex flex-wrap gap-x-4 gap-y-2 border-t pt-3 text-xs text-muted-foreground">
-          {TREND_SERIES.map((series) => (
-            <span key={series.key} className="inline-flex items-center gap-1.5">
-              <span
-                className="size-2.5 rounded-sm"
-                style={{ backgroundColor: series.color }}
-              />
-              {series.label}
-            </span>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+          </CardHeader>
+          <CardContent>
+            {scans.length > 0 ? (
+              <VulnerabilityChart scans={scans} filter={filter} grouping={grouping} />
+            ) : (
+              <Empty className="min-h-80">
+                <EmptyHeader>
+                  <EmptyTitle>No scan history yet</EmptyTitle>
+                  <EmptyDescription>
+                    The vulnerability trend will appear after the first scan.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
   )
 }
 
-function DailyScansChart({ scans }: { scans: TrendScan[] }) {
+function VulnerabilityTrendDialog({
+  scans,
+  context,
+  filter,
+}: {
+  scans: TrendScan[]
+  context: string
+  filter: CVEFixFilter
+}) {
+  return (
+    <Dialog>
+      <TooltipProvider delay={200}>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <DialogTrigger
+                render={<Button variant="ghost" size="icon-sm" />}
+                aria-label={`View vulnerability trend: ${context}`}
+              />
+            }
+          >
+            <ChartSplineIcon aria-hidden="true" />
+          </TooltipTrigger>
+          <TooltipContent>View vulnerability trend</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-4xl">
+        <DialogHeader className="pr-8">
+          <DialogTitle>Vulnerability trend</DialogTitle>
+          <DialogDescription className="break-words">
+            {context}
+            {filter === "with-fix" ? " · With fixes available" : null}
+            {filter === "without-fix" ? " · Without fixes available" : null}
+          </DialogDescription>
+        </DialogHeader>
+        {scans.length > 0 ? (
+          <VulnerabilityChart scans={scans} filter={filter} />
+        ) : (
+          <Empty className="min-h-48">
+            <EmptyHeader>
+              <EmptyMedia variant="icon"><ChartSplineIcon /></EmptyMedia>
+              <EmptyTitle>No scan history yet</EmptyTitle>
+              <EmptyDescription>
+                The vulnerability trend will appear after the first scan.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function VulnerabilityChart({
+  scans,
+  filter,
+  grouping = "severity",
+}: {
+  scans: TrendScan[]
+  filter: CVEFixFilter
+  grouping?: TrendGrouping
+}) {
   const [period, setPeriod] = React.useState<TrendPeriod>(30)
   const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null)
-  const chart = React.useMemo(() => buildDailyScansChart(scans, period), [period, scans])
+  const [keyboardInspection, setKeyboardInspection] = React.useState(false)
+  const [chartWidth, setChartWidth] = React.useState(800)
+  const containerRef = React.useRef<HTMLDivElement>(null)
+  const descriptionId = React.useId()
+
+  React.useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width > 0) {
+        setChartWidth(Math.round(entry.contentRect.width))
+      }
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
+
+  const chart = React.useMemo(
+    () => buildTrendChart(scans, period, filter, chartWidth, grouping),
+    [filter, period, scans, chartWidth, grouping]
+  )
   const hoveredDay = hoveredIndex === null ? null : chart.days[hoveredIndex]
+  const inspectPointer = (event: React.MouseEvent<SVGSVGElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const x = ((event.clientX - bounds.left) / bounds.width) * chartWidth
+    setKeyboardInspection(false)
+    setHoveredIndex(Math.max(0, Math.min(period - 1,
+      Math.floor(((x - chart.left) / chart.width) * period)
+    )))
+  }
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader>
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <ChartSplineIcon className="size-4 text-primary" />
-              Scans per day
-            </CardTitle>
-            <CardDescription>Scans submitted each day.</CardDescription>
-          </div>
-          <TrendPeriodSelector
-            period={period}
-            onChange={(value) => {
-              setHoveredIndex(null)
-              setPeriod(value)
-            }}
-          />
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-1 flex-col px-2 pb-3 sm:px-4">
-        <div className="flex min-w-0 flex-1 items-center overflow-x-auto">
-          <svg
-            viewBox="0 0 520 340"
-            className="h-[300px] min-w-[440px] w-full sm:h-[340px]"
-            role="img"
-            aria-label={`Scans submitted per day over the last ${period} days`}
-            onMouseLeave={() => setHoveredIndex(null)}
-          >
-            {chart.gridLines.map((line) => (
-              <g key={line.value}>
-                <line
-                  x1="36"
-                  x2="504"
-                  y1={line.y}
-                  y2={line.y}
-                  stroke="currentColor"
-                  className="text-border"
-                />
-                <text
-                  x="28"
-                  y={line.y + 4}
-                  textAnchor="end"
-                  className="fill-muted-foreground text-[10px]"
-                >
-                  {line.value}
-                </text>
-              </g>
-            ))}
-            <polygon
-              points={chart.fillPoints}
-              className="fill-primary/20"
-            />
-            <polyline
-              points={chart.topPoints}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-              className="text-primary"
-            />
-            {hoveredDay ? (
-              <>
-                <line
-                  x1={hoveredDay.x}
-                  x2={hoveredDay.x}
-                  y1={chart.top}
-                  y2={chart.bottom}
-                  stroke="currentColor"
-                  strokeDasharray="4 4"
-                  className="text-primary/70"
-                />
-                <circle
-                  cx={hoveredDay.x}
-                  cy={hoveredDay.y}
-                  r="4"
-                  className="fill-primary stroke-card"
-                  strokeWidth="2"
-                />
-                <SvgChartTooltip
-                  x={hoveredDay.tooltipX}
-                  y={chart.top + 8}
-                  title={hoveredDay.label}
-                  items={[{ label: "Scans", value: hoveredDay.scans, color: "#6db5ff" }]}
-                />
-              </>
-            ) : null}
-            {chart.labels.map((label) => (
-              <text
-                key={label.key}
-                x={label.x}
-                y="326"
-                textAnchor={label.textAnchor}
-                className="fill-muted-foreground text-[10px]"
-              >
-                {label.label}
-              </text>
-            ))}
-            {chart.days.map((day, index) => (
-              <rect
-                key={day.key}
-                x={day.hitboxX}
-                y={chart.top}
-                width={day.hitboxWidth}
-                height={chart.bottom - chart.top}
-                fill="transparent"
-                className="cursor-crosshair"
-                onMouseEnter={() => setHoveredIndex(index)}
+    <div className="flex min-w-0 flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          {grouping === "severity"
+            ? "Latest known severity state per asset each day."
+            : "Latest known vulnerabilities per asset, grouped by scan type."}
+        </p>
+        <TrendPeriodSelector
+          period={period}
+          onChange={(value) => {
+            setHoveredIndex(null)
+            setPeriod(value)
+          }}
+        />
+      </div>
+      <div ref={containerRef} className="min-w-0">
+        <svg
+          viewBox={`0 0 ${chartWidth} 320`}
+          className="block h-80 w-full rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
+          role="img"
+          tabIndex={0}
+          aria-label={`${grouping === "severity" ? "Vulnerability trend" : "Vulnerabilities by scan type"} over the last ${period} days. Use left and right arrow keys to inspect a date.`}
+          aria-describedby={descriptionId}
+          onPointerMove={inspectPointer}
+          onClick={inspectPointer}
+          onPointerLeave={(event) => {
+            if (event.pointerType === "mouse") setHoveredIndex(null)
+          }}
+          onFocus={(event) => {
+            if (event.currentTarget.matches(":focus-visible")) {
+              setKeyboardInspection(true)
+              setHoveredIndex(period - 1)
+            }
+          }}
+          onBlur={() => setHoveredIndex(null)}
+          onKeyDown={(event) => {
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
+            event.preventDefault()
+            setKeyboardInspection(true)
+            setHoveredIndex((current) => {
+              if (event.key === "Home") return 0
+              if (event.key === "End") return period - 1
+              return Math.max(0, Math.min(period - 1,
+                (current ?? period - 1) + (event.key === "ArrowLeft" ? -1 : 1)
+              ))
+            })
+          }}
+        >
+          <text x={chart.left} y="12" className="fill-muted-foreground text-xs">
+            Vulnerabilities
+          </text>
+          {chart.gridLines.map((line) => (
+            <g key={line.value}>
+              <line
+                x1={chart.left}
+                x2={chart.left + chart.width}
+                y1={line.y}
+                y2={line.y}
+                stroke="currentColor"
+                className="text-border"
               />
-            ))}
-          </svg>
-        </div>
-        <div className="mt-auto flex items-center justify-between gap-3 border-t pt-3 text-xs text-muted-foreground">
-          <span>
-            <strong className="font-semibold text-foreground">{chart.totalScans}</strong>{" "}
-            scans
+              <text x={chart.left - 10} y={line.y + 4} textAnchor="end" className="fill-muted-foreground text-xs">
+                {line.value}
+              </text>
+            </g>
+          ))}
+          {chart.bands.map((band) => (
+            <g key={band.key}>
+              <polygon points={band.fillPoints} fill={band.color} fillOpacity="0.20" />
+              <polyline
+                points={band.topPoints}
+                fill="none"
+                stroke={band.color}
+                strokeWidth="1.5"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            </g>
+          ))}
+          {chart.labels.map((label) => (
+            <text key={label.key} x={label.x} y="308" textAnchor={label.textAnchor} className="fill-muted-foreground text-xs">
+              {label.label}
+            </text>
+          ))}
+          {hoveredDay ? (
+            <>
+              <line x1={hoveredDay.x} x2={hoveredDay.x} y1={chart.top} y2={chart.bottom} stroke="currentColor" strokeDasharray="4 4" className="text-primary/70" />
+              <circle cx={hoveredDay.x} cy={hoveredDay.y} r="4" className="fill-primary stroke-popover" strokeWidth="2" />
+              <SvgChartTooltip
+                x={hoveredDay.tooltipX}
+                y={chart.top + 8}
+                title={hoveredDay.label}
+                totalLabel="Total"
+                totalValue={hoveredDay.total}
+                items={hoveredDay.items}
+              />
+            </>
+          ) : null}
+        </svg>
+        <p id={descriptionId} className="sr-only" aria-live={keyboardInspection ? "polite" : "off"}>
+          {hoveredDay
+            ? `${hoveredDay.label}: ${hoveredDay.total} vulnerabilities. ${hoveredDay.items.map((item) => `${item.label}: ${item.value}`).join(", ")}.`
+            : `Daily vulnerability counts by ${grouping === "severity" ? "severity" : "scan type"} based on the latest scan available for each asset.`}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-2 border-t pt-3 text-xs text-muted-foreground">
+        {chart.series.map((series) => (
+          <span key={series.key} className="inline-flex items-center gap-1.5">
+            <span className="size-2.5 rounded-sm" style={{ backgroundColor: series.color }} />
+            {series.label}
           </span>
-          <span>{chart.dailyAverage}/day on average</span>
-        </div>
-      </CardContent>
-    </Card>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -646,12 +644,17 @@ function TrendPeriodSelector({
 function buildTrendChart(
   scans: TrendScan[],
   period: TrendPeriod,
-  filter: CVEFixFilter
+  filter: CVEFixFilter,
+  chartWidth: number,
+  grouping: TrendGrouping
 ) {
-  const width = 862
-  const height = 270
+  const series = trendSeries(scans, grouping)
+  // Render the first legend entry on top in both views.
+  const stackOrder = [...series].reverse()
   const left = 42
-  const top = 14
+  const width = Math.max(1, chartWidth - left - 16)
+  const height = 250
+  const top = 24
   const bottom = top + height
   const now = new Date()
   now.setHours(0, 0, 0, 0)
@@ -661,12 +664,7 @@ function buildTrendChart(
     return {
       date,
       key: dayKey(date),
-      scans: 0,
-      critical: 0,
-      high: 0,
-      medium: 0,
-      low: 0,
-      unknown: 0,
+      values: Object.fromEntries(series.map((item) => [item.key, 0])),
     }
   })
   const orderedScans = scans
@@ -677,7 +675,7 @@ function buildTrendChart(
     }))
     .filter(({ timestamp }) => Number.isFinite(timestamp))
     .sort((left, right) => left.timestamp - right.timestamp)
-  const latestByAsset = new Map<string, ScanSummary>()
+  const latestByAsset = new Map<string, { type: string; summary: ScanSummary }>()
   let scanIndex = 0
 
   for (const day of days) {
@@ -691,31 +689,44 @@ function buildTrendChart(
       const current = orderedScans[scanIndex]
       latestByAsset.set(
         trendAssetKey(current.scan, current.index),
-        filterScanSummary(current.scan.summary, filter)
+        {
+          type: current.scan.type ?? "other",
+          summary: filterScanSummary(current.scan.summary, filter),
+        }
       )
       scanIndex++
     }
 
-    const summary = aggregateSummaries(Array.from(latestByAsset.values()))
-    day.scans = latestByAsset.size
-    for (const series of TREND_SERIES) {
-      day[series.key] = summary[series.key]
+    if (grouping === "severity") {
+      const summary = aggregateSummaries(
+        Array.from(latestByAsset.values(), (asset) => asset.summary)
+      )
+      for (const item of TREND_SERIES) {
+        day.values[item.key] = summary[item.key]
+      }
+    } else {
+      for (const asset of latestByAsset.values()) {
+        const key = SCAN_TYPE_SERIES.some((item) => item.key === asset.type)
+          ? asset.type
+          : "other"
+        day.values[key] += totalSeverity(asset.summary)
+      }
     }
   }
 
-  // Compute per-day cumulative stacks (bottom → top: unknown, low, medium, high, critical)
+  // Compute cumulative stacks for either severity or scanner series.
   type DayStack = { base: number; top: number }
   const dayStacks: Array<Record<string, DayStack>> = days.map((day) => {
     let cum = 0
     const stacks: Record<string, DayStack> = {}
-    for (const key of STACK_ORDER) {
-      stacks[key] = { base: cum, top: cum + day[key] }
-      cum += day[key]
+    for (const { key } of stackOrder) {
+      stacks[key] = { base: cum, top: cum + day.values[key] }
+      cum += day.values[key]
     }
     return stacks
   })
   const dailyTotals = days.map((day) =>
-    TREND_SERIES.reduce((s, series) => s + day[series.key], 0)
+    series.reduce((sum, item) => sum + day.values[item.key], 0)
   )
   const maxTotal = Math.max(1, ...dailyTotals)
   const roundedMax = Math.max(4, Math.ceil(maxTotal / 4) * 4)
@@ -724,8 +735,7 @@ function buildTrendChart(
   const y = (value: number) => bottom - (value / roundedMax) * height
   const hitboxWidth = width / days.length
 
-  const bands = STACK_ORDER.map((key) => {
-    const meta = TREND_SERIES.find((s) => s.key === key)!
+  const bands = stackOrder.map(({ key, color }) => {
     const fwd = days
       .map((_, i) => `${x(i).toFixed(1)},${y(dayStacks[i][key].top).toFixed(1)}`)
       .join(" ")
@@ -736,10 +746,13 @@ function buildTrendChart(
         return `${x(i).toFixed(1)},${y(dayStacks[i][key].base).toFixed(1)}`
       })
       .join(" ")
-    return { key, color: meta.color, topPoints: fwd, fillPoints: `${fwd} ${rev}` }
+    return { key, color, topPoints: fwd, fillPoints: `${fwd} ${rev}` }
   })
 
   return {
+    series,
+    left,
+    width,
     top,
     bottom,
     gridLines: Array.from({ length: 5 }, (_, index) => {
@@ -759,10 +772,10 @@ function buildTrendChart(
         tooltipX: chartTooltipX(pointX, left, width),
         label: formatChartTooltipDate(day.date),
         total,
-        items: TREND_SERIES.map((series) => ({
-          label: series.label,
-          value: day[series.key],
-          color: series.color,
+        items: series.map((item) => ({
+          label: item.label,
+          value: day.values[item.key],
+          color: item.color,
         })),
       }
     }),
@@ -770,13 +783,18 @@ function buildTrendChart(
       .map((day, index) => ({
         key: day.key,
         x: x(index),
-        textAnchor: index === days.length - 1 ? "end" as const : "middle" as const,
+        textAnchor: index === 0 ? "start" as const : index === days.length - 1 ? "end" as const : "middle" as const,
         label: new Intl.DateTimeFormat("en-US", {
           day: "2-digit",
           month: "2-digit",
         }).format(day.date),
       }))
-      .filter((_, index) => index % Math.max(1, Math.floor(period / 6)) === 0),
+      .filter((_, index) => {
+        const labelCount = chartWidth < 480 ? 3 : 6
+        const step = Math.ceil((period - 1) / (labelCount - 1))
+        return index === 0 || index === days.length - 1 ||
+          (index % step === 0 && days.length - 1 - index >= step / 2)
+      }),
   }
 }
 
@@ -797,93 +815,13 @@ function trendAssetKey(scan: TrendScan, index: number) {
   return scan.id || `scan-${index}`
 }
 
-function buildDailyScansChart(scans: TrendScan[], period: TrendPeriod) {
-  const width = 468
-  const height = 270
-  const left = 36
-  const top = 14
-  const bottom = top + height
-  const now = new Date()
-  now.setHours(0, 0, 0, 0)
-  const days = Array.from({ length: period }, (_, index) => {
-    const date = new Date(now)
-    date.setDate(date.getDate() - (period - index - 1))
-    return {
-      date,
-      key: dayKey(date),
-      scans: 0,
-    }
-  })
-  const byDay = new Map(days.map((day) => [day.key, day]))
-
-  for (const scan of scans) {
-    const day = byDay.get(dayKey(new Date(scan.createdAt)))
-    if (day) {
-      day.scans += 1
-    }
-  }
-
-  const totalScans = days.reduce((total, day) => total + day.scans, 0)
-  const roundedMax = Math.max(
-    4,
-    Math.ceil(Math.max(...days.map((day) => day.scans)) / 4) * 4
-  )
-  const x = (index: number) => left + ((index + 0.5) / days.length) * width
-  const y = (value: number) => bottom - (value / roundedMax) * height
-  const hitboxWidth = width / days.length
-  const labelStep = Math.ceil(period / 5)
-
-  return {
-    top,
-    bottom,
-    totalScans,
-    dailyAverage: (totalScans / period).toLocaleString("en-US", {
-      maximumFractionDigits: 1,
-    }),
-    gridLines: Array.from({ length: 5 }, (_, index) => {
-      const value = (roundedMax / 4) * index
-      return { value, y: y(value) }
-    }),
-    topPoints: days
-      .map((day, index) => `${x(index).toFixed(1)},${y(day.scans).toFixed(1)}`)
-      .join(" "),
-    fillPoints: [
-      `${x(0).toFixed(1)},${bottom}`,
-      ...days.map((day, index) => `${x(index).toFixed(1)},${y(day.scans).toFixed(1)}`),
-      `${x(days.length - 1).toFixed(1)},${bottom}`,
-    ].join(" "),
-    days: days.map((day, index) => {
-      const pointX = x(index)
-      return {
-        ...day,
-        x: pointX,
-        y: y(day.scans),
-        hitboxX: left + index * hitboxWidth,
-        hitboxWidth,
-        tooltipX: chartTooltipX(pointX, left, width),
-        label: formatChartTooltipDate(day.date),
-      }
-    }),
-    labels: days
-      .map((day, index) => ({
-        key: day.key,
-        x: x(index),
-        textAnchor: index === days.length - 1 ? "end" as const : "middle" as const,
-        label: new Intl.DateTimeFormat("en-US", {
-          day: "2-digit",
-          month: "2-digit",
-        }).format(day.date),
-      }))
-      .filter((_, index) => index === days.length - 1 || index % labelStep === 0),
-  }
-}
-
 function chartTooltipX(pointX: number, left: number, width: number) {
   const gap = 10
   const right = left + width
-  return pointX + SVG_CHART_TOOLTIP_WIDTH + gap > right
+  const preferred = pointX + SVG_CHART_TOOLTIP_WIDTH + gap > right
     ? pointX - SVG_CHART_TOOLTIP_WIDTH - gap
     : pointX + gap
+  return Math.max(0, Math.min(preferred, right - SVG_CHART_TOOLTIP_WIDTH))
 }
 
 function formatChartTooltipDate(date: Date) {

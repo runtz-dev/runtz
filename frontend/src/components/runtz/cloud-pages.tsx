@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeftIcon, ArrowRightIcon, ChevronLeftIcon, ChevronRightIcon, CloudIcon, ExternalLinkIcon, KeyRoundIcon, LoaderCircleIcon, PlusIcon, RefreshCwIcon, SearchIcon, SettingsIcon, ShieldCheckIcon, UnplugIcon, UploadIcon } from "lucide-react"
+import { ArrowLeftIcon, ArrowRightIcon, ChevronLeftIcon, ChevronRightIcon, ExternalLinkIcon, KeyRoundIcon, LoaderCircleIcon, PlusIcon, RefreshCwIcon, SearchIcon, SettingsIcon, ShieldCheckIcon, UnplugIcon, UploadIcon } from "lucide-react"
 import { useCloud } from "@/components/runtz/cloud-context"
 import { useWorkspace } from "@/components/runtz/workspace-context"
 import { GCPIcon } from "@/components/runtz/cloud-icons"
@@ -37,6 +37,12 @@ function ConnectionStatus({ connection }: { connection: CloudConnection }) {
 export function GCPConnectionsPage() {
   const { connections, loading, error, configured, openConnect, refresh, canManage } = useCloud()
   const { workspaces } = useWorkspace()
+  const router = useRouter()
+  const noConnections = !loading && !error && connections.length === 0
+  React.useEffect(() => {
+    if (noConnections) router.replace("/overview")
+  }, [noConnections, router])
+  if (noConnections) return null
   const canAdd = workspaces.some(w => canManage(w.id))
   const totals = connections.reduce((sum, c) => {
     for (const key of Object.keys(sum) as (keyof CloudCounts)[]) sum[key] += c.summary[key]
@@ -46,7 +52,7 @@ export function GCPConnectionsPage() {
     <div className="flex flex-wrap items-start justify-between gap-4"><div className="space-y-2"><div className="flex items-center gap-2"><Badge variant="outline">CLOUD</Badge><Badge variant="secondary">Native findings</Badge></div><h1 className="flex items-center gap-2 text-2xl font-semibold"><GCPIcon className="size-6" />Google Cloud</h1><p className="text-sm text-muted-foreground">Your GCP projects and their security findings, together in Runtz.</p></div>{canAdd && <Button onClick={openConnect}><PlusIcon />Add GCP connection</Button>}</div>
     {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 p-4 text-sm"><span className="text-destructive">{error}</span><Button variant="outline" size="sm" onClick={() => void refresh()}>Retry</Button></div>}
     {!configured && !loading && !error && canAdd && <p className="rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground">Cloud integrations need an encryption key configured by your Runtz administrator. Set <code className="break-all text-xs">RUNTZ_CLOUD_ENCRYPTION_KEY</code> on the engine before uploading credentials.</p>}
-    {loading && connections.length === 0 ? <><div className="grid grid-cols-2 gap-3 md:grid-cols-6">{cloudSeverities.map(s => <Skeleton key={s} className="h-24" />)}</div><Skeleton className="h-52" /></> : !error && connections.length === 0 ? <div className="relative flex min-h-80 flex-col items-center justify-center overflow-hidden rounded-xl border bg-card px-6 py-12 text-center"><div aria-hidden="true" className="runtz-dot-map pointer-events-none absolute inset-0 opacity-[0.06]" /><div className="relative flex max-w-md flex-col items-center gap-4"><div className="flex size-14 items-center justify-center rounded-xl border bg-background"><CloudIcon className="size-7 text-primary" /></div><h2 className="text-lg font-medium">Bring your cloud security into view</h2><p className="text-sm leading-relaxed text-muted-foreground">Connect a Google Cloud project to import findings from Security Command Center and prioritize them by severity.</p>{canAdd ? <Button onClick={openConnect}><PlusIcon />Add cloud</Button> : <p className="text-xs text-muted-foreground">Ask your workspace owner or Runtz administrator to connect a project.</p>}<span className="text-xs text-muted-foreground">AWS and Azure integrations are coming soon.</span></div></div> : connections.length > 0 && <>
+    {loading && connections.length === 0 ? <><div className="grid grid-cols-2 gap-3 md:grid-cols-6">{cloudSeverities.map(s => <Skeleton key={s} className="h-24" />)}</div><Skeleton className="h-52" /></> : connections.length > 0 && <>
       <CloudSummary summary={totals} />
       <Card><CardHeader><CardTitle>GCP connections <span className="ml-1 text-muted-foreground">{connections.length}</span></CardTitle><CardDescription>Open a project to review findings or import its latest results.</CardDescription></CardHeader><CardContent>
         <Table><TableHeader><TableRow><TableHead>Connection / project</TableHead><TableHead>Workspace</TableHead><TableHead>Active findings</TableHead><TableHead>Status</TableHead><TableHead>Last import</TableHead><TableHead><span className="sr-only">Open</span></TableHead></TableRow></TableHeader><TableBody>{connections.map(c => <TableRow key={c.id}>
@@ -125,7 +131,7 @@ export function GCPProjectPage({ connectionId }: { connectionId: string }) {
 }
 
 function CloudConnectionSettings({ connection, onClose }: { connection: CloudConnection; onClose: () => void }) {
-  const { refresh } = useCloud()
+  const { refresh, connections } = useCloud()
   const router = useRouter()
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState("")
@@ -148,7 +154,7 @@ function CloudConnectionSettings({ connection, onClose }: { connection: CloudCon
     <div className="space-y-3 rounded-lg border p-4"><h3 className="flex items-center gap-2 font-medium"><KeyRoundIcon className="size-4" />Service account credentials</h3><p className="break-all text-xs text-muted-foreground">{connection.serviceAccount}</p><p className="text-sm text-muted-foreground">Upload a new JSON key to rotate credentials. Runtz verifies access before replacing the encrypted key.</p><label className={`inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm ${busy ? "pointer-events-none opacity-50" : "hover:bg-accent"}`}>{busy ? <LoaderCircleIcon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}Replace JSON key<input aria-label="Replace service account JSON key" className="sr-only" type="file" accept=".json,application/json" disabled={busy} onChange={event => { void replace(event.target.files?.[0]); event.target.value = "" }} /></label></div>
     <div className="space-y-3 rounded-lg border border-destructive/25 p-4"><h3 className="flex items-center gap-2 font-medium"><UnplugIcon className="size-4" />Disconnect cloud</h3><p className="text-sm text-muted-foreground">Removes this connection, its saved credentials and imported findings from Runtz. Revoke the service account key in GCP separately.</p><Input aria-label="Type project ID to confirm disconnection" placeholder={`Type ${connection.projectId} to confirm`} value={confirm} onChange={event => setConfirm(event.target.value)} disabled={busy} /><Button variant="destructive" disabled={busy || confirm !== connection.projectId} onClick={async () => {
       setBusy(true); setError("")
-      try { await apiRequest(`/api/v1/cloud/connections/${connection.id}`, { method: "DELETE" }); await refresh(); onClose(); router.push("/cloud/gcp") }
+      try { await apiRequest(`/api/v1/cloud/connections/${connection.id}`, { method: "DELETE" }); await refresh(); onClose(); router.push(connections.length > 1 ? "/cloud/gcp" : "/overview") }
       catch (err) { setError(cloudError(err)) } finally { setBusy(false) }
     }}>Disconnect GCP</Button></div>
     {notice && <p role="status" className="text-sm text-primary">{notice}</p>}{error && <p role="alert" className="text-sm text-destructive">{error}</p>}

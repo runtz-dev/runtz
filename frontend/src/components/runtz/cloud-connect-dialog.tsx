@@ -122,8 +122,8 @@ export function CloudConnectDialog({ onClose, onCreated, onConnected }: { onClos
         </>}
         {step === 3 && <>
           <h3 ref={headingRef} tabIndex={-1} className="text-base font-medium outline-none">Create a service account with read access</h3>
-          <ol className="list-decimal space-y-3 pl-5 text-sm leading-relaxed"><li>Go to <ConsoleLink href={`https://console.cloud.google.com/iam-admin/serviceaccounts?project=${project}`}>IAM &amp; Admin → Service Accounts</ConsoleLink> and choose <strong>Create service account</strong>. Name it <code className="text-xs">runtz-security</code>.</li><li>On the target project, grant <strong>Security Center Findings Viewer</strong> (<code className="break-all text-xs">roles/securitycenter.findingsViewer</code>). This read-only role is sufficient for importing native findings.</li><li>If your service account already has <strong>Security Reviewer</strong> (<code className="text-xs">roles/iam.securityReviewer</code>), it also includes the required findings permission.</li></ol>
-          <Command value={`gcloud iam service-accounts create runtz-security --project=${projectId} --display-name="Runtz Security"\n\ngcloud projects add-iam-policy-binding ${projectId} \\\n  --member="serviceAccount:${email}" \\\n  --role="roles/securitycenter.findingsViewer"`} />
+          <ol className="list-decimal space-y-3 pl-5 text-sm leading-relaxed"><li>Go to <ConsoleLink href={`https://console.cloud.google.com/iam-admin/serviceaccounts?project=${project}`}>IAM &amp; Admin → Service Accounts</ConsoleLink> and choose <strong>Create service account</strong>. Name it <code className="text-xs">runtz-security</code>.</li><li>On the target project, grant <strong>Security Reviewer</strong> (<code className="break-all text-xs">roles/iam.securityReviewer</code>). It provides read access to security configurations and Security Command Center findings.</li><li>Save the service account. Runtz does not need Owner or Editor access to your project.</li></ol>
+          <Command value={`gcloud iam service-accounts create runtz-security --project=${projectId} --display-name="Runtz Security"\n\ngcloud projects add-iam-policy-binding ${projectId} \\\n  --member="serviceAccount:${email}" \\\n  --role="roles/iam.securityReviewer"`} />
           <p className="text-xs text-muted-foreground">Run these commands using your GCP administrator account. Runtz only reads findings; it does not modify cloud resources.</p>
         </>}
         {step === 4 && <>
@@ -147,7 +147,7 @@ export function CloudConnectDialog({ onClose, onCreated, onConnected }: { onClos
           <div className="flex size-16 items-center justify-center rounded-full bg-primary/10"><CheckCircle2Icon className="size-8 text-primary" /></div>
           <div><h3 ref={headingRef} tabIndex={-1} className="text-lg font-medium outline-none">{connection.name}</h3><p className="mt-1 text-sm text-muted-foreground">{connection.projectId}</p></div>
           <p className="text-sm">{connection.summary.total > 0 ? `${connection.summary.total} active findings imported from Security Command Center.` : "Connected successfully. SCC currently reports no active, unmuted findings in this location."}</p>
-          <p className="max-w-md text-xs leading-relaxed text-muted-foreground">Use Import findings to refresh your results. Add more projects from Google Cloud or the Add cloud button in the sidebar.</p>
+          <p className="max-w-md text-xs leading-relaxed text-muted-foreground">Use Import findings to refresh your results. Add more projects from Google Cloud, or hover over the Cloud heading in the sidebar and choose + Cloud.</p>
         </div>}
         {error && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
       </div>

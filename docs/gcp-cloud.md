@@ -49,10 +49,9 @@ Use **Cloud → Add cloud → Google Cloud**. The same dialog walks through:
 2. Activate SCC on the project, or inherit its organization activation. Enable
    `securitycenter.googleapis.com` in the service account's project. API
    enablement alone does not activate SCC or its detectors.
-3. Create a service account and grant
-   `roles/securitycenter.findingsViewer` on the **target project**. This is the
-   narrower read-only role needed by this importer. An existing
-   `roles/iam.securityReviewer` grant also includes `securitycenter.findings.list`.
+3. Create a service account and grant **Security Reviewer**
+   (`roles/iam.securityReviewer`) on the **target project**. This role includes
+   `securitycenter.findings.list` and read access to security configurations.
    Runtz does not need Owner, Editor or permission to modify cloud resources.
 4. Create a JSON key under **Service Accounts → Keys → Add key → Create new key**,
    upload it, and verify access. Organization policies that prohibit JSON keys
@@ -68,9 +67,15 @@ project/location. The same project/location cannot be added twice to a workspace
 
 ## Review and refresh
 
-The sidebar shows Google Cloud once a connection exists in the selected
-workspace. **Add cloud** stays underneath. Google Cloud lists connections,
-project IDs, workspaces, status, last successful import and severity totals.
+With no connected cloud in the selected workspace, the sidebar shows only the
+cloud icon and **+ Add cloud**. Clicking it opens the connection dialog directly.
+There is no intermediate cloud security page. After connecting, **Google Cloud**
+appears below the Cloud heading. Hovering or focusing that section reveals
+**+ Cloud** in the heading to open the same dialog for another cloud. This action
+stays visible on touch devices and is available as an icon when the sidebar is
+collapsed. Google Cloud lists connections, project IDs, workspaces, status, last
+successful import and severity totals. With no connections, direct visits to
+`/cloud/gcp` return to Overview.
 
 Open a connection to search and filter findings, inspect provider descriptions,
 resource, source, event time and remediation when supplied, or follow its link.

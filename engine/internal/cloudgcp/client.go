@@ -215,7 +215,7 @@ func responseError(status int, body []byte) error {
 	case 401:
 		return errors.New("GCP rejected this service account key; create a new JSON key and retry")
 	case 403:
-		return errors.New("GCP denied access; grant Security Center Findings Viewer on the target project and verify SCC activation")
+		return errors.New("GCP denied access; grant Security Reviewer (roles/iam.securityReviewer) on the target project and verify SCC activation")
 	case 404:
 		return errors.New("project or SCC location not found; verify the project ID, SCC activation and data residency location")
 	case 429:

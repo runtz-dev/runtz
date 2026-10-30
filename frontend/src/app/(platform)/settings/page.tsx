@@ -2,11 +2,11 @@
 
 import * as React from "react"
 import {
-  ActivityIcon,
   ArrowUpRightIcon,
   CopyIcon,
   CreditCardIcon,
   CrownIcon,
+  FolderKanbanIcon,
   KeyRoundIcon,
   PlusIcon,
   RefreshCcwIcon,
@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 
 import { useWorkspace } from "@/components/runtz/workspace-context"
+import { SettingsEmpty, SettingsFeedback, SettingsPending, SettingsSearch, SettingsSection } from "@/components/runtz/settings-ui"
 import { WorkspaceDetailsPanel } from "@/components/runtz/workspace-details-panel"
 import { WorkspaceSharingDialog } from "@/components/runtz/workspace-sharing-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -24,10 +25,7 @@ import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card"
 import {
   Dialog,
@@ -81,6 +79,15 @@ type SettingsTab =
   | "users"
   | "account"
 
+const settingsTabs = [
+  { value: "profile", label: "Profile" },
+  { value: "workspaces", label: "Workspaces" },
+  { value: "usage", label: "Usage" },
+  { value: "billing", label: "Billing" },
+  { value: "account", label: "Account" },
+  { value: "users", label: "Users" },
+] as const
+
 type WorkspaceDeletionImpact = {
   workspaceId: string
   workspaceName: string
@@ -108,20 +115,26 @@ export default function SettingsPage() {
   )
 
   React.useEffect(() => {
-    const queryTab = new URLSearchParams(window.location.search).get("tab")
-    if (isSettingsTab(queryTab, isCloud)) {
-      setActiveTab(queryTab)
+    function syncTabFromURL() {
+      const tab = new URLSearchParams(window.location.search).get("tab")
+      setActiveTab(isSettingsTab(tab, isCloud) ? tab : defaultSettingsTab(isCloud))
     }
+    syncTabFromURL()
 
     function handleTabEvent(event: Event) {
       const nextTab = (event as CustomEvent<SettingsTab>).detail
       if (isSettingsTab(nextTab, isCloud)) {
         setActiveTab(nextTab)
+        writeSettingsTabToURL(nextTab, isCloud)
       }
     }
 
     window.addEventListener("runtz-settings-tab", handleTabEvent)
-    return () => window.removeEventListener("runtz-settings-tab", handleTabEvent)
+    window.addEventListener("popstate", syncTabFromURL)
+    return () => {
+      window.removeEventListener("runtz-settings-tab", handleTabEvent)
+      window.removeEventListener("popstate", syncTabFromURL)
+    }
   }, [isCloud])
 
   function handleTabChange(tab: string) {
@@ -133,43 +146,44 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-6">
+    <div className="flex min-w-0 flex-col gap-6 p-4 md:p-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-normal">Settings</h1>
         <p className="text-sm text-muted-foreground">
           {isCloud
-            ? "Account profile and workspace features."
-            : "Workspaces, users and profile for the current installation."}
+            ? "Manage your profile, workspaces and subscription in one place."
+            : "Manage your profile, workspaces and access for this installation."}
         </p>
       </div>
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList>
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="workspaces">Workspaces</TabsTrigger>
-          <TabsTrigger value="usage">Usage</TabsTrigger>
-          <TabsTrigger value="billing">Billing</TabsTrigger>
-          {isCloud ? <TabsTrigger value="account">Account</TabsTrigger> : null}
-          {isCloud ? null : <TabsTrigger value="users">Users</TabsTrigger>}
-        </TabsList>
-        <TabsContent value="profile">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="min-w-0 gap-6">
+        <div className="min-w-0 border-b pb-px">
+          <TabsList aria-label="Settings sections" variant="line" className="flex w-full flex-wrap justify-start gap-1 p-0 group-data-horizontal/tabs:h-auto sm:gap-4">
+            {settingsTabs.filter(({ value }) => isSettingsTab(value, isCloud)).map(({ value, label }) => (
+              <TabsTrigger key={value} value={value} className="h-9 flex-none rounded-none px-1 text-xs data-active:text-primary dark:data-active:text-primary after:bg-primary group-data-horizontal/tabs:after:bottom-0 sm:px-2 sm:text-sm">
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
+        <TabsContent value="profile" className="min-w-0">
           <ProfilePanel />
         </TabsContent>
-        <TabsContent value="workspaces">
+        <TabsContent value="workspaces" className="min-w-0">
           <WorkspacesPanel />
         </TabsContent>
-        <TabsContent value="usage">
+        <TabsContent value="usage" className="min-w-0">
           <UsagePanel />
         </TabsContent>
-        <TabsContent value="billing">
+        <TabsContent value="billing" className="min-w-0">
           <BillingPanel />
         </TabsContent>
         {isCloud ? (
-          <TabsContent value="account">
+          <TabsContent value="account" className="min-w-0">
             <AccountPanel />
           </TabsContent>
         ) : null}
         {isCloud ? null : (
-          <TabsContent value="users">
+          <TabsContent value="users" className="min-w-0">
             <UsersPanel />
           </TabsContent>
         )}
@@ -219,11 +233,18 @@ function WorkspacesPanel() {
   const [name, setName] = React.useState("")
   const [error, setError] = React.useState("")
   const [pending, setPending] = React.useState(false)
+  const [createOpen, setCreateOpen] = React.useState(false)
+  const [search, setSearch] = React.useState("")
+  const [message, setMessage] = React.useState("")
+  const visibleWorkspaces = workspaces.filter((workspace) =>
+    `${workspace.name} ${workspace.slug}`.toLowerCase().includes(search.toLowerCase())
+  )
 
   async function createWorkspace(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     setError("")
+    setMessage("")
     setPending(true)
     try {
       await apiRequest("/api/v1/workspaces", {
@@ -232,6 +253,8 @@ function WorkspacesPanel() {
       })
       setName("")
       await refreshWorkspaces()
+      setCreateOpen(false)
+      setMessage("Workspace created.")
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Failed to create workspace"
@@ -249,14 +272,15 @@ function WorkspacesPanel() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-      <Card>
-        <CardHeader>
-          <CardTitle>New workspace</CardTitle>
-          <CardDescription>Create environments to separate results.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={createWorkspace}>
+    <div className="space-y-4">
+      {message ? <SettingsFeedback>{message}</SettingsFeedback> : null}
+      <Dialog open={createOpen} onOpenChange={(open) => { if (!pending) { setCreateOpen(open); setError("") } }}>
+        <DialogContent className="sm:max-w-md" showCloseButton={!pending}>
+          <DialogHeader>
+            <DialogTitle>New workspace</DialogTitle>
+            <DialogDescription>Create environments to separate results.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={createWorkspace} aria-busy={pending}>
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="workspace-name">Workspace Name</FieldLabel>
@@ -264,6 +288,7 @@ function WorkspacesPanel() {
                   id="workspace-name"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
+                  placeholder="e.g. Production"
                   required
                 />
               </Field>
@@ -273,21 +298,19 @@ function WorkspacesPanel() {
                 </Field>
               ) : null}
               <Button type="submit" disabled={pending}>
-                <PlusIcon data-icon="inline-start" />
-                Create workspace
+                {pending ? <SettingsPending>Creating workspace…</SettingsPending> : <><PlusIcon data-icon="inline-start" />Create workspace</>}
               </Button>
             </FieldGroup>
           </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Workspaces</CardTitle>
-          <CardDescription>{workspaces.length} registered</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
+        </DialogContent>
+      </Dialog>
+      <SettingsSection
+        title="Workspaces"
+        description={`${workspaces.length} registered`}
+        action={<Button onClick={() => setCreateOpen(true)}><PlusIcon data-icon="inline-start" />New workspace</Button>}
+      >
+          <SettingsSearch value={search} onChange={setSearch} label="Search workspaces" />
+          {visibleWorkspaces.length ? <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
@@ -296,17 +319,16 @@ function WorkspacesPanel() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {workspaces.map((workspace) => (
+              {visibleWorkspaces.map((workspace) => (
                 <TableRow key={workspace.id}>
                   <TableCell className="font-medium">{workspace.name}</TableCell>
-                  <TableCell>{workspace.slug}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">{workspace.slug}</TableCell>
                   <TableCell>{formatDate(workspace.createdAt)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+          </Table> : <SettingsEmpty icon={FolderKanbanIcon} title={search ? "No matching workspaces" : "No workspaces yet"} description={search ? "Try a different name or slug." : "Create a workspace to organize your scan results."} />}
+      </SettingsSection>
     </div>
   )
 }
@@ -315,22 +337,14 @@ function SelfHostedWorkspacesLimitPanel() {
   const { workspaces } = useWorkspace()
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <CardTitle>Current workspace</CardTitle>
-            <CardDescription>
-              This installation uses a shared workspace on the current plan.
-            </CardDescription>
-          </div>
-          <Button variant="outline" onClick={openBillingTab}>
+    <SettingsSection
+      title="Current workspace"
+      description="This installation uses a shared workspace on the current plan."
+      action={<Button variant="outline" onClick={openBillingTab}>
             <PlusIcon data-icon="inline-start" />
             Create another workspace
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
+          </Button>}
+    >
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -355,8 +369,7 @@ function SelfHostedWorkspacesLimitPanel() {
             </TableBody>
           </Table>
         </div>
-      </CardContent>
-    </Card>
+    </SettingsSection>
   )
 }
 
@@ -406,26 +419,18 @@ function CloudWorkspacesPanel() {
           setName("personal")
         }
       }}>
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <CardTitle>Your workspaces <span className="ml-1 text-muted-foreground">({workspaces.length})</span></CardTitle>
-                <CardDescription>
-                  Select a workspace to view its members.
-                </CardDescription>
-              </div>
-              <div className="flex flex-wrap items-center gap-3 sm:shrink-0">
+        <SettingsSection
+          title={`Your workspaces (${workspaces.length})`}
+          description="Select a workspace to view its members."
+          action={<div className="flex flex-wrap items-center gap-3">
                 {canCreateWorkspace ? (
                   <DialogTrigger render={<Button variant="outline" size="sm" className="h-10 sm:h-8" />}>
                     <PlusIcon data-icon="inline-start" />
                     New workspace
                   </DialogTrigger>
                 ) : null}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
+              </div>}
+        >
             {workspaces.length === 0 ? (
               <Empty>
                 <EmptyHeader>
@@ -490,8 +495,7 @@ function CloudWorkspacesPanel() {
                 </ul>
               </div>
             )}
-          </CardContent>
-        </Card>
+        </SettingsSection>
         <DialogContent className="sm:max-w-md" showCloseButton={!pending}>
           <DialogHeader>
             <DialogTitle>New workspace</DialogTitle>
@@ -704,15 +708,34 @@ function UsersPanel() {
   const [error, setError] = React.useState("")
   const [inviteLink, setInviteLink] = React.useState("")
   const [pending, setPending] = React.useState(false)
+  const [createOpen, setCreateOpen] = React.useState(false)
+  const [search, setSearch] = React.useState("")
+  const [loading, setLoading] = React.useState(true)
+  const [loadError, setLoadError] = React.useState("")
+  const [actionError, setActionError] = React.useState("")
+  const [actionPending, setActionPending] = React.useState(false)
+  const [copied, setCopied] = React.useState(false)
+  const [copyError, setCopyError] = React.useState("")
+  const visibleUsers = users.filter((user) =>
+    `${user.username} ${user.role}`.toLowerCase().includes(search.toLowerCase())
+  )
 
   const loadUsers = React.useCallback(async () => {
 
-    const response = await apiRequest<{ users: User[] }>("/api/v1/users")
-    setUsers(response.users ?? [])
+    setLoading(true)
+    setLoadError("")
+    try {
+      const response = await apiRequest<{ users: User[] }>("/api/v1/users")
+      setUsers(response.users ?? [])
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Failed to load users")
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   React.useEffect(() => {
-    loadUsers().catch(() => setUsers([]))
+    void loadUsers()
   }, [loadUsers])
 
   React.useEffect(() => {
@@ -738,6 +761,9 @@ function UsersPanel() {
       })
       setUsername("")
       setEmail("")
+      setCreateOpen(false)
+      setCopied(false)
+      setCopyError("")
       setInviteLink(response.inviteLink)
       await loadUsers()
     } catch (error) {
@@ -748,26 +774,46 @@ function UsersPanel() {
   }
 
   async function createInvite(user: User) {
+    setActionPending(true)
+    setActionError("")
+    setCopied(false)
+    setCopyError("")
+    try {
+      const response = await apiRequest<{ inviteLink: string }>(
+        `/api/v1/users/${user.id}/invite`,
+        { method: "POST" }
+      )
+      setInviteLink(response.inviteLink)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Failed to generate invite")
+    } finally {
+      setActionPending(false)
+    }
+  }
 
-    const response = await apiRequest<{ inviteLink: string }>(
-      `/api/v1/users/${user.id}/invite`,
-      { method: "POST" }
-    )
-    setInviteLink(response.inviteLink)
+  async function copyInvite() {
+    setCopyError("")
+    try {
+      await navigator.clipboard.writeText(inviteLink)
+      setCopied(true)
+    } catch {
+      setCopyError("Unable to copy. Select the link and copy it manually.")
+    }
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
-      <Card>
-        <CardHeader>
-          <CardTitle>New user</CardTitle>
-          <CardDescription>
-            Only a username is required — they set their own password from the
-            invite link.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={createUser}>
+    <div className="space-y-4">
+      {actionError ? <SettingsFeedback error>{actionError}</SettingsFeedback> : null}
+      <Dialog open={createOpen} onOpenChange={(open) => { if (!pending) { setCreateOpen(open); setError("") } }}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-md" showCloseButton={!pending}>
+          <DialogHeader>
+            <DialogTitle>New user</DialogTitle>
+            <DialogDescription>
+              Only a username is required — they set their own password from the
+              invite link.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={createUser} aria-busy={pending}>
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="user-username">Username</FieldLabel>
@@ -788,7 +834,7 @@ function UsersPanel() {
                 />
               </Field>
               <Field>
-                <FieldLabel>Role</FieldLabel>
+                <FieldLabel htmlFor="user-role">Role</FieldLabel>
                 <Select
                   value={role}
                   onValueChange={(value) => {
@@ -797,7 +843,7 @@ function UsersPanel() {
                     }
                   }}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id="user-role" className="w-full">
                     <SelectValue placeholder="Role" />
                   </SelectTrigger>
                   <SelectContent>
@@ -809,7 +855,7 @@ function UsersPanel() {
                 </Select>
               </Field>
               <Field>
-                <FieldLabel>Workspace</FieldLabel>
+                <FieldLabel htmlFor="user-workspace">Workspace</FieldLabel>
                 <Select
                   value={workspaceId}
                   onValueChange={(value) => {
@@ -818,7 +864,7 @@ function UsersPanel() {
                     }
                   }}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id="user-workspace" className="w-full">
                     <SelectValue placeholder="Workspace" />
                   </SelectTrigger>
                   <SelectContent>
@@ -838,29 +884,39 @@ function UsersPanel() {
                 </Field>
               ) : null}
               <Button type="submit" disabled={pending}>
-                <PlusIcon data-icon="inline-start" />
-                Create user
+                {pending ? <SettingsPending>Creating user…</SettingsPending> : <><PlusIcon data-icon="inline-start" />Create user</>}
               </Button>
             </FieldGroup>
           </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <CardTitle>Users</CardTitle>
-              <CardDescription>{users.length} registered</CardDescription>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => loadUsers()}>
+        </DialogContent>
+      </Dialog>
+      <SettingsSection
+        title="Users & access"
+        description={`${users.length} registered`}
+        action={<div className="flex flex-wrap gap-2">
+            <Button variant="outline" disabled={loading || actionPending} onClick={() => void loadUsers()}>
               <RefreshCcwIcon data-icon="inline-start" />
               Refresh
             </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
+            <Button onClick={() => setCreateOpen(true)}><PlusIcon data-icon="inline-start" />New user</Button>
+          </div>}
+      >
+          <SettingsSearch value={search} onChange={setSearch} label="Search users or roles" />
+          {loadError ? <SettingsFeedback error>{loadError}</SettingsFeedback> : null}
+          {loading ? <div role="status" className="flex items-center justify-center gap-2 py-8 text-muted-foreground"><SettingsPending>Loading users…</SettingsPending></div> : loadError ? null : visibleUsers.length ? <>
+          <ul className="divide-y md:hidden">
+            {visibleUsers.map((user) => (
+              <li key={user.id} className="space-y-3 py-4 first:pt-0 last:pb-0">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="min-w-0 truncate font-medium">{user.username}</p>
+                  <Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role}</Badge>
+                </div>
+                <Badge variant={user.passwordSet ? "secondary" : "outline"}>{user.passwordSet ? "Active" : "Invited"}</Badge>
+                <div><UserInviteButton user={user} pending={actionPending} onInvite={createInvite} /></div>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden overflow-x-auto md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -871,7 +927,7 @@ function UsersPanel() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map((user) => (
+                {visibleUsers.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.username}</TableCell>
                     <TableCell>
@@ -888,14 +944,7 @@ function UsersPanel() {
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => createInvite(user)}
-                        >
-                          <SendIcon data-icon="inline-start" />
-                          {user.passwordSet ? "Reset" : "Resend"} invite
-                        </Button>
+                        <UserInviteButton user={user} pending={actionPending} onInvite={createInvite} />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -903,8 +952,8 @@ function UsersPanel() {
               </TableBody>
             </Table>
           </div>
-        </CardContent>
-      </Card>
+          </> : <SettingsEmpty icon={UsersIcon} title={search ? "No matching users" : "No users yet"} description={search ? "Try a different username or role." : "Create a user to share access to this installation."} />}
+      </SettingsSection>
 
       <Dialog open={Boolean(inviteLink)} onOpenChange={(open) => !open && setInviteLink("")}>
         <DialogContent>
@@ -915,18 +964,33 @@ function UsersPanel() {
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2">
-            <Input value={inviteLink} readOnly />
+            <Input aria-label="Invitation link" value={inviteLink} readOnly onFocus={(event) => event.target.select()} />
             <Button
               size="icon"
               variant="outline"
-              onClick={() => navigator.clipboard.writeText(inviteLink)}
+              aria-label={copied ? "Invitation link copied" : "Copy invitation link"}
+              onClick={copyInvite}
             >
               <CopyIcon />
             </Button>
           </div>
+          {copied ? <SettingsFeedback>Invitation link copied.</SettingsFeedback> : null}
+          {copyError ? <SettingsFeedback error>{copyError}</SettingsFeedback> : null}
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+function UserInviteButton({ user, pending, onInvite }: {
+  user: User
+  pending: boolean
+  onInvite: (user: User) => Promise<void>
+}) {
+  return (
+    <Button variant="outline" size="sm" disabled={pending} aria-label={`${user.passwordSet ? "Reset" : "Resend"} invite for ${user.username}`} onClick={() => void onInvite(user)}>
+      <SendIcon data-icon="inline-start" />{user.passwordSet ? "Reset" : "Resend"} invite
+    </Button>
   )
 }
 
@@ -994,23 +1058,18 @@ function UsagePanel() {
   const accountLimitCaption = usage?.plan === "free" ? "Personal Free Plan" : undefined
 
   return (
-    <Card className="max-w-xl">
-      <CardHeader className="border-b">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <ActivityIcon className="size-4 text-primary" />
-            <CardTitle>Scan usage</CardTitle>
-            {usage ? (
-              <Badge variant="secondary">{planLabel(usage.plan)} plan</Badge>
-            ) : null}
-          </div>
+    <SettingsSection
+      title="Scan usage"
+      description="Scan usage and account limits."
+      action={<div className="flex flex-wrap items-center gap-3">
+          {usage ? <Badge variant="secondary">{planLabel(usage.plan)} plan</Badge> : null}
           <Button variant="outline" size="sm" onClick={loadUsage} disabled={pending}>
             <RefreshCcwIcon data-icon="inline-start" />
             Refresh
           </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="grid gap-5 p-4 md:p-5">
+        </div>}
+    >
+      <div className="grid gap-5 md:grid-cols-2">
         <UsageWindowRow
           label="Weekly usage"
           total={weekly.total}
@@ -1038,12 +1097,12 @@ function UsagePanel() {
           caption={accountLimitCaption}
         />
         {error ? (
-          <p className="rounded-lg border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <p role="alert" className="rounded-lg border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive md:col-span-2">
             {error}
           </p>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </SettingsSection>
   )
 }
 
@@ -1377,33 +1436,46 @@ function BillingPanel() {
   const canRefreshLicense = Boolean(status?.instance?.licenseKeyPrefix) || isPaidPlan
 
   return (
-    <div className="grid max-w-xl content-start gap-4">
-      <Card className="relative overflow-hidden border-primary/25">
-        <div aria-hidden="true" className="runtz-dot-map pointer-events-none absolute inset-0 opacity-[0.08]" />
-        <CardHeader className="relative p-4">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm shadow-primary/20">
-              <CrownIcon className="size-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">Current plan</Badge>
-                <Badge variant="outline">{deploymentLabel(deploymentMode)}</Badge>
-              </div>
-              <CardTitle className="text-2xl leading-tight">
-                {planLabel(activeEntitlement.plan)}
-              </CardTitle>
-              <CardDescription className="mt-1.5 text-sm leading-6">
-                {planDescription(activeEntitlement.plan, deploymentMode)}
-              </CardDescription>
-            </div>
+    <div className="space-y-4">
+      <SettingsSection
+        title="Plan & subscription"
+        description="Review your current plan, billing cycle and license details."
+        action={<Badge variant="outline">{deploymentLabel(deploymentMode)}</Badge>}
+        footer={<div className="flex w-full flex-wrap justify-end gap-2">
+          {upgradePlan ? (
+            <Button onClick={() => startCheckout(upgradePlan)} disabled={pending}>
+              <ArrowUpRightIcon data-icon="inline-start" />
+              {pending ? "Opening checkout..." : `Upgrade to ${planLabel(upgradePlan)}`}
+            </Button>
+          ) : null}
+          {deploymentMode === "cloud" && isPaidPlan ? (
+            <Button variant="outline" onClick={openPortal} disabled={pending}>
+              <CreditCardIcon data-icon="inline-start" />
+              Manage subscription
+            </Button>
+          ) : null}
+          {deploymentMode === "self-hosted" && canRefreshLicense ? (
+            <Button type="button" variant="outline" onClick={refreshLicense} disabled={pending}>
+              <RefreshCcwIcon data-icon="inline-start" />
+              Validate license
+            </Button>
+          ) : null}
+        </div>}
+      >
+        <div className="mb-5 space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <CrownIcon aria-hidden="true" className="size-5 text-primary" />
+            <h3 className="text-2xl font-semibold">{planLabel(activeEntitlement.plan)}</h3>
+            <Badge variant="secondary">Current plan</Badge>
           </div>
-        </CardHeader>
-        <CardContent className="relative grid gap-2 px-4 pb-4 pt-0">
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{planDescription(activeEntitlement.plan, deploymentMode)}</p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
           <BillingMetric label="Status" value={statusLabel(activeEntitlement.status)} />
           <BillingMetric label="Billing cycle" value={renewalText} />
+        </div>
           {deploymentMode === "self-hosted" ? (
-            <div className="grid gap-2 text-sm">
+            <div className="mt-5 grid gap-3 border-t pt-5 text-sm lg:grid-cols-3">
               <BillingRow
                 label="Installation"
                 value={
@@ -1432,31 +1504,12 @@ function BillingPanel() {
               />
             </div>
           ) : null}
-          {upgradePlan ? (
-            <Button className="mt-1 w-full" onClick={() => startCheckout(upgradePlan)} disabled={pending}>
-              <ArrowUpRightIcon data-icon="inline-start" />
-              {pending ? "Opening checkout..." : `Upgrade to ${planLabel(upgradePlan)}`}
-            </Button>
-          ) : null}
-          {deploymentMode === "cloud" && isPaidPlan ? (
-            <Button className="w-full" variant="outline" onClick={openPortal} disabled={pending}>
-              <CreditCardIcon data-icon="inline-start" />
-              Manage subscription
-            </Button>
-          ) : null}
-          {deploymentMode === "self-hosted" && canRefreshLicense ? (
-            <Button type="button" variant="outline" onClick={refreshLicense} disabled={pending}>
-              <RefreshCcwIcon data-icon="inline-start" />
-              Validate license
-            </Button>
-          ) : null}
-        </CardContent>
-      </Card>
+      </SettingsSection>
 
       {error || message ? (
-        <div className="grid gap-2 rounded-xl border bg-background/55 p-3">
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
+        <div className="space-y-2">
+          {error ? <SettingsFeedback error>{error}</SettingsFeedback> : null}
+          {message ? <SettingsFeedback>{message}</SettingsFeedback> : null}
         </div>
       ) : null}
     </div>
@@ -1478,7 +1531,7 @@ function BillingMetric({
         {label}
       </p>
       <p
-        className={`mt-1.5 truncate text-sm font-semibold ${
+        className={`mt-1.5 break-words text-sm font-semibold ${
           mono ? "font-mono" : ""
         }`}
       >
@@ -1572,14 +1625,21 @@ function AccountPanel() {
 
   return (
     <>
-      <Card className="max-w-xl">
-        <CardHeader>
-          <CardTitle>Delete account</CardTitle>
-          <CardDescription>
-            Permanently delete your Runtz account and all data that belongs to it.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
+      <SettingsSection
+        title="Delete account"
+        description="Permanently delete your Runtz account and all data that belongs to it."
+        footer={<div className="flex w-full justify-end">
+          <Button
+            variant="destructive"
+            onClick={() => setDialogOpen(true)}
+            disabled={!impact?.canDelete}
+          >
+            <Trash2Icon data-icon="inline-start" />
+            Delete account
+          </Button>
+        </div>}
+      >
+        <div className="flex flex-col gap-4">
           {impact ? (
             <div className="flex flex-col gap-2 text-sm text-muted-foreground">
               <p>
@@ -1614,18 +1674,8 @@ function AccountPanel() {
               </Button>
             </div>
           ) : null}
-        </CardContent>
-        <CardFooter className="justify-end">
-          <Button
-            variant="destructive"
-            onClick={() => setDialogOpen(true)}
-            disabled={!impact?.canDelete}
-          >
-            <Trash2Icon data-icon="inline-start" />
-            Delete account
-          </Button>
-        </CardFooter>
-      </Card>
+        </div>
+      </SettingsSection>
 
       <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
         <DialogContent className="sm:max-w-md" showCloseButton={!pending}>
@@ -1706,30 +1756,22 @@ function CloudProfilePanel() {
   const name = currentUser.email?.split("@")[0] || currentUser.username
 
   return (
-    <Card className="max-w-xl">
-      <CardHeader>
-        <CardTitle>Profile</CardTitle>
-        <CardDescription>
-          Your cloud account uses passwordless sign-in. The initial name comes from your email.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <SettingsSection title="Personal information" description="Your account details and sign-in information.">
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor="profile-name">Name</FieldLabel>
-            <Input id="profile-name" value={name} readOnly />
+            <Input id="profile-name" value={name} readOnly className="bg-muted/40" />
           </Field>
           <Field>
             <FieldLabel htmlFor="profile-email">Email</FieldLabel>
-            <Input id="profile-email" type="email" value={currentUser.email ?? ""} readOnly />
+            <Input id="profile-email" type="email" value={currentUser.email ?? ""} readOnly className="bg-muted/40" />
           </Field>
           <div className="flex items-start gap-3 rounded-lg border bg-muted/35 p-3 text-sm text-muted-foreground">
             <UsersIcon className="mt-0.5 size-4 shrink-0 text-primary" />
             Team features are unlocked by the Pro and Enterprise plans.
           </div>
         </FieldGroup>
-      </CardContent>
-    </Card>
+    </SettingsSection>
   )
 }
 
@@ -1739,7 +1781,11 @@ function SelfHostedProfilePanel() {
   const [emailMessage, setEmailMessage] = React.useState("")
   const [emailError, setEmailError] = React.useState("")
   const [emailPending, setEmailPending] = React.useState(false)
-  const [passwordDialogOpen, setPasswordDialogOpen] = React.useState(false)
+  const [currentPassword, setCurrentPassword] = React.useState("")
+  const [newPassword, setNewPassword] = React.useState("")
+  const [passwordMessage, setPasswordMessage] = React.useState("")
+  const [passwordError, setPasswordError] = React.useState("")
+  const [passwordPending, setPasswordPending] = React.useState(false)
 
   async function saveEmail(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -1760,69 +1806,12 @@ function SelfHostedProfilePanel() {
     }
   }
 
-  return (
-    <Card className="max-w-md">
-      <CardHeader>
-        <CardTitle>Profile</CardTitle>
-        <CardDescription>Your account on this installation.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={saveEmail}>
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="profile-username">Username</FieldLabel>
-              <Input id="profile-username" value={currentUser.username} readOnly />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="profile-email">Email</FieldLabel>
-              <Input
-                id="profile-email"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@example.com"
-              />
-            </Field>
-            {emailMessage ? (
-              <Field>
-                <FieldDescription>{emailMessage}</FieldDescription>
-              </Field>
-            ) : null}
-            {emailError ? (
-              <Field>
-                <FieldError>{emailError}</FieldError>
-              </Field>
-            ) : null}
-            <div className="flex flex-wrap gap-2">
-              <Button type="submit" disabled={emailPending}>
-                Save email
-              </Button>
-              <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
-                <DialogTrigger render={<Button type="button" variant="outline" />}>
-                  <KeyRoundIcon data-icon="inline-start" />
-                  Change password
-                </DialogTrigger>
-                <ChangePasswordDialogContent onDone={() => setPasswordDialogOpen(false)} />
-              </Dialog>
-            </div>
-          </FieldGroup>
-        </form>
-      </CardContent>
-    </Card>
-  )
-}
-
-function ChangePasswordDialogContent({ onDone }: { onDone: () => void }) {
-  const [currentPassword, setCurrentPassword] = React.useState("")
-  const [newPassword, setNewPassword] = React.useState("")
-  const [error, setError] = React.useState("")
-  const [pending, setPending] = React.useState(false)
-
   async function changePassword(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    setError("")
-    setPending(true)
+    setPasswordMessage("")
+    setPasswordError("")
+    setPasswordPending(true)
     try {
       await apiRequest("/api/v1/me/password", {
         method: "PATCH",
@@ -1830,59 +1819,68 @@ function ChangePasswordDialogContent({ onDone }: { onDone: () => void }) {
       })
       setCurrentPassword("")
       setNewPassword("")
-      onDone()
+      setPasswordMessage("Password updated.")
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Failed to change password")
+      setPasswordError(error instanceof Error ? error.message : "Failed to change password")
     } finally {
-      setPending(false)
+      setPasswordPending(false)
     }
   }
 
   return (
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>Change password</DialogTitle>
-        <DialogDescription>
-          Requires your current password.
-        </DialogDescription>
-      </DialogHeader>
-      <form onSubmit={changePassword}>
-        <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="current-password">Current password</FieldLabel>
-            <Input
-              id="current-password"
-              type="password"
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
-              required
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="new-password">New password</FieldLabel>
-            <Input
-              id="new-password"
-              type="password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              minLength={8}
-              required
-            />
-          </Field>
-          {error ? (
-            <Field>
-              <FieldError>{error}</FieldError>
-            </Field>
-          ) : null}
-        </FieldGroup>
-        <DialogFooter className="mt-4">
-          <Button type="submit" disabled={pending}>
-            <KeyRoundIcon data-icon="inline-start" />
-            Update password
-          </Button>
-        </DialogFooter>
-      </form>
-    </DialogContent>
+    <Card className="w-full gap-0 py-0">
+      <CardContent className="grid gap-6 p-4 md:grid-cols-2 md:gap-8">
+        <section aria-labelledby="profile-account-heading" className="min-w-0 space-y-4">
+          <div className="min-w-0 space-y-1">
+            <h2 id="profile-account-heading" className="text-base font-medium leading-snug">Your account</h2>
+            <p className="text-sm text-muted-foreground">Your account on this installation.</p>
+          </div>
+          <form id="profile-email-form" onSubmit={saveEmail} aria-busy={emailPending}>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="profile-username">Username</FieldLabel>
+                <Input id="profile-username" value={currentUser.username} readOnly className="bg-muted/40" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="profile-email">Email</FieldLabel>
+                <Input id="profile-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" />
+              </Field>
+              {emailMessage ? <SettingsFeedback>{emailMessage}</SettingsFeedback> : null}
+              {emailError ? <SettingsFeedback error>{emailError}</SettingsFeedback> : null}
+            </FieldGroup>
+          </form>
+        </section>
+        <section aria-labelledby="profile-security-heading" className="min-w-0 space-y-4">
+          <div className="min-w-0 space-y-1">
+            <h2 id="profile-security-heading" className="text-base font-medium leading-snug">Password &amp; security</h2>
+            <p className="text-sm text-muted-foreground">Requires your current password.</p>
+          </div>
+          <form id="profile-password-form" onSubmit={changePassword} aria-busy={passwordPending}>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="current-password">Current password</FieldLabel>
+                <Input id="current-password" type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="new-password">New password</FieldLabel>
+                <Input id="new-password" type="password" autoComplete="new-password" aria-describedby="new-password-help" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} minLength={8} required />
+                <FieldDescription id="new-password-help">Use at least 8 characters.</FieldDescription>
+              </Field>
+              {passwordMessage ? <SettingsFeedback>{passwordMessage}</SettingsFeedback> : null}
+              {passwordError ? <SettingsFeedback error>{passwordError}</SettingsFeedback> : null}
+            </FieldGroup>
+          </form>
+        </section>
+      </CardContent>
+      <CardFooter className="flex-wrap justify-end gap-2">
+        <Button type="submit" form="profile-email-form" variant="outline" disabled={emailPending}>
+          {emailPending ? <SettingsPending>Saving email…</SettingsPending> : "Save email"}
+        </Button>
+        <Button type="submit" form="profile-password-form" disabled={passwordPending}>
+          {passwordPending ? <SettingsPending>Updating password…</SettingsPending> : <><KeyRoundIcon data-icon="inline-start" />Update password</>}
+        </Button>
+      </CardFooter>
+    </Card>
   )
 }
 

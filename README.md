@@ -197,6 +197,9 @@ self-updater and pipeline examples.
 - CVE fix-availability filters across dashboards and package vulnerability
   results.
 - Workspaces, users, profiles, usage tracking and paid-plan billing.
+- Settings uses text-only tabs and section headings, searchable workspace and
+  user lists, and creation dialogs. Self-hosted profile details and password
+  fields share one card with independent save actions.
 - The app header shows the current account plan next to the deployment mode.
 - In **Settings → Workspaces**, select a workspace to show its member list below.
   The selected row is highlighted. The first workspace opens by default; newly created workspaces are

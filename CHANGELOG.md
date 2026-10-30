@@ -9,6 +9,25 @@ Until `1.0.0` ships, public builds are tagged as release candidates
 
 ## [Unreleased]
 
+## [1.0.0-rc30] - 2026-10-30
+
+### Added
+
+- The Overview shows vulnerability trends by severity and by scan type side
+  by side, using the latest known state of each asset.
+- API keys list their workspace in its own column (a card field on mobile),
+  and the delete confirmation names the workspace the key belongs to.
+
+### Changed
+
+- Scan and asset dashboards put results first with a compact summary; the
+  severity trend moved into a dialog opened from the chart icon beside
+  **Vulnerabilities**, with 7-, 15- and 30-day ranges scoped to the current
+  workspace, scan type or asset.
+- Package vulnerability details replace the AI remediation prompt with a
+  "How do I fix it?" table listing the patched version to upgrade to for each
+  fixable CVE, or a note when no patched version has been published yet.
+
 ## [1.0.0-rc29] - 2026-10-02
 
 ### Changed

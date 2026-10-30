@@ -1,6 +1,8 @@
 package config
 
 import (
+	"encoding/base64"
+	"fmt"
 	"os"
 	"strings"
 )
@@ -40,6 +42,7 @@ type Config struct {
 	LicensePrivateKey               string
 	LicensePublicKey                string
 	CORSAllowedOrigins              []string
+	CloudEncryptionKey              string
 }
 
 func Load() Config {
@@ -61,6 +64,7 @@ func Load() Config {
 		StripePriceProSelfHosted:        getEnv("STRIPE_PRICE_PRO_SELF_HOSTED", ""),
 		StripePriceEnterpriseSelfHosted: getEnv("STRIPE_PRICE_ENTERPRISE_SELF_HOSTED", ""),
 		LicensePrivateKey:               getEnv("RUNTZ_LICENSE_PRIVATE_KEY", ""),
+		CloudEncryptionKey:              getEnv("RUNTZ_CLOUD_ENCRYPTION_KEY", ""),
 		// The verification key is compiled in (see LicenseVerificationKey) and is
 		// intentionally not configurable via the environment.
 		LicensePublicKey:   LicenseVerificationKey,
@@ -68,11 +72,14 @@ func Load() Config {
 	}
 }
 
-// Validate is kept as the startup hook for configuration checks. It has no
-// secrets left to police: sessions, API keys and login codes are all issued
-// and stored by the engine itself, so there is nothing an operator can set
-// weakly or forget to set.
+// Cloud credentials are optional, but their encryption key must be valid when set.
 func (c Config) Validate() error {
+	if c.CloudEncryptionKey != "" {
+		key, err := base64.StdEncoding.DecodeString(c.CloudEncryptionKey)
+		if err != nil || len(key) != 32 {
+			return fmt.Errorf("RUNTZ_CLOUD_ENCRYPTION_KEY must be 32 random bytes encoded as base64")
+		}
+	}
 	return nil
 }
 

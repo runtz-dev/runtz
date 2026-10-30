@@ -39,6 +39,11 @@ results to a web dashboard that centralizes findings across the software and
 infrastructure lifecycle. Use the hosted service or deploy the complete stack
 on your own infrastructure with Docker Compose or Helm.
 
+Cloud security starts with [Google Cloud integration](docs/gcp-cloud.md): connect
+multiple GCP projects and aggregate native Security Command Center findings by
+severity. Credentials are encrypted in MongoDB with an operator-managed key
+stored separately from the database. AWS and Azure are coming soon.
+
 This repository contains the Next.js web platform and the Go backend engine.
 The scanner CLI and integrations live in separate repositories so they can be
 released independently.

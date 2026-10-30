@@ -316,6 +316,19 @@ func (s *Server) purgeWorkspaces(ctx context.Context, workspaceIDs []bson.Object
 		return nil
 	}
 	filter := bson.M{"$in": workspaceIDs}
+	// Prevent cloud imports that started before deletion from recreating saved
+	// credentials while the purge is removing the workspace's collections.
+	if _, err := s.workspaces.UpdateMany(ctx, bson.M{"_id": filter}, bson.M{"$set": bson.M{"deleting": true}}); err != nil {
+		return fmt.Errorf("mark workspaces for deletion: %w", err)
+	}
+	if s.cloudConnections != nil {
+		if _, err := s.cloudConnections.DeleteMany(ctx, bson.M{"workspace_id": filter}); err != nil {
+			return fmt.Errorf("delete cloud credentials: %w", err)
+		}
+		if _, err := s.cloudFindings.DeleteMany(ctx, bson.M{"workspace_id": filter}); err != nil {
+			return fmt.Errorf("delete cloud findings: %w", err)
+		}
+	}
 
 	// Revoke ingest credentials before removing scan data so no new scan can
 	// arrive halfway through the purge.

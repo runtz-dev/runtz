@@ -18,6 +18,7 @@ import {
   OverviewVulnerabilityTrends,
 } from "@/components/runtz/sca-components"
 import { usePlatform } from "@/components/runtz/platform-context"
+import { CloudOverviewCard } from "@/components/runtz/cloud-overview"
 import { useFindingScans } from "@/components/runtz/use-finding-scans"
 import { usePackageScans } from "@/components/runtz/use-package-scans"
 import { useSCAScans } from "@/components/runtz/use-sca-scans"
@@ -159,6 +160,7 @@ export default function OverviewPage() {
           </DashboardSummaryGrid>
 
           <OverviewVulnerabilityTrends scans={scans} filter={filter} />
+          {!basePath && <CloudOverviewCard />}
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <ScanFamilyCard

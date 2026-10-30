@@ -61,6 +61,8 @@ import {
 } from "@/components/runtz/platform-context"
 import { RuntzMark, RuntzWordmark } from "@/components/runtz/logo"
 import { ThemeToggle } from "@/components/runtz/theme-provider"
+import { CloudProvider } from "@/components/runtz/cloud-context"
+import { CloudSidebar } from "@/components/runtz/cloud-sidebar"
 import { WorkspaceProvider } from "@/components/runtz/workspace-context"
 import type { DeploymentMode } from "@/components/runtz/workspace-context"
 
@@ -274,6 +276,7 @@ export function AppShell({
           refreshEntitlement,
         }}
       >
+        <CloudProvider disabled={isPlayground}>
         <SidebarProvider className="runtz-app-surface">
           <Sidebar collapsible="icon" className="border-transparent">
             <div aria-hidden="true" className="runtz-dot-map pointer-events-none absolute inset-0 z-0 opacity-[0.10]" />
@@ -350,6 +353,7 @@ export function AppShell({
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>
+              {!isPlayground && <CloudSidebar />}
             </SidebarContent>
             <SidebarFooter className="relative z-10">
               <SidebarMenu>
@@ -454,6 +458,7 @@ export function AppShell({
           </main>
           </SidebarInset>
         </SidebarProvider>
+        </CloudProvider>
       </WorkspaceProvider>
     </PlatformProvider>
   )

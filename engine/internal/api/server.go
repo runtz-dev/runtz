@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/runtz-dev/runtz/engine/internal/cloudgcp"
 	"github.com/runtz-dev/runtz/engine/internal/config"
 	"github.com/runtz-dev/runtz/engine/internal/telemetry"
 	"github.com/runtz-dev/runtz/engine/internal/version"
@@ -40,6 +41,9 @@ type Server struct {
 	billingSubscriptions *mongo.Collection
 	instanceState        *mongo.Collection
 	invites              *mongo.Collection
+	cloudConnections     *mongo.Collection
+	cloudFindings        *mongo.Collection
+	readGCP              func(context.Context, []byte, string, string, bool) ([]cloudgcp.Finding, error)
 
 	playgroundMu        sync.Mutex
 	playgroundReadyDay  string
@@ -79,6 +83,9 @@ func New(ctx context.Context, cfg config.Config) (*Server, error) {
 		billingSubscriptions: db.Collection("billing_subscriptions"),
 		instanceState:        db.Collection("instance_state"),
 		invites:              db.Collection("invites"),
+		cloudConnections:     db.Collection("cloud_connections"),
+		cloudFindings:        db.Collection("cloud_findings"),
+		readGCP:              cloudgcp.Read,
 	}
 
 	if err := server.ensureIndexes(ctx); err != nil {
@@ -99,6 +106,7 @@ func (s *Server) Close(ctx context.Context) error {
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	s.registerCloudRoutes(mux)
 
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("GET /api/v1/setup/status", s.handleSetupStatus)
@@ -205,6 +213,9 @@ func withRoutePattern(mux *http.ServeMux) http.Handler {
 }
 
 func (s *Server) ensureIndexes(ctx context.Context) error {
+	if err := s.ensureCloudIndexes(ctx); err != nil {
+		return err
+	}
 	_, err := s.users.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{
 			Keys:    bson.D{{Key: "username", Value: 1}},

@@ -54,6 +54,12 @@ spec:
                 name: {{ . }}
             {{- end }}
           env:
+            - name: RUNTZ_CLOUD_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "runtz.backendSecretName" . }}
+                  key: RUNTZ_CLOUD_ENCRYPTION_KEY
+                  optional: true
             - name: RESEND_API_KEY
               valueFrom:
                 secretKeyRef:

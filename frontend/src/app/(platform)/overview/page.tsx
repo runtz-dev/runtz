@@ -15,7 +15,6 @@ import * as React from "react"
 import {
   DashboardSummaryGrid,
   MetricCard,
-  VulnerabilityTrendChart,
 } from "@/components/runtz/sca-components"
 import { usePlatform } from "@/components/runtz/platform-context"
 import { useFindingScans } from "@/components/runtz/use-finding-scans"
@@ -137,29 +136,25 @@ export default function OverviewPage() {
       ) : null}
 
       {loading ? (
-        <div className="grid gap-4 md:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-28" />
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-[repeat(2,minmax(0,1fr))_minmax(18rem,1.15fr)]">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Skeleton key={index} className="h-24 last:col-span-2 xl:last:col-span-1" />
           ))}
         </div>
       ) : (
         <>
-          <DashboardSummaryGrid summary={totals}>
-            <MetricCard title="Assets" value={assets} description="apps, images, hosts, and K8s" />
-            <MetricCard title="Scans" value={scans.length} description="runs received" />
-            <MetricCard
-              title="Vulnerabilities"
-              value={totals.vulnerabilities}
-              description="across the latest scans per asset"
-            />
+          <DashboardSummaryGrid
+            summary={totals}
+            trendScans={scans}
+            trendContext="Overview · All assets"
+            trendFilter={filter}
+          >
+            <MetricCard title="Assets" value={assets} />
             <MetricCard
               title="Critical/High"
               value={totals.critical + totals.high}
-              description="fix priority"
             />
           </DashboardSummaryGrid>
-
-          <VulnerabilityTrendChart scans={scans} filter={filter} />
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <ScanFamilyCard

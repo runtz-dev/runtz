@@ -8,7 +8,6 @@ import {
   DashboardSummaryGrid,
   MetricCard,
   SeverityDistribution,
-  VulnerabilityTrendChart,
 } from "@/components/runtz/sca-components"
 import { FirstScanEmptyState } from "@/components/runtz/scan-empty-state"
 import { usePlatform } from "@/components/runtz/platform-context"
@@ -89,37 +88,25 @@ export default function ContainersPage() {
       ) : null}
 
       {loading ? (
-        <div className="grid gap-4 md:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-28" />
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-[repeat(2,minmax(0,1fr))_minmax(18rem,1.15fr)]">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Skeleton key={index} className="h-24 last:col-span-2 xl:last:col-span-1" />
           ))}
         </div>
       ) : (
         <>
-          <DashboardSummaryGrid summary={severitySummary}>
-            <MetricCard
-              title="Images"
-              value={totals.targets}
-              description="distinct images"
-            />
-            <MetricCard
-              title="Scans"
-              value={totals.scans}
-              description="runs received"
-            />
-            <MetricCard
-              title="CVEs"
-              value={totals.vulnerabilities}
-              description="across the latest scans per image"
-            />
+          <DashboardSummaryGrid
+            summary={severitySummary}
+            trendScans={scans}
+            trendContext="Container scanning · All images"
+            trendFilter={filter}
+          >
+            <MetricCard title="Images" value={totals.targets} />
             <MetricCard
               title="Critical/High"
               value={totals.critical + totals.high}
-              description="fix priority"
             />
           </DashboardSummaryGrid>
-
-          <VulnerabilityTrendChart scans={scans} filter={filter} />
 
           {images.length === 0 ? (
             <FirstScanEmptyState

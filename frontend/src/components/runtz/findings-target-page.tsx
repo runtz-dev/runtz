@@ -14,7 +14,6 @@ import {
   MetricCard,
   ScanDetailError,
   ScanDetailSkeleton,
-  VulnerabilityTrendChart,
 } from "@/components/runtz/sca-components"
 import { usePlatform } from "@/components/runtz/platform-context"
 import { useFindingScans } from "@/components/runtz/use-finding-scans"
@@ -174,9 +173,12 @@ export function FindingsTargetPage({
       ) : null}
 
       {loading ? (
-        <div className="grid gap-4 md:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-28" />
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-[repeat(2,minmax(0,1fr))_minmax(18rem,1.15fr)]">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Skeleton
+              key={index}
+              className="h-24 last:col-span-2 xl:last:col-span-1"
+            />
           ))}
         </div>
       ) : !selectedScan || !selectedSummary ? (
@@ -191,30 +193,20 @@ export function FindingsTargetPage({
         </Empty>
       ) : (
         <>
-          <DashboardSummaryGrid summary={selectedSummary}>
-            <MetricCard
-              title="Scans"
-              value={targetScans.length}
-              description={`runs ${targetScope}`}
-            />
+          <DashboardSummaryGrid
+            summary={selectedSummary}
+            trendScans={targetScans}
+            trendContext={`${badge} · ${targetName}`}
+          >
             <MetricCard
               title={inspectedTitle}
               value={selectedSummary.totalDependencies}
-              description="in the selected scan"
-            />
-            <MetricCard
-              title="Findings"
-              value={selectedSummary.vulnerabilities}
-              description="in the selected scan"
             />
             <MetricCard
               title="Critical/High"
               value={selectedSummary.critical + selectedSummary.high}
-              description="fix priority"
             />
           </DashboardSummaryGrid>
-
-          <VulnerabilityTrendChart scans={targetScans} />
 
           <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
             {scanDetail.loading ? (

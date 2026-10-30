@@ -10,7 +10,6 @@ import {
   MetricCard,
   SeverityBadge,
   SeverityDistribution,
-  VulnerabilityTrendChart,
 } from "@/components/runtz/sca-components"
 import {
   CleanScanState,
@@ -68,7 +67,6 @@ export function FindingsScanPage({
   title,
   description,
   targetTitle,
-  targetDescription,
   targetColumnTitle = "Target",
   targetListDescription,
   inspectedTitle,
@@ -113,37 +111,24 @@ export function FindingsScanPage({
       ) : null}
 
       {loading ? (
-        <div className="grid gap-4 md:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-28" />
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-[repeat(2,minmax(0,1fr))_minmax(18rem,1.15fr)]">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Skeleton key={index} className="h-24 last:col-span-2 xl:last:col-span-1" />
           ))}
         </div>
       ) : (
         <>
-          <DashboardSummaryGrid summary={severitySummary}>
-            <MetricCard
-              title={targetTitle}
-              value={totals.targets}
-              description={targetDescription}
-            />
-            <MetricCard
-              title="Scans"
-              value={totals.scans}
-              description="runs received"
-            />
-            <MetricCard
-              title="Findings"
-              value={totals.findings}
-              description="across the latest scans per target"
-            />
+          <DashboardSummaryGrid
+            summary={severitySummary}
+            trendScans={scans}
+            trendContext={`${badge} · All ${targetTitle.toLowerCase()}`}
+          >
+            <MetricCard title={targetTitle} value={totals.targets} />
             <MetricCard
               title="Critical/High"
               value={totals.critical + totals.high}
-              description="fix priority"
             />
           </DashboardSummaryGrid>
-
-          <VulnerabilityTrendChart scans={scans} />
 
           {targets.length === 0 ? (
             <FirstScanEmptyState

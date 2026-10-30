@@ -15,6 +15,7 @@ import * as React from "react"
 import {
   DashboardSummaryGrid,
   MetricCard,
+  OverviewVulnerabilityTrends,
 } from "@/components/runtz/sca-components"
 import { usePlatform } from "@/components/runtz/platform-context"
 import { useFindingScans } from "@/components/runtz/use-finding-scans"
@@ -148,6 +149,7 @@ export default function OverviewPage() {
             trendScans={scans}
             trendContext="Overview · All assets"
             trendFilter={filter}
+            showTrendTrigger={false}
           >
             <MetricCard title="Assets" value={assets} />
             <MetricCard
@@ -155,6 +157,8 @@ export default function OverviewPage() {
               value={totals.critical + totals.high}
             />
           </DashboardSummaryGrid>
+
+          <OverviewVulnerabilityTrends scans={scans} filter={filter} />
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <ScanFamilyCard

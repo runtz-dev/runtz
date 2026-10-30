@@ -121,12 +121,14 @@ export function DashboardSummaryGrid({
   trendScans,
   trendContext,
   trendFilter = "all",
+  showTrendTrigger = true,
 }: {
   children: React.ReactNode
   summary: ScanSummary
   trendScans: TrendScan[]
   trendContext: string
   trendFilter?: CVEFixFilter
+  showTrendTrigger?: boolean
 }) {
   return (
     <div className="grid grid-cols-2 gap-4 xl:grid-cols-[repeat(2,minmax(0,1fr))_minmax(18rem,1.15fr)]">
@@ -137,6 +139,7 @@ export function DashboardSummaryGrid({
         trendScans={trendScans}
         trendContext={trendContext}
         trendFilter={trendFilter}
+        showTrendTrigger={showTrendTrigger}
       />
     </div>
   )
@@ -244,23 +247,27 @@ export function SeverityCard({
   trendScans,
   trendContext,
   trendFilter,
+  showTrendTrigger = true,
 }: {
   summary: ScanSummary
   className?: string
   trendScans: TrendScan[]
   trendContext: string
   trendFilter: CVEFixFilter
+  showTrendTrigger?: boolean
 }) {
   return (
     <Card size="sm" className={className}>
       <CardHeader>
         <div className="flex items-center gap-1">
           <CardTitle>Vulnerabilities</CardTitle>
-          <VulnerabilityTrendDialog
-            scans={trendScans}
-            context={trendContext}
-            filter={trendFilter}
-          />
+          {showTrendTrigger ? (
+            <VulnerabilityTrendDialog
+              scans={trendScans}
+              context={trendContext}
+              filter={trendFilter}
+            />
+          ) : null}
         </div>
       </CardHeader>
       <CardContent>
@@ -283,8 +290,61 @@ const TREND_SERIES = [
   { key: "unknown", label: "Unknown", color: "#8fa0b7" },
 ] as const
 
-// Render order bottom to top so critical is the topmost visual layer.
-const STACK_ORDER = ["unknown", "low", "medium", "high", "critical"] as const
+const SCAN_TYPE_SERIES = [
+  { key: "sca", label: "SCA", color: "#6db5ff" },
+  { key: "sast", label: "SAST", color: "#b39aff" },
+  { key: "container", label: "Containers", color: "#51cfb4" },
+  { key: "host", label: "Hosts", color: "#ffb267" },
+  { key: "k8s", label: "K8s", color: "#e58ecb" },
+] as const
+
+type TrendGrouping = "severity" | "scan-type"
+
+function trendSeries(scans: TrendScan[], grouping: TrendGrouping) {
+  if (grouping === "severity") return TREND_SERIES
+  const hasOther = scans.some((scan) =>
+    !SCAN_TYPE_SERIES.some((series) => series.key === scan.type)
+  )
+  return hasOther
+    ? [...SCAN_TYPE_SERIES, { key: "other", label: "Other scans", color: "#8fa0b7" }]
+    : SCAN_TYPE_SERIES
+}
+
+export function OverviewVulnerabilityTrends({
+  scans,
+  filter,
+}: {
+  scans: TrendScan[]
+  filter: CVEFixFilter
+}) {
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      {(["severity", "scan-type"] as const).map((grouping) => (
+        <Card key={grouping} className="min-w-0">
+          <CardHeader>
+            <CardTitle>
+              {grouping === "severity" ? "Vulnerability trend" : "Vulnerabilities by scan type"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {scans.length > 0 ? (
+              <VulnerabilityChart scans={scans} filter={filter} grouping={grouping} />
+            ) : (
+              <Empty className="min-h-80">
+                <EmptyHeader>
+                  <EmptyTitle>No scan history yet</EmptyTitle>
+                  <EmptyDescription>
+                    The vulnerability trend will appear after the first scan.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  )
+}
 
 function VulnerabilityTrendDialog({
   scans,
@@ -342,9 +402,11 @@ function VulnerabilityTrendDialog({
 function VulnerabilityChart({
   scans,
   filter,
+  grouping = "severity",
 }: {
   scans: TrendScan[]
   filter: CVEFixFilter
+  grouping?: TrendGrouping
 }) {
   const [period, setPeriod] = React.useState<TrendPeriod>(30)
   const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null)
@@ -366,8 +428,8 @@ function VulnerabilityChart({
   }, [])
 
   const chart = React.useMemo(
-    () => buildTrendChart(scans, period, filter, chartWidth),
-    [filter, period, scans, chartWidth]
+    () => buildTrendChart(scans, period, filter, chartWidth, grouping),
+    [filter, period, scans, chartWidth, grouping]
   )
   const hoveredDay = hoveredIndex === null ? null : chart.days[hoveredIndex]
   const inspectPointer = (event: React.MouseEvent<SVGSVGElement>) => {
@@ -383,7 +445,9 @@ function VulnerabilityChart({
     <div className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          Latest known severity state per asset each day.
+          {grouping === "severity"
+            ? "Latest known severity state per asset each day."
+            : "Latest known vulnerabilities per asset, grouped by scan type."}
         </p>
         <TrendPeriodSelector
           period={period}
@@ -399,7 +463,7 @@ function VulnerabilityChart({
           className="block h-80 w-full rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
           role="img"
           tabIndex={0}
-          aria-label={`Vulnerability trend over the last ${period} days. Use left and right arrow keys to inspect a date.`}
+          aria-label={`${grouping === "severity" ? "Vulnerability trend" : "Vulnerabilities by scan type"} over the last ${period} days. Use left and right arrow keys to inspect a date.`}
           aria-describedby={descriptionId}
           onPointerMove={inspectPointer}
           onClick={inspectPointer}
@@ -480,11 +544,11 @@ function VulnerabilityChart({
         <p id={descriptionId} className="sr-only" aria-live={keyboardInspection ? "polite" : "off"}>
           {hoveredDay
             ? `${hoveredDay.label}: ${hoveredDay.total} vulnerabilities. ${hoveredDay.items.map((item) => `${item.label}: ${item.value}`).join(", ")}.`
-            : "Daily counts by severity based on the latest scan available for each asset."}
+            : `Daily vulnerability counts by ${grouping === "severity" ? "severity" : "scan type"} based on the latest scan available for each asset.`}
         </p>
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-2 border-t pt-3 text-xs text-muted-foreground">
-        {TREND_SERIES.map((series) => (
+        {chart.series.map((series) => (
           <span key={series.key} className="inline-flex items-center gap-1.5">
             <span className="size-2.5 rounded-sm" style={{ backgroundColor: series.color }} />
             {series.label}
@@ -581,8 +645,12 @@ function buildTrendChart(
   scans: TrendScan[],
   period: TrendPeriod,
   filter: CVEFixFilter,
-  chartWidth: number
+  chartWidth: number,
+  grouping: TrendGrouping
 ) {
+  const series = trendSeries(scans, grouping)
+  // Render the first legend entry on top in both views.
+  const stackOrder = [...series].reverse()
   const left = 42
   const width = Math.max(1, chartWidth - left - 16)
   const height = 250
@@ -596,12 +664,7 @@ function buildTrendChart(
     return {
       date,
       key: dayKey(date),
-      scans: 0,
-      critical: 0,
-      high: 0,
-      medium: 0,
-      low: 0,
-      unknown: 0,
+      values: Object.fromEntries(series.map((item) => [item.key, 0])),
     }
   })
   const orderedScans = scans
@@ -612,7 +675,7 @@ function buildTrendChart(
     }))
     .filter(({ timestamp }) => Number.isFinite(timestamp))
     .sort((left, right) => left.timestamp - right.timestamp)
-  const latestByAsset = new Map<string, ScanSummary>()
+  const latestByAsset = new Map<string, { type: string; summary: ScanSummary }>()
   let scanIndex = 0
 
   for (const day of days) {
@@ -626,31 +689,44 @@ function buildTrendChart(
       const current = orderedScans[scanIndex]
       latestByAsset.set(
         trendAssetKey(current.scan, current.index),
-        filterScanSummary(current.scan.summary, filter)
+        {
+          type: current.scan.type ?? "other",
+          summary: filterScanSummary(current.scan.summary, filter),
+        }
       )
       scanIndex++
     }
 
-    const summary = aggregateSummaries(Array.from(latestByAsset.values()))
-    day.scans = latestByAsset.size
-    for (const series of TREND_SERIES) {
-      day[series.key] = summary[series.key]
+    if (grouping === "severity") {
+      const summary = aggregateSummaries(
+        Array.from(latestByAsset.values(), (asset) => asset.summary)
+      )
+      for (const item of TREND_SERIES) {
+        day.values[item.key] = summary[item.key]
+      }
+    } else {
+      for (const asset of latestByAsset.values()) {
+        const key = SCAN_TYPE_SERIES.some((item) => item.key === asset.type)
+          ? asset.type
+          : "other"
+        day.values[key] += totalSeverity(asset.summary)
+      }
     }
   }
 
-  // Compute per-day cumulative stacks (bottom → top: unknown, low, medium, high, critical)
+  // Compute cumulative stacks for either severity or scanner series.
   type DayStack = { base: number; top: number }
   const dayStacks: Array<Record<string, DayStack>> = days.map((day) => {
     let cum = 0
     const stacks: Record<string, DayStack> = {}
-    for (const key of STACK_ORDER) {
-      stacks[key] = { base: cum, top: cum + day[key] }
-      cum += day[key]
+    for (const { key } of stackOrder) {
+      stacks[key] = { base: cum, top: cum + day.values[key] }
+      cum += day.values[key]
     }
     return stacks
   })
   const dailyTotals = days.map((day) =>
-    TREND_SERIES.reduce((s, series) => s + day[series.key], 0)
+    series.reduce((sum, item) => sum + day.values[item.key], 0)
   )
   const maxTotal = Math.max(1, ...dailyTotals)
   const roundedMax = Math.max(4, Math.ceil(maxTotal / 4) * 4)
@@ -659,8 +735,7 @@ function buildTrendChart(
   const y = (value: number) => bottom - (value / roundedMax) * height
   const hitboxWidth = width / days.length
 
-  const bands = STACK_ORDER.map((key) => {
-    const meta = TREND_SERIES.find((s) => s.key === key)!
+  const bands = stackOrder.map(({ key, color }) => {
     const fwd = days
       .map((_, i) => `${x(i).toFixed(1)},${y(dayStacks[i][key].top).toFixed(1)}`)
       .join(" ")
@@ -671,10 +746,11 @@ function buildTrendChart(
         return `${x(i).toFixed(1)},${y(dayStacks[i][key].base).toFixed(1)}`
       })
       .join(" ")
-    return { key, color: meta.color, topPoints: fwd, fillPoints: `${fwd} ${rev}` }
+    return { key, color, topPoints: fwd, fillPoints: `${fwd} ${rev}` }
   })
 
   return {
+    series,
     left,
     width,
     top,
@@ -696,10 +772,10 @@ function buildTrendChart(
         tooltipX: chartTooltipX(pointX, left, width),
         label: formatChartTooltipDate(day.date),
         total,
-        items: TREND_SERIES.map((series) => ({
-          label: series.label,
-          value: day[series.key],
-          color: series.color,
+        items: series.map((item) => ({
+          label: item.label,
+          value: day.values[item.key],
+          color: item.color,
         })),
       }
     }),

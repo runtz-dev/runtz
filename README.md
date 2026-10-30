@@ -65,8 +65,9 @@ the Runtz platform.
 - **One security view:** compare assets, scans, severity distribution and
   vulnerability trends across every supported scan family.
 - **Results first:** compact summaries keep asset lists and scan results in
-  focus. Open the chart icon beside **Vulnerabilities** for a 7-, 15- or
-  30-day severity trend scoped to the current workspace, scan type or asset.
+  focus. Open the chart icon beside **Vulnerabilities** on scan and asset pages
+  for a 7-, 15- or 30-day severity trend. The Overview shows trends by severity
+  and by scan type side by side, using the latest known state of each asset.
 - **Actionable results:** filter CVEs by fix availability and use severity
   gates to stop a pipeline when a threshold is exceeded.
 - **Deploy your way:** start with the hosted platform, Docker Compose or a

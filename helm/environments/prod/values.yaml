@@ -50,6 +50,9 @@ frontend:
     OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=prod,service.namespace=runtz"
 
 backend:
+  cloudSecurity:
+    url: http://runtz-security:8080
+    existingSecret: runtz-security-secrets
   autoscaling:
     enabled: true
     minReplicas: 3

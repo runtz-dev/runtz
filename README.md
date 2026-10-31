@@ -40,7 +40,7 @@ infrastructure lifecycle. Use the hosted service or deploy the complete stack
 on your own infrastructure with Docker Compose or Helm.
 
 Cloud security starts with [Google Cloud integration](docs/gcp-cloud.md): connect
-multiple GCP projects and aggregate native Security Command Center findings by
+multiple GCP projects and run custom configuration checks with findings grouped by
 severity. Credentials are encrypted in MongoDB with an operator-managed key
 stored separately from the database. AWS and Azure are coming soon.
 

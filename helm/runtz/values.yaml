@@ -79,6 +79,11 @@ frontend:
 
 backend:
   enabled: true
+  # Optional companion service for GCP configuration scans. Keep its bearer key
+  # in a Secret, never in values or frontend environment variables.
+  cloudSecurity:
+    url: ""
+    existingSecret: ""
   replicaCount: 1
   autoscaling:
     enabled: false

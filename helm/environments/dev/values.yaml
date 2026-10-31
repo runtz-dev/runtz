@@ -35,6 +35,9 @@ frontend:
     OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=dev,service.namespace=runtz"
 
 backend:
+  cloudSecurity:
+    url: http://runtz-security:8080
+    existingSecret: runtz-security-secrets
   image:
     repository: registry.local:5000/runtz-engine
     tag: ""

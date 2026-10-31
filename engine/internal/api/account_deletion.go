@@ -322,6 +322,17 @@ func (s *Server) purgeWorkspaces(ctx context.Context, workspaceIDs []bson.Object
 		return fmt.Errorf("mark workspaces for deletion: %w", err)
 	}
 	if s.cloudConnections != nil {
+		for _, workspaceID := range workspaceIDs {
+			remoteCount, err := s.cloudConnections.CountDocuments(ctx, bson.M{"workspace_id": workspaceID, "security_connection_id": bson.M{"$exists": true, "$ne": ""}})
+			if err != nil {
+				return fmt.Errorf("find cloud service references: %w", err)
+			}
+			if s.security.Configured() || remoteCount > 0 {
+				if err := s.security.DeleteWorkspace(ctx, workspaceID.Hex()); err != nil {
+					return fmt.Errorf("disconnect cloud credentials before workspace deletion: %w", err)
+				}
+			}
+		}
 		if _, err := s.cloudConnections.DeleteMany(ctx, bson.M{"workspace_id": filter}); err != nil {
 			return fmt.Errorf("delete cloud credentials: %w", err)
 		}

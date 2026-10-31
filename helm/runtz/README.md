@@ -26,15 +26,16 @@ None are required — the engine issues and stores its own sessions, API keys
 and login codes. Secrets only enable optional integrations: `resendApiKey`
 (email login), `githubClientSecret` (OAuth), `stripeSecretKey` /
 `stripeWebhookSecret` (billing) and `licensePrivateKey` (central engine only).
-`cloudEncryptionKey` enables cloud integrations: generate it with
-`openssl rand -base64 32`, preserve it across replicas and upgrades, and back it
-up separately from MongoDB. It encrypts uploaded service account credentials.
+Configure cloud checks with `backend.cloudSecurity.url` and
+`backend.cloudSecurity.existingSecret`. That Secret must contain
+`RUNTZ_SECURITY_API_KEY` matching the companion Security service. The engine
+calls it with an authorized workspace tenant; keys never enter the frontend.
+Dev/prod overlays use their own namespace-local Security Service and Secret.
 
-Alternatively, set `backend.secrets.existingSecret` to the name of a
-pre-created Kubernetes Secret containing the keys `RESEND_API_KEY`,
-`GITHUB_CLIENT_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and
-`RUNTZ_LICENSE_PRIVATE_KEY` (empty strings for unused ones).
-Add `RUNTZ_CLOUD_ENCRYPTION_KEY` to that Secret to enable cloud connections.
+`RUNTZ_CLOUD_ENCRYPTION_KEY` is retained only for migrating older engine-stored
+credentials. New JSON keys are encrypted and stored by Security. See
+[Google Cloud integration](../../docs/gcp-cloud.md) for onboarding and coverage.
+
 This key reference is optional so existing installations continue to start.
 
 ## Common values

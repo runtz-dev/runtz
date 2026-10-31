@@ -22,16 +22,23 @@ export function CloudProvider({ children, disabled = false }: { children: React.
   const [configured, setConfigured] = React.useState(false)
   const [open, setOpen] = React.useState(false)
   const requestSequence = React.useRef(0)
-  const refresh = React.useCallback(async (signal?: AbortSignal) => {
+  const foregroundSequence = React.useRef(0)
+  const backgroundInFlight = React.useRef(false)
+  const refresh = React.useCallback(async (signal?: AbortSignal, quiet = false) => {
     if (disabled) return
+    if (quiet && (foregroundSequence.current !== 0 || backgroundInFlight.current)) return
+    if (quiet) backgroundInFlight.current = true
     const sequence = ++requestSequence.current
-    setLoading(true)
+    if (!quiet) { foregroundSequence.current = sequence; setLoading(true) }
     try {
       const response = await listCloudConnections(selectedWorkspaceId, signal)
       if (sequence !== requestSequence.current || signal?.aborted) return
       setConnections(response.connections); setConfigured(response.configured); setError("")
     } catch (err) { if (sequence === requestSequence.current && !signal?.aborted) setError(cloudError(err)) }
-    finally { if (sequence === requestSequence.current && !signal?.aborted) setLoading(false) }
+    finally {
+      if (quiet) backgroundInFlight.current = false
+      if (!quiet && foregroundSequence.current === sequence) { foregroundSequence.current = 0; setLoading(false) }
+    }
   }, [disabled, selectedWorkspaceId])
   React.useEffect(() => {
     setConnections([])
@@ -39,12 +46,13 @@ export function CloudProvider({ children, disabled = false }: { children: React.
     void refresh(controller.signal)
     return () => controller.abort()
   }, [refresh])
-  const hasActiveImport = connections.some(c => c.status === "syncing")
+  const hasConnections = connections.length > 0
+  const hasActiveImport = connections.some(c => c.status === "syncing" || c.status === "connecting")
   React.useEffect(() => {
-    if (!hasActiveImport) return
-    const timer = setInterval(() => { void refresh() }, 5000)
+    if (!hasConnections) return
+    const timer = setInterval(() => { void refresh(undefined, true) }, hasActiveImport ? 3000 : 30000)
     return () => clearInterval(timer)
-  }, [hasActiveImport, refresh])
+  }, [hasConnections, hasActiveImport, refresh])
   const canManage = React.useCallback((workspaceId: string) => {
     if (disabled) return false
     return deploymentMode === "self-hosted" ? currentUser.role === "admin" : workspaces.some(w => w.id === workspaceId && w.createdBy === currentUser.id)

@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/runtz-dev/runtz/engine/internal/cloudgcp"
 	"github.com/runtz-dev/runtz/engine/internal/config"
+	"github.com/runtz-dev/runtz/engine/internal/securityclient"
 	"github.com/runtz-dev/runtz/engine/internal/telemetry"
 	"github.com/runtz-dev/runtz/engine/internal/version"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -43,7 +43,7 @@ type Server struct {
 	invites              *mongo.Collection
 	cloudConnections     *mongo.Collection
 	cloudFindings        *mongo.Collection
-	readGCP              func(context.Context, []byte, string, string, bool) ([]cloudgcp.Finding, error)
+	security             *securityclient.Client
 
 	playgroundMu        sync.Mutex
 	playgroundReadyDay  string
@@ -85,7 +85,7 @@ func New(ctx context.Context, cfg config.Config) (*Server, error) {
 		invites:              db.Collection("invites"),
 		cloudConnections:     db.Collection("cloud_connections"),
 		cloudFindings:        db.Collection("cloud_findings"),
-		readGCP:              cloudgcp.Read,
+		security:             securityclient.New(cfg.SecurityAPIURL, cfg.SecurityAPIKey),
 	}
 
 	if err := server.ensureIndexes(ctx); err != nil {

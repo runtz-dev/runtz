@@ -1,140 +1,83 @@
-# Google Cloud security findings
+# Google Cloud configuration checks
 
-Runtz Cloud imports **native Security Command Center (SCC) findings** from GCP.
-It does not run its own cloud posture checks, start Google scanners, enable APIs,
-or modify cloud resources. AWS and Azure are shown as coming soon.
-
-## Configure credential encryption
-
-Before connecting a project, generate an encryption key with `openssl rand -base64 32`
-and store it as `RUNTZ_CLOUD_ENCRYPTION_KEY` in the engine's environment or a
-Kubernetes Secret. Docker Compose reads it from `.env`. Never commit the value.
-Without it, the rest of Runtz works, but connecting cloud credentials returns a
-configuration error.
-
-For Helm, add `RUNTZ_CLOUD_ENCRYPTION_KEY` to the engine's existing Secret, then
-reference that Secret without putting its value in Helm values:
-
-```yaml
-backend:
-  secrets:
-    existingSecret: runtz-engine-secrets
-```
-
-The engine deployment reads the key automatically. The Secret must also contain
-the chart's other integration keys, using empty values for unused integrations
-as described in the chart README. For a chart-managed Secret, set
-`backend.secrets.cloudEncryptionKey` in an ignored private values file instead.
-
-MongoDB stores the service account JSON encrypted with AES-256-GCM, a random
-nonce per encryption, and authenticated binding to its workspace, connection
-and provider. API responses never include the ciphertext or original key.
-Credentials are not written to files, browser storage, logs or fixtures.
-Fixed Google OAuth and SCC endpoints prevent uploaded JSON from selecting
-arbitrary credential endpoints or external credential providers.
-
-Back up the encryption key **separately from MongoDB**, and preserve it across
-engine replicas, restarts and restores. Losing or changing it makes existing
-credentials unreadable. There is no automatic master-key migration in this
-version: after changing the master key, replace every connection's JSON through
-Configure. Service account key rotation is available independently in the UI.
-A future KMS-backed encryption provider can replace this operator-managed key.
+Runtz connects GCP projects to the Runtz Security service and runs 32 custom,
+read-only configuration checks. Findings are grouped by severity and include
+rule IDs, evidence, remediation and documentation. Security Command Center
+activation, its findings API and a GCP organization are not prerequisites.
 
 ## Connect a project
 
-Use **Cloud → Add cloud → Google Cloud**. The same dialog walks through:
+Use **Cloud → Add cloud → Google Cloud**. The same dialog guides you through:
 
-1. Select a Runtz workspace and GCP project ID. Choose the SCC data location
-   (`global` by default, or `eu`, `us`, `sa` for data residency).
-2. Activate SCC on the project, or inherit its organization activation. Enable
-   `securitycenter.googleapis.com` in the service account's project. API
-   enablement alone does not activate SCC or its detectors.
-3. Create a service account and grant **Security Reviewer**
-   (`roles/iam.securityReviewer`) on the **target project**. This role includes
-   `securitycenter.findings.list` and read access to security configurations.
-   Runtz does not need Owner, Editor or permission to modify cloud resources.
-4. Create a JSON key under **Service Accounts → Keys → Add key → Create new key**,
-   upload it, and verify access. Organization policies that prohibit JSON keys
-   must be addressed by the customer's administrator; workload identity
-   federation is not implemented in this version.
-5. Name the connection and connect. Runtz imports findings before reporting
-   success, then shows a summary and the link to the project's findings.
+1. Select the Runtz workspace and target GCP project ID.
+2. Enable the resource APIs needed by the resources you want to check.
+3. Create a dedicated service account and start with `roles/iam.securityReviewer`
+   on the target project. Each check reports additional missing read permissions.
+4. Create a JSON key, upload it and verify access to the target project.
+5. Name the connection and start its first scan.
 
-The API defaults to the credential's project only when the target is omitted.
-The UI requires an explicit target. A service account can access other projects
-if granted IAM permissions there. Add a separate connection for each target
-project/location. The same project/location cannot be added twice to a workspace.
+Connections finish onboarding while their scan runs in the background. Results
+and status refresh automatically. Each workspace can connect multiple projects,
+including projects accessed by the same service account. Only the workspace
+owner (or a self-hosted admin) can connect, scan, rotate credentials or disconnect;
+authorized workspace members can read findings and check coverage.
 
-## Review and refresh
+## Results and coverage
 
-With no connected cloud in the selected workspace, the sidebar shows only the
-cloud icon and **+ Add cloud**. Clicking it opens the connection dialog directly.
-There is no intermediate cloud security page. After connecting, **Google Cloud**
-appears below the Cloud heading. Hovering or focusing that section reveals
-**+ Cloud** in the heading to open the same dialog for another cloud. This action
-stays visible on touch devices and is available as an icon when the sidebar is
-collapsed. Google Cloud lists connections, project IDs, workspaces, status, last
-successful import and severity totals. With no connections, direct visits to
-`/cloud/gcp` return to Overview.
+The Findings tab supports severity, literal search and pagination. Open a
+finding to review evidence, the affected resource and remediation. The Checks
+tab shows passed, failed, skipped, error and not-applicable evaluations.
 
-Open a connection to search and filter findings, inspect provider descriptions,
-resource, source, event time and remediation when supplied, or follow its link.
-Counts include **active, unmuted** findings; All states also shows inactive and
-muted findings. Unknown provider severity stays unspecified.
+A skipped check is not a compliance pass. Missing APIs/permissions and incomplete
+collection remain visible in the coverage summary. A result with no findings
+only describes the checks that were evaluated. A failed later scan preserves
+the last published result. Scheduled scans repeat every 12 hours.
 
-**Import findings** refreshes existing SCC results. It does not trigger a new
-Google detector run. Imports are manual in this version. Pagination and stable
-provider IDs prevent duplicates. A new snapshot becomes visible only after all
-pages and database writes succeed. Failures preserve the previous snapshot and
-show an error. A database lease prevents concurrent imports, credential
-replacement or disconnection of the same connection.
+The engine supplies the authorized workspace ID as the service tenant. Browser
+headers cannot choose another service tenant. Every connection lookup is scoped
+to workspace membership before the engine calls Security.
 
-Retired snapshots remain for five minutes to let in-flight reads finish and are
-then removed by MongoDB TTL. The current snapshot is not subject to TTL.
+## Configure the companion service
 
-An import has a 90-second budget, a 10,000-finding limit, a 100-page limit and a
-64 MB total response budget (8 MB per GCP response).
-Exceeding a limit fails explicitly. Runtz serves findings in pages of 50 records,
-sorted by severity. API access is scoped to the authenticated user's workspaces.
-Only a cloud workspace owner or self-hosted administrator can connect, rescan,
-replace credentials or disconnect. Workspace members/viewers can read results.
+Deploy `runtz-security` separately. Configure these **engine-only** variables:
 
-Use **Configure → Replace JSON key** to validate and save a new key. Revoke the
-previous key in GCP afterwards. Disconnect removes saved credentials and findings
-from Runtz; it does not revoke GCP keys. Deleting a workspace/account also removes
-its cloud connections and findings.
+- `RUNTZ_SECURITY_API_URL`: the Security HTTP(S) origin, for example
+  `http://runtz-security:8080` inside the same Kubernetes namespace.
+- `RUNTZ_SECURITY_API_KEY`: the matching Security service bearer key.
 
-## Coverage and errors
+The Helm chart exposes `backend.cloudSecurity.url` and
+`backend.cloudSecurity.existingSecret`. The referenced Secret must contain
+`RUNTZ_SECURITY_API_KEY`. Hosted dev and prod each use their namespace-local
+Security Service and runtime Secret; databases and encryption keys are isolated.
+The public chart leaves this integration optional for self-hosted deployments.
 
-- `SERVICE_DISABLED`: enable the SCC API in the credential project and check SCC
-  activation on the target. Runtz does not change this automatically.
-- Access denied: check the JSON key, IAM grant on the target, SCC activation and
-  the selected SCC location.
-- Zero findings: a successful read returned no applicable findings in that
-  location. It does **not** prove the project is secure. Check detector coverage,
-  tier, activation and initial processing time in Google Cloud.
-- Alerts produced by another product's custom checks (for example audit logging
-  checks) appear only if GCP SCC itself reports corresponding findings.
+New service account JSON is encrypted and stored only in Security's MongoDB.
+The engine stores a workspace-scoped connection reference, safe display
+metadata and cached scan summaries. No service bearer key is exposed to the
+frontend or included in a Helm values file. Keep Security's encryption key
+stable and backed up separately from its database.
 
-Official references: [List findings API](https://docs.cloud.google.com/security-command-center/docs/reference/rest/v2/projects.sources.locations.findings/list),
-[IAM roles](https://docs.cloud.google.com/iam/docs/roles-permissions/securitycenter),
-[SCC locations](https://docs.cloud.google.com/security-command-center/docs/how-to-api-list-findings).
+Older connections can retain their original encrypted engine credentials.
+Their owner can start a scan or replace the JSON key to migrate them to
+Security. This verifies the project and removes the old credential copy from
+the engine after the service reference is stored. Preserve
+`RUNTZ_CLOUD_ENCRYPTION_KEY` until legacy connections have been migrated.
+
+Disconnecting removes the remote encrypted credential and jobs before deleting
+the engine reference. Workspace/account deletion also cleans up the matching
+Security tenant. An unavailable Security service prevents deletion of known
+remote credentials so they are not silently orphaned; retry when connectivity
+is restored.
 
 ## Verification
 
-```sh
-cd engine
-go test ./...
-go vet ./...
-RUNTZ_TEST_MONGO_URI=mongodb://127.0.0.1:27017 go test ./...
-# Optional authorized, read-only live smoke test; never prints the key:
-RUNTZ_TEST_GCP_KEY_FILE=/secure/path/service-account.json go test ./internal/cloudgcp -run TestLiveGCPReadOnly -v -count=1
-cd ../frontend
-npm run lint
-npm run build
-```
+Engine tests cover asynchronous onboarding, tenant-header isolation, owner-only
+operations, skipped coverage, preserving previous results on failure, credential
+migration, disconnection and workspace deletion during an in-flight connection.
+Set `RUNTZ_TEST_MONGO_URI` to a disposable MongoDB server to run them.
 
-Database tests use disposable databases and cover tenant isolation, owner/member
-permissions, encryption, finding filters, snapshot replacement, retries, failed
-imports, key rotation, concurrency protection, multiple projects, disconnection
-and workspace cleanup.
+An optional live integration test accepts `RUNTZ_TEST_SECURITY_URL`,
+`RUNTZ_TEST_SECURITY_API_KEY` and `RUNTZ_TEST_GCP_KEY_FILE`. It creates an isolated
+workspace/tenant, verifies a real read-only GCP scan through the engine adapter,
+then disconnects the test cloud and removes its test data. Never enable it in CI
+or place the service account JSON in repository fixtures.

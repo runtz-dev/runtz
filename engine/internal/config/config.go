@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/runtz-dev/runtz/engine/internal/securityclient"
 )
 
 // LicenseVerificationKey is the base64-encoded Ed25519 public key that verifies
@@ -43,6 +45,8 @@ type Config struct {
 	LicensePublicKey                string
 	CORSAllowedOrigins              []string
 	CloudEncryptionKey              string
+	SecurityAPIURL                  string
+	SecurityAPIKey                  string
 }
 
 func Load() Config {
@@ -65,6 +69,8 @@ func Load() Config {
 		StripePriceEnterpriseSelfHosted: getEnv("STRIPE_PRICE_ENTERPRISE_SELF_HOSTED", ""),
 		LicensePrivateKey:               getEnv("RUNTZ_LICENSE_PRIVATE_KEY", ""),
 		CloudEncryptionKey:              getEnv("RUNTZ_CLOUD_ENCRYPTION_KEY", ""),
+		SecurityAPIURL:                  getEnv("RUNTZ_SECURITY_API_URL", ""),
+		SecurityAPIKey:                  getEnv("RUNTZ_SECURITY_API_KEY", ""),
 		// The verification key is compiled in (see LicenseVerificationKey) and is
 		// intentionally not configurable via the environment.
 		LicensePublicKey:   LicenseVerificationKey,
@@ -80,7 +86,7 @@ func (c Config) Validate() error {
 			return fmt.Errorf("RUNTZ_CLOUD_ENCRYPTION_KEY must be 32 random bytes encoded as base64")
 		}
 	}
-	return nil
+	return securityclient.ValidateConfig(c.SecurityAPIURL, c.SecurityAPIKey)
 }
 
 func normalizeDeploymentMode(value string) string {

@@ -13,6 +13,9 @@ data:
   RUNTZ_PUBLIC_URL: {{ .Values.backend.env.RUNTZ_PUBLIC_URL | quote }}
   RESEND_FROM_EMAIL: {{ .Values.backend.env.RESEND_FROM_EMAIL | quote }}
   CORS_ALLOWED_ORIGINS: {{ .Values.backend.env.CORS_ALLOWED_ORIGINS | quote }}
+  {{- with .Values.backend.cloudSecurity.url }}
+  RUNTZ_SECURITY_API_URL: {{ . | quote }}
+  {{- end }}
   {{- /*
     OAuth client ids and Stripe price ids are deployment-specific and, on our
     own cloud, come from the pre-created ConfigMap in backend.existingConfigMap

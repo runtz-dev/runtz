@@ -99,6 +99,15 @@ Runtz's read-only identity cannot delete Google service accounts. Deleting one
 in Google Cloud and disconnecting in Runtz remain separate actions. Accounts
 can be shared by connections and workloads outside the visible workspace.
 
-The public [Google Cloud setup guide](https://runtz.dev/docs/cloud/google-cloud)
+The public [Google Cloud setup guide](https://runtz.dev/docs/scans/google-cloud)
 contains Console/CLI instructions and the full read-permission list for the
 current checks. Onboarding links to it from the API and access steps.
+
+Cloud finding details use the same controlled Sheet lifecycle and opening
+transition as the package explorer. The Google Cloud icon uses Google's symbol
+geometry with `currentColor` so it follows the navigation icon palette.
+
+The guide lives under `/docs/scans/google-cloud` to avoid the hosted `/cloud`
+routing collision. Existing `/docs/cloud/google-cloud` links redirect there.
+Hosted dev links to its own documentation deployment; self-hosted installs use
+the public Runtz guide.

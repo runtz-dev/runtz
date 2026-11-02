@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { CloudCommand } from "@/components/runtz/cloud-command"
-import { gcpSetupDocumentation } from "@/lib/cloud"
+import { CloudSetupGuideLink } from "@/components/runtz/cloud-setup-guide-link"
 import { GCPIcon } from "@/components/runtz/cloud-icons"
 import { useWorkspace } from "@/components/runtz/workspace-context"
 import { apiRequest } from "@/lib/api"
@@ -34,7 +34,7 @@ function SetupMethods({ consoleSteps, command }: { consoleSteps: React.ReactNode
   </div>
 }
 function SetupDocs() {
-  return <p className="text-xs leading-relaxed text-muted-foreground">See the <ConsoleLink href={gcpSetupDocumentation}>Runtz Google Cloud setup guide</ConsoleLink> for required APIs and the full list of read permissions.</p>
+  return <p className="text-xs leading-relaxed text-muted-foreground">See the <CloudSetupGuideLink target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-center gap-1.5 font-medium text-primary underline-offset-4 hover:underline">Runtz Google Cloud setup guide<ExternalLinkIcon className="size-3.5 shrink-0" /></CloudSetupGuideLink> for required APIs and the full list of read permissions.</p>
 }
 
 export function CloudConnectDialog({ onClose, onCreated, onConnected }: { onClose: () => void; onCreated: () => Promise<void>; onConnected: (connection: CloudConnection) => Promise<void> }) {

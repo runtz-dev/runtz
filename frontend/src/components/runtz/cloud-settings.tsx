@@ -5,6 +5,7 @@ import Link from "next/link"
 import { ChevronDownIcon, CloudIcon, ExternalLinkIcon, KeyRoundIcon, LoaderCircleIcon, PlusIcon, Trash2Icon, UnplugIcon, UploadIcon } from "lucide-react"
 import { useCloud } from "@/components/runtz/cloud-context"
 import { useWorkspace } from "@/components/runtz/workspace-context"
+import { CloudSetupGuideLink } from "@/components/runtz/cloud-setup-guide-link"
 import { CloudCommand } from "@/components/runtz/cloud-command"
 import { GCPIcon } from "@/components/runtz/cloud-icons"
 import { SettingsEmpty, SettingsFeedback, SettingsSearch, SettingsSection } from "@/components/runtz/settings-ui"
@@ -13,7 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { apiRequest } from "@/lib/api"
-import { cloudError, gcpSetupDocumentation, type CloudConnection } from "@/lib/cloud"
+import { cloudError, type CloudConnection } from "@/lib/cloud"
 import { formatDate } from "@/lib/sca"
 
 export function CloudSettingsPanel() {
@@ -36,7 +37,7 @@ export function CloudSettingsPanel() {
         </div>
         {selected === connection.id && <div id={`cloud-settings-${connection.id}`} className="min-w-0 border-t bg-muted/10 p-4"><CloudConnectionControls connection={connection} canManage={canManage(connection.workspaceId)} /></div>}
       </div>) : <SettingsEmpty icon={CloudIcon} title={search ? "No matching connections" : "No cloud connections"} description={search ? "Try a project name or service account." : "Connect a cloud project to start scanning your resources."} />}
-      <Button variant="link" className="h-auto px-0 text-xs" render={<a href={gcpSetupDocumentation} target="_blank" rel="noopener noreferrer" />}>Google Cloud setup and required permissions<ExternalLinkIcon /></Button>
+      <Button variant="link" className="h-auto px-0 text-xs" render={<CloudSetupGuideLink target="_blank" rel="noopener noreferrer" />}>Google Cloud setup and required permissions<ExternalLinkIcon /></Button>
     </div>
   </SettingsSection>
 }

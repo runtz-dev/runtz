@@ -127,7 +127,9 @@ export function GCPProjectPage({ connectionId }: { connectionId: string }) {
         </> : data && <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-6 py-12 text-center"><ShieldCheckIcon className="size-8 text-primary" /><h3 className="font-medium">{data.resultAvailable === false ? "Waiting for scan results" : query || severity !== "all" ? "No findings match these filters" : "No findings from evaluated checks"}</h3><p className="max-w-md text-sm text-muted-foreground">{data.resultAvailable === false ? "The first scan has not published a result yet. Follow its status above." : query || severity !== "all" ? "Adjust the search or filters to see more findings." : "Review the Checks tab to confirm which resources were evaluated and whether any checks were skipped."}</p></div>}
       </CardContent></Card>}
     <p className="text-xs text-muted-foreground">Read-only scans run automatically every 12 hours. Findings reflect configuration checks, not a guarantee of network reachability or complete security coverage.</p>
-    {finding && <CloudFindingSheet finding={finding} connection={connection} onClose={() => setFinding(null)} />}
+    <Sheet open={Boolean(finding)} onOpenChange={open => { if (!open) setFinding(null) }}>
+      {finding && <CloudFindingSheet finding={finding} connection={connection} />}
+    </Sheet>
 
   </div>
 }
@@ -156,9 +158,8 @@ function CloudChecksPanel({ connection, version }: { connection: CloudConnection
 }
 
 
-export function CloudFindingSheet({ finding, connection, onClose }: { finding: CloudFinding; connection: CloudConnection; onClose: () => void }) {
-  return <Sheet open onOpenChange={open => { if (!open) onClose() }}>
-    <SheetContent className="min-w-0 gap-0 overflow-x-hidden overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-2xl">
+function CloudFindingSheet({ finding, connection }: { finding: CloudFinding; connection: CloudConnection }) {
+  return <SheetContent className="min-w-0 gap-0 overflow-x-hidden overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-2xl">
       <SheetHeader className="border-b px-5 py-5 pr-14 sm:px-6 sm:py-6 sm:pr-16">
         <div className="mb-2 flex flex-wrap items-center gap-2"><Badge variant="outline">CLOUD</Badge><SeverityBadge severity={finding.severity} /></div>
         <SheetTitle className="break-words text-xl leading-snug">{finding.title}</SheetTitle>
@@ -175,6 +176,5 @@ export function CloudFindingSheet({ finding, connection, onClose }: { finding: C
         <Separator />
         <p className="flex items-start gap-2 text-sm text-muted-foreground"><SparklesIcon className="mt-0.5 size-4 shrink-0 text-primary" /><span>Connect to Runtz MCP and use your favorite AI to investigate and remediate cloud findings.</span></p>
       </div>
-    </SheetContent>
-  </Sheet>
+  </SheetContent>
 }

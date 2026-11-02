@@ -33,4 +33,4 @@ export function safeCloudLink(uri: string) {
   try { const url = new URL(uri); return url.protocol === "https:" ? url.href : undefined } catch { return undefined }
 }
 
-export const gcpSetupDocumentation = "https://runtz.dev/docs/cloud/google-cloud"
+export const gcpSetupDocumentation = "https://runtz.dev/docs/scans/google-cloud"

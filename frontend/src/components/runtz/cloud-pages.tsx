@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeftIcon, ArrowRightIcon, ChevronLeftIcon, ChevronRightIcon, ExternalLinkIcon, KeyRoundIcon, LoaderCircleIcon, PlusIcon, RefreshCwIcon, SearchIcon, SettingsIcon, ShieldCheckIcon, UnplugIcon, UploadIcon } from "lucide-react"
+import { ArrowLeftIcon, ArrowRightIcon, ChevronLeftIcon, ChevronRightIcon, ExternalLinkIcon, LoaderCircleIcon, PlusIcon, RefreshCwIcon, SearchIcon, SettingsIcon, ShieldCheckIcon, SparklesIcon } from "lucide-react"
 import { useCloud } from "@/components/runtz/cloud-context"
 import { useWorkspace } from "@/components/runtz/workspace-context"
 import { GCPIcon } from "@/components/runtz/cloud-icons"
@@ -13,7 +13,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
+import { Separator } from "@/components/ui/separator"
 import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from "@/components/ui/table"
 import { apiRequest } from "@/lib/api"
 import { cloudError, cloudSeverities, cloudSeverityColors, emptyCloudCounts, safeCloudLink, type CloudConnection, type CloudCounts, type CloudFinding, type CloudFindingResponse, type CloudCheckResponse } from "@/lib/cloud"
@@ -83,10 +84,9 @@ export function GCPProjectPage({ connectionId }: { connectionId: string }) {
   const [queuing, setQueuing] = React.useState(false)
   const [version, setVersion] = React.useState(0)
   const [finding, setFinding] = React.useState<CloudFinding | null>(null)
-  const [settings, setSettings] = React.useState(false)
   const inScope = !!connection
   React.useEffect(() => { const timer = setTimeout(() => { setQuery(search); setPage(1) }, 300); return () => clearTimeout(timer) }, [search])
-  React.useEffect(() => { setData(null); setFinding(null); setSettings(false); setPage(1) }, [connectionId, selectedWorkspaceId])
+  React.useEffect(() => { setData(null); setFinding(null); setPage(1) }, [connectionId, selectedWorkspaceId])
   React.useEffect(() => {
     if (!inScope || tab !== "findings") return
     const abort = new AbortController()
@@ -111,7 +111,7 @@ export function GCPProjectPage({ connectionId }: { connectionId: string }) {
   return <div className="flex flex-col gap-6 p-4 md:p-6">
     <Link href="/cloud/gcp" className="inline-flex w-fit items-center gap-2 text-xs text-muted-foreground hover:text-primary"><ArrowLeftIcon className="size-3.5" />Google Cloud</Link>
     <div className="flex flex-wrap items-start justify-between gap-4"><div className="space-y-2"><div className="flex flex-wrap items-center gap-2"><Badge variant="outline">CLOUD</Badge><ConnectionStatus connection={connection} /></div><h1 className="flex items-center gap-2 text-2xl font-semibold"><GCPIcon className="size-6" />{connection.name}</h1><p className="font-mono text-xs text-muted-foreground">{connection.projectId}</p></div>
-      {canManage(connection.workspaceId) && <div className="flex gap-2"><Button variant="outline" onClick={() => setSettings(true)} disabled={queuing}><SettingsIcon />Configure</Button><Button onClick={() => void scan()} disabled={queuing || scanning}>{queuing || scanning ? <LoaderCircleIcon className="animate-spin" /> : <RefreshCwIcon />}{queuing ? "Queuing…" : scanning ? "Scan in progress" : "Run scan"}</Button></div>}
+      {canManage(connection.workspaceId) && <div className="flex gap-2"><Button variant="outline" render={<Link href={`/settings?tab=cloud&connection=${connection.id}`} />}><SettingsIcon />Configure</Button><Button onClick={() => void scan()} disabled={queuing || scanning}>{queuing || scanning ? <LoaderCircleIcon className="animate-spin" /> : <RefreshCwIcon />}{queuing ? "Queuing…" : scanning ? "Scan in progress" : "Run scan"}</Button></div>}
     </div>
     {(error || connection.lastError) && <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm"><p className="text-destructive">{error || connection.lastError}</p>{connection.lastScanAt && <p className="mt-1 text-xs text-muted-foreground">Previous results from {formatDate(connection.lastScanAt)} are preserved.</p>}<Button variant="ghost" size="sm" className="mt-2" onClick={() => { setError(""); setVersion(v => v + 1); void refresh() }}>Retry loading</Button></div>}
     {scanning && <p role="status" className="flex items-center gap-2 rounded-xl border bg-primary/5 p-4 text-sm"><LoaderCircleIcon className="size-4 animate-spin text-primary" />The scan runs in the background. Results update automatically.</p>}
@@ -127,8 +127,8 @@ export function GCPProjectPage({ connectionId }: { connectionId: string }) {
         </> : data && <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-6 py-12 text-center"><ShieldCheckIcon className="size-8 text-primary" /><h3 className="font-medium">{data.resultAvailable === false ? "Waiting for scan results" : query || severity !== "all" ? "No findings match these filters" : "No findings from evaluated checks"}</h3><p className="max-w-md text-sm text-muted-foreground">{data.resultAvailable === false ? "The first scan has not published a result yet. Follow its status above." : query || severity !== "all" ? "Adjust the search or filters to see more findings." : "Review the Checks tab to confirm which resources were evaluated and whether any checks were skipped."}</p></div>}
       </CardContent></Card>}
     <p className="text-xs text-muted-foreground">Read-only scans run automatically every 12 hours. Findings reflect configuration checks, not a guarantee of network reachability or complete security coverage.</p>
-    {finding && <Dialog open onOpenChange={open => { if (!open) setFinding(null) }}><DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle className="pr-6 leading-snug">{finding.title}</DialogTitle><DialogDescription>{finding.ruleId || finding.category}</DialogDescription></DialogHeader><SeverityBadge severity={finding.severity} /><p className="whitespace-pre-wrap text-sm leading-relaxed">{finding.description || "Review the observed project configuration and remediation below."}</p>{finding.evidence && <div className="rounded-lg border bg-muted/30 p-4"><h4 className="mb-2 text-sm font-medium">Evidence</h4><p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{finding.evidence}</p></div>}<dl className="space-y-3 rounded-lg border bg-muted/20 p-4 text-sm">{[["Resource", finding.resourceName], ["Project", finding.projectName || connection.projectId], ["Source", finding.source || "Runtz configuration checks"], ["Observed", finding.eventTime ? formatDate(finding.eventTime) : "Not provided"]].map(([label, value]) => <div key={label}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 break-all">{value || "Not provided"}</dd></div>)}</dl>{finding.remediation && <div><h4 className="mb-2 font-medium">Remediation</h4><p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{finding.remediation}</p></div>}<Button variant="outline" render={<a href={safeCloudLink(finding.externalUri) ?? `https://console.cloud.google.com/home/dashboard?project=${encodeURIComponent(connection.projectId)}`} target="_blank" rel="noopener noreferrer" />}><ExternalLinkIcon />View guidance</Button></DialogContent></Dialog>}
-    {settings && canManage(connection.workspaceId) && <CloudConnectionSettings connection={connection} onClose={() => setSettings(false)} />}
+    {finding && <CloudFindingSheet finding={finding} connection={connection} onClose={() => setFinding(null)} />}
+
   </div>
 }
 
@@ -155,33 +155,26 @@ function CloudChecksPanel({ connection, version }: { connection: CloudConnection
   return <Card><CardHeader><CardTitle>Check coverage</CardTitle><CardDescription>See evaluated resources, skipped permissions and the evidence behind each result.</CardDescription></CardHeader><CardContent className="space-y-4"><select aria-label="Filter check status" className="h-9 rounded-lg border bg-background px-3 text-sm" value={status} onChange={event => { setStatus(event.target.value); setPage(1) }}><option value="all">All statuses</option>{Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{error && <p role="alert" className="text-sm text-destructive">{error}</p>}{loading ? <Skeleton className="h-40" /> : data && data.checks.length > 0 ? <><Table><TableHeader><TableRow><TableHead>Check</TableHead><TableHead>Status</TableHead><TableHead>Resource / evidence</TableHead></TableRow></TableHeader><TableBody>{data.checks.map((check, index) => <TableRow key={`${check.ruleId}:${check.resource}:${index}`}><TableCell className="max-w-72 whitespace-normal"><p className="font-medium">{check.title}</p><p className="mt-1 font-mono text-xs text-muted-foreground">{check.ruleId}</p></TableCell><TableCell><Badge variant="outline" className={check.status === "skipped" || check.status === "error" ? "text-amber-500" : check.status === "fail" ? "text-destructive" : "text-muted-foreground"}>{labels[check.status] ?? check.status}</Badge></TableCell><TableCell className="max-w-xl whitespace-normal"><p className="break-all font-mono text-xs">{check.resource}</p><p className="mt-2 text-xs leading-relaxed text-muted-foreground">{check.evidence}</p></TableCell></TableRow>)}</TableBody></Table><CloudPagination page={page} total={data.total} pageSize={data.pageSize} onPage={setPage} /></> : data && <p className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">{data.resultAvailable ? "No checks match this status." : "The first scan has not published check results yet."}</p>}</CardContent></Card>
 }
 
-function CloudConnectionSettings({ connection, onClose }: { connection: CloudConnection; onClose: () => void }) {
-  const { refresh, connections } = useCloud()
-  const router = useRouter()
-  const [busy, setBusy] = React.useState(false)
-  const [error, setError] = React.useState("")
-  const [notice, setNotice] = React.useState("")
-  const [confirm, setConfirm] = React.useState("")
-  async function replace(file?: File) {
-    if (!file) return
-    setError(""); setNotice("")
-    if (file.size > 32768) { setError("Choose a JSON key smaller than 32 KB."); return }
-    setBusy(true)
-    try {
-      let credentials: unknown
-      try { credentials = JSON.parse(await file.text()) } catch { throw new Error("Choose a valid JSON service account key.") }
-      await apiRequest(`/api/v1/cloud/connections/${connection.id}/credentials`, { method: "PATCH", body: { credentials } })
-      setNotice("Credentials replaced and verified. Revoke the previous key in GCP, then run a scan to refresh your results.")
-      await refresh()
-    } catch (err) { setError(cloudError(err)) } finally { setBusy(false) }
-  }
-  return <Dialog open onOpenChange={open => { if (!open && !busy) onClose() }}><DialogContent showCloseButton={!busy} className="max-h-[85dvh] overflow-y-auto sm:max-w-lg"><DialogHeader><DialogTitle>Configure {connection.name}</DialogTitle><DialogDescription>Manage access to {connection.projectId}.</DialogDescription></DialogHeader>
-    <div className="space-y-3 rounded-lg border p-4"><h3 className="flex items-center gap-2 font-medium"><KeyRoundIcon className="size-4" />Service account credentials</h3><p className="break-all text-xs text-muted-foreground">{connection.serviceAccount}</p><p className="text-sm text-muted-foreground">Upload a new JSON key to rotate credentials. Runtz verifies access before replacing the encrypted key.</p><label className={`inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm ${busy ? "pointer-events-none opacity-50" : "hover:bg-accent"}`}>{busy ? <LoaderCircleIcon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}Replace JSON key<input aria-label="Replace service account JSON key" className="sr-only" type="file" accept=".json,application/json" disabled={busy} onChange={event => { void replace(event.target.files?.[0]); event.target.value = "" }} /></label></div>
-    <div className="space-y-3 rounded-lg border border-destructive/25 p-4"><h3 className="flex items-center gap-2 font-medium"><UnplugIcon className="size-4" />Disconnect cloud</h3><p className="text-sm text-muted-foreground">Removes this connection, its saved credentials and scan results from Runtz. Revoke the service account key in GCP separately.</p><Input aria-label="Type project ID to confirm disconnection" placeholder={`Type ${connection.projectId} to confirm`} value={confirm} onChange={event => setConfirm(event.target.value)} disabled={busy} /><Button variant="destructive" disabled={busy || confirm !== connection.projectId} onClick={async () => {
-      setBusy(true); setError("")
-      try { await apiRequest(`/api/v1/cloud/connections/${connection.id}`, { method: "DELETE" }); await refresh(); onClose(); router.push(connections.length > 1 ? "/cloud/gcp" : "/overview") }
-      catch (err) { setError(cloudError(err)) } finally { setBusy(false) }
-    }}>Disconnect GCP</Button></div>
-    {notice && <p role="status" className="text-sm text-primary">{notice}</p>}{error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-  </DialogContent></Dialog>
+
+export function CloudFindingSheet({ finding, connection, onClose }: { finding: CloudFinding; connection: CloudConnection; onClose: () => void }) {
+  return <Sheet open onOpenChange={open => { if (!open) onClose() }}>
+    <SheetContent className="min-w-0 gap-0 overflow-x-hidden overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-2xl">
+      <SheetHeader className="border-b px-5 py-5 pr-14 sm:px-6 sm:py-6 sm:pr-16">
+        <div className="mb-2 flex flex-wrap items-center gap-2"><Badge variant="outline">CLOUD</Badge><SeverityBadge severity={finding.severity} /></div>
+        <SheetTitle className="break-words text-xl leading-snug">{finding.title}</SheetTitle>
+        <SheetDescription className="break-words">{finding.ruleId || finding.category} · Google Cloud configuration check</SheetDescription>
+      </SheetHeader>
+      <dl className="grid grid-cols-2 border-b sm:grid-cols-4">{[["Project", connection.projectId], ["Category", finding.category], ["Location", finding.location || "Global"], ["Observed", finding.eventTime ? formatDate(finding.eventTime) : "Not provided"]].map(([label, value]) => <div key={label} className="min-w-0 border-r p-5 last:border-r-0"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm font-medium">{value || "Not provided"}</dd></div>)}</dl>
+      <div className="flex min-w-0 flex-col gap-6 px-5 py-6 sm:px-6">
+        <section className="space-y-2"><h2 className="font-medium">How do I fix it?</h2><p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">{finding.remediation || "Review the observed configuration and follow the guidance for this check."}</p><Button variant="outline" size="sm" render={<a href={safeCloudLink(finding.externalUri) ?? `https://console.cloud.google.com/home/dashboard?project=${encodeURIComponent(connection.projectId)}`} target="_blank" rel="noopener noreferrer" />}><ExternalLinkIcon />View guidance</Button></section>
+        <Separator />
+        <section className="space-y-3"><h2 className="font-medium">Finding details</h2><p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">{finding.description || "Review the observed project configuration below."}</p>
+          {finding.evidence && <div className="space-y-2 rounded-lg border bg-muted/20 p-4"><h3 className="text-sm font-medium">Evidence</h3><p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">{finding.evidence}</p></div>}
+          <dl className="space-y-4 rounded-lg border p-4 text-sm">{[["Resource", finding.resourceName], ["Resource type", finding.resourceType], ["Source", finding.source || "Runtz configuration checks"]].map(([label, value]) => <div key={label}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 break-all">{value || "Not provided"}</dd></div>)}</dl>
+        </section>
+        <Separator />
+        <p className="flex items-start gap-2 text-sm text-muted-foreground"><SparklesIcon className="mt-0.5 size-4 shrink-0 text-primary" /><span>Connect to Runtz MCP and use your favorite AI to investigate and remediate cloud findings.</span></p>
+      </div>
+    </SheetContent>
+  </Sheet>
 }

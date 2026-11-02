@@ -10,10 +10,12 @@ activation, its findings API and a GCP organization are not prerequisites.
 Use **Cloud → Add cloud → Google Cloud**. The same dialog guides you through:
 
 1. Select the Runtz workspace and target GCP project ID.
-2. Enable the resource APIs needed by the resources you want to check.
+2. Continue with the currently enabled APIs for partial coverage, or expand/copy
+   the optional command to enable APIs for all supported resource types.
 3. Create a dedicated service account and start with `roles/iam.securityReviewer`
    on the target project. Each check reports additional missing read permissions.
-4. Create a JSON key, upload it and verify access to the target project.
+4. Create a JSON key through the Console or the expandable gcloud CLI option,
+   upload it and verify access to the target project.
 5. Name the connection and start its first scan.
 
 Connections finish onboarding while their scan runs in the background. Results
@@ -25,7 +27,8 @@ authorized workspace members can read findings and check coverage.
 ## Results and coverage
 
 The Findings tab supports severity, literal search and pagination. Open a
-finding to review evidence, the affected resource and remediation. The Checks
+finding in the standard right-side details panel to review evidence, the affected
+resource and remediation. The Checks
 tab shows passed, failed, skipped, error and not-applicable evaluations.
 
 A skipped check is not a compliance pass. Missing APIs/permissions and incomplete
@@ -81,3 +84,21 @@ An optional live integration test accepts `RUNTZ_TEST_SECURITY_URL`,
 workspace/tenant, verifies a real read-only GCP scan through the engine adapter,
 then disconnects the test cloud and removes its test data. Never enable it in CI
 or place the service account JSON in repository fixtures.
+
+## Manage cloud connections
+
+**Settings → Cloud** becomes available after a cloud is connected. It lists the
+connections in the selected workspace and supports credential replacement and
+confirmed disconnection for workspace owners/self-hosted admins. The project's
+**Configure** action links to the selected connection in this tab. Members can
+read connection details without management actions.
+
+The same screen links to the service account's owning project in Google Cloud
+and offers an expandable/copyable deletion command for an administrator to run.
+Runtz's read-only identity cannot delete Google service accounts. Deleting one
+in Google Cloud and disconnecting in Runtz remain separate actions. Accounts
+can be shared by connections and workloads outside the visible workspace.
+
+The public [Google Cloud setup guide](https://runtz.dev/docs/cloud/google-cloud)
+contains Console/CLI instructions and the full read-permission list for the
+current checks. Onboarding links to it from the API and access steps.

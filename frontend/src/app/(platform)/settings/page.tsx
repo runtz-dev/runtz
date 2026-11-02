@@ -16,6 +16,8 @@ import {
   UsersIcon,
 } from "lucide-react"
 
+import { useCloud } from "@/components/runtz/cloud-context"
+import { CloudSettingsPanel } from "@/components/runtz/cloud-settings"
 import { useWorkspace } from "@/components/runtz/workspace-context"
 import { SettingsEmpty, SettingsFeedback, SettingsPending, SettingsSearch, SettingsSection } from "@/components/runtz/settings-ui"
 import { WorkspaceDetailsPanel } from "@/components/runtz/workspace-details-panel"
@@ -72,6 +74,7 @@ import {
 } from "@/lib/api"
 
 type SettingsTab =
+  | "cloud"
   | "profile"
   | "workspaces"
   | "usage"
@@ -82,6 +85,7 @@ type SettingsTab =
 const settingsTabs = [
   { value: "profile", label: "Profile" },
   { value: "workspaces", label: "Workspaces" },
+  { value: "cloud", label: "Cloud" },
   { value: "usage", label: "Usage" },
   { value: "billing", label: "Billing" },
   { value: "account", label: "Account" },
@@ -109,6 +113,7 @@ type AccountDeletionImpact = {
 
 export default function SettingsPage() {
   const { deploymentMode } = useWorkspace()
+  const { connections } = useCloud()
   const isCloud = deploymentMode === "cloud"
   const [activeTab, setActiveTab] = React.useState<SettingsTab>(
     defaultSettingsTab(isCloud)
@@ -158,7 +163,7 @@ export default function SettingsPage() {
       <Tabs value={activeTab} onValueChange={handleTabChange} className="min-w-0 gap-6">
         <div className="min-w-0 border-b pb-px">
           <TabsList aria-label="Settings sections" variant="line" className="flex w-full flex-wrap justify-start gap-1 p-0 group-data-horizontal/tabs:h-auto sm:gap-4">
-            {settingsTabs.filter(({ value }) => isSettingsTab(value, isCloud)).map(({ value, label }) => (
+            {settingsTabs.filter(({ value }) => isSettingsTab(value, isCloud) && (value !== "cloud" || connections.length > 0 || activeTab === "cloud")).map(({ value, label }) => (
               <TabsTrigger key={value} value={value} className="h-9 flex-none rounded-none px-1 text-xs data-active:text-primary dark:data-active:text-primary after:bg-primary group-data-horizontal/tabs:after:bottom-0 sm:px-2 sm:text-sm">
                 {label}
               </TabsTrigger>
@@ -170,6 +175,9 @@ export default function SettingsPage() {
         </TabsContent>
         <TabsContent value="workspaces" className="min-w-0">
           <WorkspacesPanel />
+        </TabsContent>
+        <TabsContent value="cloud" className="min-w-0">
+          <CloudSettingsPanel />
         </TabsContent>
         <TabsContent value="usage" className="min-w-0">
           <UsagePanel />
@@ -198,6 +206,7 @@ function defaultSettingsTab(isCloud: boolean): SettingsTab {
 
 function isSettingsTab(value: string | null | undefined, isCloud: boolean): value is SettingsTab {
   if (
+    value === "cloud" ||
     value === "profile" ||
     value === "workspaces" ||
     value === "usage" ||
@@ -213,6 +222,7 @@ function isSettingsTab(value: string | null | undefined, isCloud: boolean): valu
 
 function writeSettingsTabToURL(tab: SettingsTab, isCloud: boolean) {
   const url = new URL(window.location.href)
+  if (tab !== "cloud") url.searchParams.delete("connection")
   if (tab === defaultSettingsTab(isCloud)) {
     url.searchParams.delete("tab")
   } else {

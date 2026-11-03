@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { CloudIcon, PlusIcon } from "lucide-react"
-import { GCPIcon } from "@/components/runtz/cloud-icons"
+import { CloudProviderIcon } from "@/components/runtz/cloud-icons"
+import { cloudProviderNames, type CloudProvider } from "@/lib/cloud"
 import { useCloud } from "@/components/runtz/cloud-context"
 import { useWorkspace } from "@/components/runtz/workspace-context"
 import {
@@ -20,12 +21,13 @@ export function CloudSidebar() {
   const { connections, openConnect, loading, error, refresh, canManage } = useCloud()
   const { workspaces } = useWorkspace()
   const pathname = usePathname()
-  const hasGCP = connections.length > 0
+  const hasConnections = connections.length > 0
+  const providers: CloudProvider[] = ["gcp", "azure"]
   const canAdd = workspaces.some(w => canManage(w.id))
   return (
     <SidebarGroup className="group/cloud">
       <SidebarGroupLabel>Cloud</SidebarGroupLabel>
-      {hasGCP && canAdd && (
+      {hasConnections && canAdd && (
         <SidebarGroupAction
           type="button"
           aria-label="Add cloud"
@@ -39,21 +41,21 @@ export function CloudSidebar() {
       )}
       <SidebarGroupContent>
         <SidebarMenu>
-          {hasGCP ? (
-            <SidebarMenuItem>
+          {hasConnections ? providers.filter(provider => connections.some(c => c.provider === provider)).map(provider => (
+            <SidebarMenuItem key={provider}>
               <SidebarMenuButton
-                tooltip="Google Cloud"
-                isActive={pathname.startsWith("/cloud/gcp")}
-                render={<Link href="/cloud/gcp" />}
+                tooltip={cloudProviderNames[provider]}
+                isActive={pathname.startsWith(`/cloud/${provider}`)}
+                render={<Link href={`/cloud/${provider}`} />}
               >
-                <GCPIcon />
-                <span>Google Cloud</span>
+                <CloudProviderIcon provider={provider} />
+                <span>{cloudProviderNames[provider]}</span>
                 <span className="ml-auto text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-                  {connections.length}
+                  {connections.filter(c => c.provider === provider).length}
                 </span>
               </SidebarMenuButton>
             </SidebarMenuItem>
-          ) : (
+          )) : (
             <SidebarMenuItem>
               <SidebarMenuButton
                 tooltip={canAdd ? "Add cloud" : "Ask your workspace owner to connect a cloud"}
@@ -66,7 +68,7 @@ export function CloudSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
-          {hasGCP && canAdd && (
+          {hasConnections && canAdd && (
             <SidebarMenuItem className="hidden group-data-[collapsible=icon]:block">
               <SidebarMenuButton tooltip="Add cloud" onClick={openConnect}>
                 <PlusIcon />

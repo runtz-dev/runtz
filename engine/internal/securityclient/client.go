@@ -115,22 +115,24 @@ type Check struct {
 	Evidence string `json:"evidence"`
 }
 type Finding struct {
-	ID            string `json:"id"`
-	RuleID        string `json:"ruleId"`
-	Title         string `json:"title"`
-	Description   string `json:"description"`
-	Severity      string `json:"severity"`
-	Category      string `json:"category"`
-	ResourceName  string `json:"resourceName"`
-	ProjectID     string `json:"projectId"`
-	Source        string `json:"source"`
-	Evidence      string `json:"evidence"`
-	Remediation   string `json:"remediation"`
-	Documentation string `json:"documentation"`
+	ID             string `json:"id"`
+	RuleID         string `json:"ruleId"`
+	Title          string `json:"title"`
+	Description    string `json:"description"`
+	Severity       string `json:"severity"`
+	Category       string `json:"category"`
+	ResourceName   string `json:"resourceName"`
+	ProjectID      string `json:"projectId"`
+	SubscriptionID string `json:"subscriptionId"`
+	Source         string `json:"source"`
+	Evidence       string `json:"evidence"`
+	Remediation    string `json:"remediation"`
+	Documentation  string `json:"documentation"`
 }
 type Result struct {
 	Provider       string    `json:"provider"`
 	ProjectID      string    `json:"projectId"`
+	SubscriptionID string    `json:"subscriptionId"`
 	CatalogVersion string    `json:"catalogVersion"`
 	StartedAt      time.Time `json:"startedAt"`
 	FinishedAt     time.Time `json:"finishedAt"`
@@ -139,14 +141,17 @@ type Result struct {
 	Findings       []Finding `json:"findings"`
 }
 type Connection struct {
-	ID             string `json:"id"`
-	TenantID       string `json:"tenantId"`
-	Provider       string `json:"provider"`
-	Name           string `json:"name"`
-	ProjectID      string `json:"projectId"`
-	ServiceAccount string `json:"serviceAccount"`
-	LastScanID     string `json:"lastScanId"`
-	LastAttemptID  string `json:"lastAttemptId"`
+	ID                string `json:"id"`
+	TenantID          string `json:"tenantId"`
+	Provider          string `json:"provider"`
+	Name              string `json:"name"`
+	ProjectID         string `json:"projectId"`
+	SubscriptionID    string `json:"subscriptionId"`
+	DirectoryTenantID string `json:"directoryTenantId"`
+	ClientID          string `json:"clientId"`
+	ServiceAccount    string `json:"serviceAccount"`
+	LastScanID        string `json:"lastScanId"`
+	LastAttemptID     string `json:"lastAttemptId"`
 }
 type Job struct {
 	ID           string     `json:"id"`
@@ -164,7 +169,30 @@ type CreateResponse struct {
 }
 
 func validConnection(tenant, project string, c Connection) bool {
-	return idPattern.MatchString(c.ID) && c.TenantID == tenant && c.ProjectID == project && c.Provider == "gcp"
+	return idPattern.MatchString(c.ID) && c.TenantID == tenant && c.ProjectID == project &&
+		(c.Provider == "gcp" || (c.Provider == "azure" && c.SubscriptionID == project))
+}
+
+// ScopeID is the project for GCP and the subscription for Azure results.
+func (r Result) ScopeID() string {
+	if r.Provider == "azure" {
+		return r.SubscriptionID
+	}
+	return r.ProjectID
+}
+
+func (c *Client) ValidateAzure(ctx context.Context, tenant, subscription string, credential json.RawMessage) error {
+	var out struct {
+		Valid        bool `json:"valid"`
+		Subscription struct {
+			ID string `json:"id"`
+		} `json:"subscription"`
+	}
+	err := c.request(ctx, tenant, "POST", "/v1/azure/validate", map[string]any{"subscriptionId": subscription, "credentials": credential}, &out)
+	if err == nil && (!out.Valid || out.Subscription.ID != subscription) {
+		return &Error{502, "Runtz Security did not verify the requested subscription"}
+	}
+	return err
 }
 func (c *Client) Validate(ctx context.Context, tenant, project string, credential json.RawMessage) error {
 	var out struct {
@@ -192,8 +220,22 @@ func (c *Client) Connections(ctx context.Context, tenant string) ([]Connection, 
 	return out.Connections, err
 }
 func (c *Client) Create(ctx context.Context, tenant, name, project string, credential json.RawMessage) (CreateResponse, error) {
+	return c.create(ctx, tenant, name, "gcp", project, credential)
+}
+
+func (c *Client) CreateAzure(ctx context.Context, tenant, name, subscription string, credential json.RawMessage) (CreateResponse, error) {
+	return c.create(ctx, tenant, name, "azure", subscription, credential)
+}
+
+func (c *Client) create(ctx context.Context, tenant, name, provider, project string, credential json.RawMessage) (CreateResponse, error) {
 	var out CreateResponse
-	err := c.request(ctx, tenant, "POST", "/v1/connections", map[string]any{"name": name, "projectId": project, "credentials": credential}, &out)
+	body := map[string]any{"name": name, "provider": provider, "credentials": credential}
+	if provider == "azure" {
+		body["subscriptionId"] = project
+	} else {
+		body["projectId"] = project
+	}
+	err := c.request(ctx, tenant, "POST", "/v1/connections", body, &out)
 	if IsStatus(err, 409) {
 		// Recover a connection left by a lost response or an interrupted engine
 		// write. The exact workspace/project and the new key are verified first.
@@ -202,7 +244,7 @@ func (c *Client) Create(ctx context.Context, tenant, name, project string, crede
 			return out, listErr
 		}
 		for _, conn := range rows {
-			if conn.ProjectID == project {
+			if conn.ProjectID == project && conn.Provider == provider {
 				if err = c.Rotate(ctx, tenant, conn.ID, credential); err != nil {
 					return out, err
 				}
@@ -213,10 +255,10 @@ func (c *Client) Create(ctx context.Context, tenant, name, project string, crede
 	}
 	// A 503 with a saved connection means the scheduler can still enqueue its
 	// initial scan. Preserve the reference so the owner can retry manually.
-	if err != nil && !(IsStatus(err, 503) && validConnection(tenant, project, out.Connection)) {
+	if err != nil && !(IsStatus(err, 503) && validConnection(tenant, project, out.Connection) && out.Connection.Provider == provider) {
 		return out, err
 	}
-	if !validConnection(tenant, project, out.Connection) {
+	if !validConnection(tenant, project, out.Connection) || out.Connection.Provider != provider {
 		return out, &Error{502, "Runtz Security returned an invalid connection"}
 	}
 	return out, nil
@@ -273,6 +315,7 @@ func (c *Client) Job(ctx context.Context, tenant, id string) (Job, error) {
 			Result       *struct {
 				Provider       string    `json:"provider"`
 				ProjectID      string    `json:"projectId"`
+				SubscriptionID string    `json:"subscriptionId"`
 				CatalogVersion string    `json:"catalogVersion"`
 				FinishedAt     time.Time `json:"finishedAt"`
 				Summary        Summary   `json:"summary"`
@@ -283,7 +326,7 @@ func (c *Client) Job(ctx context.Context, tenant, id string) (Job, error) {
 	j := out.Scan
 	job := Job{ID: j.ID, TenantID: j.TenantID, ConnectionID: j.ConnectionID, State: j.State, Error: j.Error, CreatedAt: j.CreatedAt, FinishedAt: j.FinishedAt}
 	if j.Result != nil {
-		job.Result = &Result{Provider: j.Result.Provider, ProjectID: j.Result.ProjectID, CatalogVersion: j.Result.CatalogVersion, FinishedAt: j.Result.FinishedAt, Summary: j.Result.Summary}
+		job.Result = &Result{Provider: j.Result.Provider, ProjectID: j.Result.ProjectID, SubscriptionID: j.Result.SubscriptionID, CatalogVersion: j.Result.CatalogVersion, FinishedAt: j.Result.FinishedAt, Summary: j.Result.Summary}
 	}
 	if err == nil && (job.ID != id || job.TenantID != tenant) {
 		err = &Error{502, "Runtz Security returned an invalid scan"}
@@ -299,7 +342,7 @@ func (c *Client) Latest(ctx context.Context, tenant, id string) (Job, error) {
 		Scan Job `json:"scan"`
 	}
 	err = c.request(ctx, tenant, "GET", path+"/results", nil, &out)
-	if err == nil && (out.Scan.TenantID != tenant || out.Scan.ConnectionID != id || out.Scan.Result == nil || out.Scan.Result.Provider != "gcp") {
+	if err == nil && (out.Scan.TenantID != tenant || out.Scan.ConnectionID != id || out.Scan.Result == nil || (out.Scan.Result.Provider != "gcp" && out.Scan.Result.Provider != "azure")) {
 		err = &Error{502, "Runtz Security returned an invalid result"}
 	}
 	return out.Scan, err

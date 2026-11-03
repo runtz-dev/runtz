@@ -39,10 +39,11 @@ results to a web dashboard that centralizes findings across the software and
 infrastructure lifecycle. Use the hosted service or deploy the complete stack
 on your own infrastructure with Docker Compose or Helm.
 
-Cloud security starts with [Google Cloud integration](docs/gcp-cloud.md): connect
-multiple GCP projects and run custom configuration checks with findings grouped by
-severity. Credentials are encrypted in MongoDB with an operator-managed key
-stored separately from the database. AWS and Azure are coming soon.
+Cloud security supports [Google Cloud projects](docs/gcp-cloud.md) and
+[Microsoft Azure subscriptions](docs/azure-cloud.md), with custom read-only
+configuration checks, evidence, remediation and explicit scan coverage.
+Credentials are encrypted by the companion Security service with an
+operator-managed key stored separately from MongoDB. AWS is coming soon.
 
 This repository contains the Next.js web platform and the Go backend engine.
 The scanner CLI and integrations live in separate repositories so they can be

@@ -4,7 +4,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { useWorkspace } from "@/components/runtz/workspace-context"
 import { CloudConnectDialog } from "@/components/runtz/cloud-connect-dialog"
-import { cloudError, listCloudConnections, type CloudConnection } from "@/lib/cloud"
+import { cloudConnectionPath, cloudError, listCloudConnections, type CloudConnection } from "@/lib/cloud"
 
 type CloudContextValue = {
   connections: CloudConnection[]; loading: boolean; error: string; configured: boolean
@@ -14,7 +14,7 @@ type CloudContextValue = {
 const CloudContext = React.createContext<CloudContextValue | null>(null)
 
 export function CloudProvider({ children, disabled = false }: { children: React.ReactNode; disabled?: boolean }) {
-  const { selectedWorkspaceId, currentUser, deploymentMode, workspaces } = useWorkspace()
+  const { selectedWorkspaceId, setSelectedWorkspaceId, currentUser, deploymentMode, workspaces } = useWorkspace()
   const router = useRouter()
   const [connections, setConnections] = React.useState<CloudConnection[]>([])
   const [loading, setLoading] = React.useState(!disabled)
@@ -60,8 +60,11 @@ export function CloudProvider({ children, disabled = false }: { children: React.
   return <CloudContext.Provider value={{ connections, loading, error, configured, refresh, openConnect: () => setOpen(true), canManage }}>
     {children}
     {open && !disabled && <CloudConnectDialog onClose={() => setOpen(false)} onCreated={refresh} onConnected={async connection => {
-      await refresh()
-      router.push(`/cloud/gcp/${connection.id}`)
+      setOpen(false)
+      if (selectedWorkspaceId !== "all" && selectedWorkspaceId !== connection.workspaceId) {
+        setSelectedWorkspaceId(connection.workspaceId)
+      }
+      router.push(cloudConnectionPath(connection))
     }} />}
   </CloudContext.Provider>
 }

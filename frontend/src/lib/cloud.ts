@@ -2,8 +2,10 @@ import { apiRequest } from "@/lib/api"
 
 export type CloudCounts = { total: number; critical: number; high: number; medium: number; low: number; unknown: number }
 export type CloudCoverage = { passed: number; failed: number; errors: number; skipped: number; notApplicable: number; critical: number; high: number; medium: number; low: number }
+export type CloudProvider = "gcp" | "azure"
 export type CloudConnection = {
-  id: string; workspaceId: string; provider: "gcp"; name: string; projectId: string
+  id: string; workspaceId: string; provider: CloudProvider; name: string; projectId: string
+  subscriptionId?: string; directoryTenantId?: string; clientId?: string
   location: string; serviceAccount: string; status: string; lastError?: string
   summary: CloudCounts; lastScanAt?: string; createdAt: string; updatedAt: string
   coverage?: CloudCoverage
@@ -34,3 +36,8 @@ export function safeCloudLink(uri: string) {
 }
 
 export const gcpSetupDocumentation = "https://runtz.dev/docs/scans/google-cloud"
+export const azureSetupDocumentation = "https://learn.microsoft.com/entra/identity-platform/howto-create-service-principal-portal"
+export const cloudProviderNames: Record<CloudProvider, string> = { gcp: "Google Cloud", azure: "Microsoft Azure" }
+export function cloudScope(connection: CloudConnection) { return connection.provider === "azure" ? connection.subscriptionId || connection.projectId : connection.projectId }
+export function cloudConnectionPath(connection: CloudConnection) { return `/cloud/${connection.provider}/${connection.id}` }
+export function cloudConsoleLink(connection: CloudConnection) { return connection.provider === "azure" ? `https://portal.azure.com/#${connection.directoryTenantId ? `@${encodeURIComponent(connection.directoryTenantId)}/` : ""}resource/subscriptions/${encodeURIComponent(cloudScope(connection))}/overview` : `https://console.cloud.google.com/home/dashboard?project=${encodeURIComponent(connection.projectId)}` }

@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -64,6 +65,14 @@ func (f *securityFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		respond(200, map[string]any{"valid": true, "project": map[string]string{"id": body.ProjectID}})
 		return
 	}
+	if r.URL.Path == "/v1/azure/validate" {
+		var body struct {
+			SubscriptionID string `json:"subscriptionId"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		respond(200, map[string]any{"valid": true, "subscription": map[string]string{"id": body.SubscriptionID}})
+		return
+	}
 	if r.URL.Path == "/v1/connections" {
 		if r.Method == "GET" {
 			rows := []securityclient.Connection{}
@@ -76,18 +85,30 @@ func (f *securityFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var body struct {
-			Name        string               `json:"name"`
-			ProjectID   string               `json:"projectId"`
-			Credentials cloudgcp.Credentials `json:"credentials"`
+			Name           string `json:"name"`
+			Provider       string `json:"provider"`
+			ProjectID      string `json:"projectId"`
+			SubscriptionID string `json:"subscriptionId"`
+			Credentials    struct {
+				ClientEmail string `json:"client_email"`
+				TenantID    string `json:"tenantId"`
+				ClientID    string `json:"clientId"`
+			} `json:"credentials"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body.Provider == "" {
+			body.Provider = "gcp"
+		}
+		if body.Provider == "azure" {
+			body.ProjectID = body.SubscriptionID
+		}
 		for _, c := range f.connections {
-			if c.TenantID == tenant && c.ProjectID == body.ProjectID {
+			if c.TenantID == tenant && c.Provider == body.Provider && c.ProjectID == body.ProjectID {
 				respond(409, map[string]string{"error": "already connected"})
 				return
 			}
 		}
-		c := securityclient.Connection{ID: bson.NewObjectID().Hex(), TenantID: tenant, Provider: "gcp", Name: body.Name, ProjectID: body.ProjectID, ServiceAccount: body.Credentials.ClientEmail}
+		c := securityclient.Connection{ID: bson.NewObjectID().Hex(), TenantID: tenant, Provider: body.Provider, Name: body.Name, ProjectID: body.ProjectID, SubscriptionID: body.SubscriptionID, DirectoryTenantID: body.Credentials.TenantID, ClientID: body.Credentials.ClientID, ServiceAccount: body.Credentials.ClientEmail}
 		f.connections[c.ID] = c
 		job := f.queue(c)
 		c = f.connections[c.ID]
@@ -158,12 +179,23 @@ func (f *securityFixture) publish(id string) {
 	now := time.Now().UTC()
 	job.FinishedAt = &now
 	job.Result = &securityclient.Result{Provider: "gcp", ProjectID: c.ProjectID, FinishedAt: now, Summary: securityclient.Summary{Passed: 1, Failed: 2, Skipped: 1, High: 1, Medium: 1}, Findings: []securityclient.Finding{{ID: "one", RuleID: "RZ-GCP-027", Title: "Public bucket", Severity: "high", ProjectID: c.ProjectID, Source: "Runtz GCP configuration checks", Evidence: "public grant"}, {ID: "two", RuleID: "RZ-GCP-003", Title: "DNSSEC disabled", Severity: "medium", ProjectID: c.ProjectID}}, Checks: []securityclient.Check{{RuleID: "RZ-GCP-027", Status: "fail", Title: "Public bucket"}, {RuleID: "RZ-GCP-006", Status: "skipped", Title: "Read permission missing", Evidence: "compute.instances.list"}}}
+	if c.Provider == "azure" {
+		job.Result.Provider, job.Result.ProjectID, job.Result.SubscriptionID = "azure", "", c.SubscriptionID
+		job.Result.Findings = []securityclient.Finding{{ID: "one", RuleID: "RZ-AZURE-003", Title: "Storage anonymous access capability", Severity: "high", SubscriptionID: c.SubscriptionID, Source: "Runtz Azure configuration checks", Evidence: "anonymous access allowed"}, {ID: "two", RuleID: "RZ-AZURE-009", Title: "SQL public access", Severity: "medium", SubscriptionID: c.SubscriptionID}}
+		job.Result.Checks = []securityclient.Check{{RuleID: "RZ-AZURE-003", Status: "fail", Title: "Storage anonymous access capability"}, {RuleID: "RZ-AZURE-011", Status: "skipped", Title: "Read permission missing", Evidence: "Microsoft.ContainerService/managedClusters/read"}}
+	}
 	f.jobs[job.ID] = job
 	c.LastScanID = job.ID
 	f.connections[c.ID] = c
 }
 
-func TestGCPConnectionLifecycleAndWorkspaceIsolation(t *testing.T) {
+func TestCloudConnectionLifecycleAndWorkspaceIsolation(t *testing.T) {
+	for _, provider := range []string{"gcp", "azure"} {
+		t.Run(provider, func(t *testing.T) { testCloudConnectionLifecycle(t, provider) })
+	}
+}
+
+func testCloudConnectionLifecycle(t *testing.T, provider string) {
 	uri := os.Getenv("RUNTZ_TEST_MONGO_URI")
 	if uri == "" {
 		t.Skip("set RUNTZ_TEST_MONGO_URI for MongoDB integration tests")
@@ -211,6 +243,15 @@ func TestGCPConnectionLifecycleAndWorkspaceIsolation(t *testing.T) {
 	der, _ := x509.MarshalPKCS8PrivateKey(key)
 	creds := cloudgcp.Credentials{Type: "service_account", ProjectID: "test-project", ClientEmail: "scanner@test-project.iam.gserviceaccount.com", PrivateKeyID: "ephemeral-test-key", PrivateKey: string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})), TokenURI: "https://oauth2.googleapis.com/token"}
 	credential, _ := json.Marshal(creds)
+	var secret string
+	if provider == "azure" {
+		raw := make([]byte, 32)
+		if _, err := rand.Read(raw); err != nil {
+			t.Fatal(err)
+		}
+		secret = base64.RawURLEncoding.EncodeToString(raw)
+		credential, _ = json.Marshal(securityclient.AzureCredentials{TenantID: "22222222-2222-4222-8222-222222222222", ClientID: "33333333-3333-4333-8333-333333333333", ClientSecret: secret})
+	}
 	request := func(who, method, path string, body any) *httptest.ResponseRecorder {
 		t.Helper()
 		raw, _ := json.Marshal(body)
@@ -219,7 +260,7 @@ func TestGCPConnectionLifecycleAndWorkspaceIsolation(t *testing.T) {
 		r.AddCookie(&http.Cookie{Name: sessionCookieName, Value: tokens[who]})
 		w := httptest.NewRecorder()
 		s.Handler().ServeHTTP(w, r)
-		if strings.Contains(w.Body.String(), "PRIVATE KEY") || strings.Contains(w.Body.String(), s.cfg.SecurityAPIKey) {
+		if strings.Contains(w.Body.String(), "PRIVATE KEY") || strings.Contains(w.Body.String(), s.cfg.SecurityAPIKey) || (secret != "" && strings.Contains(w.Body.String(), secret)) {
 			t.Fatal("credential leaked")
 		}
 		return w
@@ -231,10 +272,14 @@ func TestGCPConnectionLifecycleAndWorkspaceIsolation(t *testing.T) {
 		}
 	}
 	body := cloudConnectRequest{WorkspaceID: workspace.ID.Hex(), Name: "Production", ProjectID: "test-project", Credentials: credential}
-	expect(request("member", "POST", "/api/v1/cloud/gcp/validate", body), 403)
-	expect(request("other", "POST", "/api/v1/cloud/gcp/validate", body), 403)
-	expect(request("owner", "POST", "/api/v1/cloud/gcp/validate", body), 200)
-	w := request("owner", "POST", "/api/v1/cloud/gcp/connections", body)
+	base := "/api/v1/cloud/" + provider
+	if provider == "azure" {
+		body.ProjectID, body.SubscriptionID = "", "11111111-1111-4111-8111-111111111111"
+	}
+	expect(request("member", "POST", base+"/validate", body), 403)
+	expect(request("other", "POST", base+"/validate", body), 403)
+	expect(request("owner", "POST", base+"/validate", body), 200)
+	w := request("owner", "POST", base+"/connections", body)
 	expect(w, 201)
 	var created struct {
 		Connection cloudConnection `json:"connection"`
@@ -252,7 +297,10 @@ func TestGCPConnectionLifecycleAndWorkspaceIsolation(t *testing.T) {
 	if stored.Credential != "" || stored.SecurityConnectionID == "" {
 		t.Fatal("engine must store a reference, not duplicate customer keys")
 	}
-	expect(request("owner", "POST", "/api/v1/cloud/gcp/connections", body), 409)
+	if provider == "azure" && (stored.SubscriptionID != body.SubscriptionID || stored.ClientID == "" || stored.DirectoryTenantID == "") {
+		t.Fatal("Azure scope or display identity missing")
+	}
+	expect(request("owner", "POST", base+"/connections", body), 409)
 	w = request("owner", "GET", path+"/findings", nil)
 	expect(w, 200)
 	if !strings.Contains(w.Body.String(), `"resultAvailable":false`) {
@@ -273,7 +321,11 @@ func TestGCPConnectionLifecycleAndWorkspaceIsolation(t *testing.T) {
 	}
 	w = request("owner", "GET", path+"/checks?status=skipped", nil)
 	expect(w, 200)
-	if !strings.Contains(w.Body.String(), `"total":1`) || !strings.Contains(w.Body.String(), "compute.instances.list") {
+	permission := "compute.instances.list"
+	if provider == "azure" {
+		permission = "Microsoft.ContainerService/managedClusters/read"
+	}
+	if !strings.Contains(w.Body.String(), `"total":1`) || !strings.Contains(w.Body.String(), permission) {
 		t.Fatal("coverage evidence missing")
 	}
 	w = request("owner", "GET", path+"/findings?severity=high", nil)
@@ -286,6 +338,24 @@ func TestGCPConnectionLifecycleAndWorkspaceIsolation(t *testing.T) {
 	if !strings.Contains(w.Body.String(), `"total":0`) {
 		t.Fatal("search evaluated as regex")
 	}
+	if provider == "azure" {
+		fixture.mu.Lock()
+		remote := fixture.connections[stored.SecurityConnectionID]
+		job := fixture.jobs[remote.LastScanID]
+		original := job.Result
+		wrong := *original
+		wrong.SubscriptionID = "99999999-9999-4999-8999-999999999999"
+		job.Result = &wrong
+		fixture.jobs[job.ID] = job
+		fixture.mu.Unlock()
+		for _, suffix := range []string{"/findings", "/checks"} {
+			expect(request("owner", "GET", path+suffix, nil), 502)
+		}
+		fixture.mu.Lock()
+		job.Result = original
+		fixture.jobs[job.ID] = job
+		fixture.mu.Unlock()
+	}
 	for _, suffix := range []string{"", "/findings", "/checks"} {
 		expect(request("other", "GET", path+suffix, nil), 404)
 	}
@@ -295,7 +365,7 @@ func TestGCPConnectionLifecycleAndWorkspaceIsolation(t *testing.T) {
 			status = 404
 		}
 		expect(request(who, "POST", path+"/scan", nil), status)
-		expect(request(who, "PATCH", path+"/credentials", map[string]any{"credentials": creds}), status)
+		expect(request(who, "PATCH", path+"/credentials", map[string]any{"credentials": json.RawMessage(credential)}), status)
 		expect(request(who, "DELETE", path, nil), status)
 	}
 	fixture.mu.Lock()
@@ -312,17 +382,25 @@ func TestGCPConnectionLifecycleAndWorkspaceIsolation(t *testing.T) {
 	fixture.mu.Unlock()
 	expect(request("owner", "POST", path+"/scan", nil), 202)
 	expect(request("owner", "POST", path+"/scan", nil), 202)
-	expect(request("owner", "PATCH", path+"/credentials", map[string]any{"credentials": creds}), 200)
+	expect(request("owner", "PATCH", path+"/credentials", map[string]any{"credentials": json.RawMessage(credential)}), 200)
+	if provider == "azure" {
+		var wrongIdentity securityclient.AzureCredentials
+		_ = json.Unmarshal(credential, &wrongIdentity)
+		wrongIdentity.ClientID = "44444444-4444-4444-8444-444444444444"
+		expect(request("owner", "PATCH", path+"/credentials", map[string]any{"credentials": wrongIdentity}), 400)
+	}
 	// Existing encrypted engine credentials migrate on an owner-initiated scan.
-	sealed, err := sealCloudCredential(s.cfg.CloudEncryptionKey, stored, credential)
-	if err != nil {
-		t.Fatal(err)
+	if provider == "gcp" {
+		sealed, err := sealCloudCredential(s.cfg.CloudEncryptionKey, stored, credential)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = s.cloudConnections.UpdateOne(ctx, bson.M{"_id": stored.ID}, bson.M{"$set": bson.M{"credential": sealed}, "$unset": bson.M{"security_connection_id": ""}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		expect(request("owner", "POST", path+"/scan", nil), 202)
 	}
-	_, err = s.cloudConnections.UpdateOne(ctx, bson.M{"_id": stored.ID}, bson.M{"$set": bson.M{"credential": sealed}, "$unset": bson.M{"security_connection_id": ""}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	expect(request("owner", "POST", path+"/scan", nil), 202)
 	expect(request("owner", "DELETE", path, nil), 200)
 	fixture.mu.Lock()
 	remaining := len(fixture.connections)
@@ -330,9 +408,16 @@ func TestGCPConnectionLifecycleAndWorkspaceIsolation(t *testing.T) {
 	if remaining != 0 {
 		t.Fatal("disconnect left credentials in Security")
 	}
-	for _, project := range []string{"project-one", "project-two"} {
-		body.ProjectID = project
-		expect(request("owner", "POST", "/api/v1/cloud/gcp/connections", body), 201)
+	setScope := func(n int) {
+		if provider == "azure" {
+			body.SubscriptionID = fmt.Sprintf("%08d-1111-4111-8111-111111111111", n)
+		} else {
+			body.ProjectID = fmt.Sprintf("project-%d", n)
+		}
+	}
+	for n := 1; n <= 2; n++ {
+		setScope(n)
+		expect(request("owner", "POST", base+"/connections", body), 201)
 	}
 	fixture.mu.Lock()
 	fixture.afterCreate = func() {
@@ -341,8 +426,8 @@ func TestGCPConnectionLifecycleAndWorkspaceIsolation(t *testing.T) {
 		}
 	}
 	fixture.mu.Unlock()
-	body.ProjectID = "project-last"
-	expect(request("owner", "POST", "/api/v1/cloud/gcp/connections", body), 409)
+	setScope(3)
+	expect(request("owner", "POST", base+"/connections", body), 409)
 	fixture.mu.Lock()
 	defer fixture.mu.Unlock()
 	if len(fixture.connections) != 0 {

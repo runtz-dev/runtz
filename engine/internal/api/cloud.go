@@ -43,6 +43,9 @@ type cloudConnection struct {
 	Provider             string                  `bson:"provider" json:"provider"`
 	Name                 string                  `bson:"name" json:"name"`
 	ProjectID            string                  `bson:"project_id" json:"projectId"`
+	SubscriptionID       string                  `bson:"subscription_id,omitempty" json:"subscriptionId,omitempty"`
+	DirectoryTenantID    string                  `bson:"directory_tenant_id,omitempty" json:"directoryTenantId,omitempty"`
+	ClientID             string                  `bson:"client_id,omitempty" json:"clientId,omitempty"`
 	Location             string                  `bson:"location" json:"location"`
 	ServiceAccount       string                  `bson:"service_account" json:"serviceAccount"`
 	Credential           string                  `bson:"credential" json:"-"`
@@ -65,17 +68,20 @@ type cloudFindingRecord struct {
 }
 
 type cloudConnectRequest struct {
-	WorkspaceID string          `json:"workspaceId"`
-	Name        string          `json:"name"`
-	ProjectID   string          `json:"projectId"`
-	Location    string          `json:"location"`
-	Credentials json.RawMessage `json:"credentials"`
+	WorkspaceID    string          `json:"workspaceId"`
+	Name           string          `json:"name"`
+	ProjectID      string          `json:"projectId"`
+	SubscriptionID string          `json:"subscriptionId"`
+	Location       string          `json:"location"`
+	Credentials    json.RawMessage `json:"credentials"`
 }
 
 func (s *Server) registerCloudRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/cloud/connections", s.auth(http.HandlerFunc(s.handleListCloudConnections)))
 	mux.Handle("POST /api/v1/cloud/gcp/validate", s.auth(http.HandlerFunc(s.handleValidateGCP)))
 	mux.Handle("POST /api/v1/cloud/gcp/connections", s.auth(http.HandlerFunc(s.handleConnectGCP)))
+	mux.Handle("POST /api/v1/cloud/azure/validate", s.auth(http.HandlerFunc(s.handleValidateAzure)))
+	mux.Handle("POST /api/v1/cloud/azure/connections", s.auth(http.HandlerFunc(s.handleConnectAzure)))
 	mux.Handle("GET /api/v1/cloud/connections/{id}", s.auth(http.HandlerFunc(s.handleGetCloudConnection)))
 	mux.Handle("GET /api/v1/cloud/connections/{id}/checks", s.auth(http.HandlerFunc(s.handleCloudChecks)))
 	mux.Handle("GET /api/v1/cloud/connections/{id}/findings", s.auth(http.HandlerFunc(s.handleCloudFindings)))
@@ -208,27 +214,35 @@ func (s *Server) cloudFromRequest(w http.ResponseWriter, r *http.Request, manage
 func cloudConnectionView(c cloudConnection) cloudConnection {
 	if c.SecurityConnectionID == "" && c.Status != "connecting" {
 		c.Status = "reconnect_required"
-		c.LastError = "Run a scan or replace the key to move this connection to Runtz configuration checks."
+		c.LastError = "Run a scan or replace the credentials to move this connection to Runtz configuration checks."
 	}
 	return c
 }
 
-func (s *Server) decodeCloudConnect(w http.ResponseWriter, r *http.Request) (cloudConnectRequest, cloudgcp.Credentials, bool) {
+func (s *Server) decodeCloudRequest(w http.ResponseWriter, r *http.Request) (cloudConnectRequest, bool) {
 	var request cloudConnectRequest
 	r.Body = http.MaxBytesReader(w, r.Body, 65536)
 	if !decodeJSON(w, r, &request) {
-		return request, cloudgcp.Credentials{}, false
+		return request, false
 	}
 	id, err := bson.ObjectIDFromHex(request.WorkspaceID)
 	if err != nil {
 		writeError(w, 400, "select a workspace for this connection")
-		return request, cloudgcp.Credentials{}, false
+		return request, false
 	}
 	if !s.cloudWorkspace(w, r, id, true) {
-		return request, cloudgcp.Credentials{}, false
+		return request, false
 	}
 	if !s.security.Configured() {
 		writeError(w, 503, "Runtz Security is not configured; ask your administrator to configure the service URL and API key")
+		return request, false
+	}
+	return request, true
+}
+
+func (s *Server) decodeCloudConnect(w http.ResponseWriter, r *http.Request) (cloudConnectRequest, cloudgcp.Credentials, bool) {
+	request, ok := s.decodeCloudRequest(w, r)
+	if !ok {
 		return request, cloudgcp.Credentials{}, false
 	}
 	c, err := cloudgcp.ParseCredentials(request.Credentials)
@@ -243,7 +257,7 @@ func (s *Server) decodeCloudConnect(w http.ResponseWriter, r *http.Request) (clo
 	if request.Location == "" {
 		request.Location = "global"
 	}
-	if !cloudgcp.ValidProject(request.ProjectID) || request.Location != "global" {
+	if !cloudgcp.ValidProject(request.ProjectID) || request.Location != "global" || request.SubscriptionID != "" {
 		writeError(w, 400, "invalid project ID; configuration checks run at project scope")
 		return request, c, false
 	}
@@ -308,6 +322,10 @@ func (s *Server) handleConnectGCP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer clear(request.Credentials)
+	s.connectCloud(w, r, request, cloudConnection{Provider: "gcp", ProjectID: request.ProjectID, ServiceAccount: creds.ClientEmail})
+}
+
+func (s *Server) connectCloud(w http.ResponseWriter, r *http.Request, request cloudConnectRequest, c cloudConnection) {
 	request.Name = strings.TrimSpace(request.Name)
 	if request.Name == "" || len(request.Name) > 80 {
 		writeError(w, 400, "enter a connection name of up to 80 characters")
@@ -316,10 +334,11 @@ func (s *Server) handleConnectGCP(w http.ResponseWriter, r *http.Request) {
 	user, _ := currentUser(r.Context())
 	workspaceID, _ := bson.ObjectIDFromHex(request.WorkspaceID)
 	now := time.Now().UTC()
-	c := cloudConnection{ID: bson.NewObjectID(), WorkspaceID: workspaceID, Provider: "gcp", Name: request.Name, ProjectID: request.ProjectID, Location: "global", ServiceAccount: creds.ClientEmail, CreatedBy: user.ID, Status: "connecting", CreatedAt: now, UpdatedAt: now}
+	c.ID, c.WorkspaceID, c.Name, c.Location = bson.NewObjectID(), workspaceID, request.Name, "global"
+	c.CreatedBy, c.Status, c.CreatedAt, c.UpdatedAt = user.ID, "connecting", now, now
 	if _, err := s.cloudConnections.InsertOne(r.Context(), c); err != nil {
 		if mongo.IsDuplicateKeyError(err) {
-			writeError(w, 409, "this project is already connected in this workspace")
+			writeError(w, 409, "this cloud scope is already connected in this workspace")
 		} else {
 			writeError(w, 500, "could not reserve cloud connection")
 		}
@@ -476,7 +495,7 @@ func (s *Server) handleScanCloud(w http.ResponseWriter, r *http.Request) {
 	if c.SecurityConnectionID == "" {
 		raw, err := openCloudCredential(s.cfg.CloudEncryptionKey, c)
 		if err != nil {
-			writeError(w, 422, "replace the service account JSON to reconnect this project")
+			writeError(w, 422, "replace the cloud credentials to reconnect this connection")
 			return
 		}
 		defer clear(raw)
@@ -511,7 +530,7 @@ func (s *Server) handleRotateCloudCredentials(w http.ResponseWriter, r *http.Req
 		return
 	}
 	defer clear(request.Credentials)
-	creds, err := cloudgcp.ParseCredentials(request.Credentials)
+	identity, err := cloudCredentialIdentity(c, request.Credentials)
 	if err != nil {
 		writeError(w, 400, err.Error())
 		return
@@ -527,9 +546,9 @@ func (s *Server) handleRotateCloudCredentials(w http.ResponseWriter, r *http.Req
 		writeCloudServiceError(w, err)
 		return
 	}
-	_, err = s.cloudConnections.UpdateOne(ctx, bson.M{"_id": c.ID, "workspace_id": c.WorkspaceID}, bson.M{"$set": bson.M{"service_account": creds.ClientEmail, "updated_at": time.Now().UTC()}, "$unset": bson.M{"credential": ""}})
+	_, err = s.cloudConnections.UpdateOne(ctx, bson.M{"_id": c.ID, "workspace_id": c.WorkspaceID}, bson.M{"$set": bson.M{"service_account": identity, "updated_at": time.Now().UTC()}, "$unset": bson.M{"credential": ""}})
 	if err != nil {
-		writeError(w, 500, "key replaced in Security; could not update connection metadata")
+		writeError(w, 500, "credentials replaced in Security; could not update connection metadata")
 		return
 	}
 	writeJSON(w, 200, map[string]string{"status": "updated"})
@@ -577,7 +596,13 @@ func writeCloudServiceError(w http.ResponseWriter, err error) {
 }
 
 func (s *Server) attachSecurityConnection(ctx context.Context, c *cloudConnection, raw []byte) error {
-	created, err := s.security.Create(ctx, c.WorkspaceID.Hex(), c.Name, c.ProjectID, json.RawMessage(raw))
+	var created securityclient.CreateResponse
+	var err error
+	if c.Provider == "azure" {
+		created, err = s.security.CreateAzure(ctx, c.WorkspaceID.Hex(), c.Name, c.SubscriptionID, json.RawMessage(raw))
+	} else {
+		created, err = s.security.Create(ctx, c.WorkspaceID.Hex(), c.Name, c.ProjectID, json.RawMessage(raw))
+	}
 	if err != nil {
 		return err
 	}
@@ -610,11 +635,11 @@ func (s *Server) refreshCloudConnection(ctx context.Context, c cloudConnection) 
 	if err != nil {
 		return unavailable(err)
 	}
-	if remote.ProjectID != c.ProjectID {
-		return unavailable(errors.New("cloud project reference does not match this connection"))
+	if remote.ProjectID != c.ProjectID || remote.Provider != c.Provider || (c.Provider == "azure" && (remote.SubscriptionID != c.SubscriptionID || remote.DirectoryTenantID != c.DirectoryTenantID || remote.ClientID != c.ClientID)) {
+		return unavailable(errors.New("cloud scope or identity does not match this connection"))
 	}
 	publish := func(job securityclient.Job) bool {
-		if job.ConnectionID != c.SecurityConnectionID || job.Result == nil || job.Result.ProjectID != c.ProjectID || job.Result.Provider != "gcp" {
+		if job.ConnectionID != c.SecurityConnectionID || !matchesCloudResult(c, job.Result) {
 			return false
 		}
 		coverage := job.Result.Summary
@@ -649,7 +674,7 @@ func (s *Server) refreshCloudConnection(ctx context.Context, c cloudConnection) 
 			return unavailable(errors.New("cloud service returned an unknown scan state"))
 		}
 		if job.Result != nil && !publish(job) {
-			return unavailable(errors.New("cloud result does not match this project"))
+			return unavailable(errors.New("cloud result does not match this scope"))
 		}
 	}
 	if remote.LastScanID != "" && (c.RemoteScanID != remote.LastScanID || c.Coverage == nil) {
@@ -658,7 +683,7 @@ func (s *Server) refreshCloudConnection(ctx context.Context, c cloudConnection) 
 			return unavailable(err)
 		}
 		if !publish(job) {
-			return unavailable(errors.New("cloud result does not match this project"))
+			return unavailable(errors.New("cloud result does not match this scope"))
 		}
 	}
 	if c.Status != previous.Status || c.LastError != previous.LastError || c.RemoteScanID != previous.RemoteScanID || c.RemoteAttemptID != previous.RemoteAttemptID {
@@ -709,8 +734,8 @@ func (s *Server) handleCloudFindings(w http.ResponseWriter, r *http.Request) {
 		writeCloudServiceError(w, err)
 		return
 	}
-	if job.Result.ProjectID != c.ProjectID {
-		writeError(w, 502, "cloud result does not match this project")
+	if !matchesCloudResult(c, job.Result) {
+		writeError(w, 502, "cloud result does not match this scope")
 		return
 	}
 	findings := []cloudgcp.Finding{}
@@ -722,7 +747,7 @@ func (s *Server) handleCloudFindings(w http.ResponseWriter, r *http.Request) {
 		if search != "" && !strings.Contains(strings.ToLower(f.Title+" "+f.ResourceName+" "+f.Source+" "+f.RuleID+" "+f.Evidence), search) {
 			continue
 		}
-		findings = append(findings, cloudgcp.Finding{ID: f.ID, RuleID: f.RuleID, Evidence: f.Evidence, Title: f.Title, Category: f.Category, Description: f.Description, Severity: f.Severity, State: "ACTIVE", Mute: "UNMUTED", ResourceName: f.ResourceName, ProjectName: f.ProjectID, Source: f.Source, ExternalURI: f.Documentation, EventTime: job.Result.FinishedAt.Format(time.RFC3339), Remediation: f.Remediation})
+		findings = append(findings, cloudgcp.Finding{ID: f.ID, RuleID: f.RuleID, Evidence: f.Evidence, Title: f.Title, Category: f.Category, Description: f.Description, Severity: f.Severity, State: "ACTIVE", Mute: "UNMUTED", ResourceName: f.ResourceName, ProjectName: c.ProjectID, Source: f.Source, ExternalURI: f.Documentation, EventTime: job.Result.FinishedAt.Format(time.RFC3339), Remediation: f.Remediation})
 	}
 	rank := map[string]int{"critical": 0, "high": 1, "medium": 2, "low": 3, "unknown": 4}
 	sort.Slice(findings, func(i, j int) bool {
@@ -759,8 +784,8 @@ func (s *Server) handleCloudChecks(w http.ResponseWriter, r *http.Request) {
 		writeCloudServiceError(w, err)
 		return
 	}
-	if job.Result.ProjectID != c.ProjectID {
-		writeError(w, 502, "cloud result does not match this project")
+	if !matchesCloudResult(c, job.Result) {
+		writeError(w, 502, "cloud result does not match this scope")
 		return
 	}
 	checks := []securityclient.Check{}

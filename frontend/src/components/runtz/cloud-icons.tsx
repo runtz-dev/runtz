@@ -1,5 +1,14 @@
 import type * as React from "react"
 import { cn } from "@/lib/utils"
+import type { CloudProvider } from "@/lib/cloud"
+
+export function AzureIcon({ className, ...props }: React.SVGProps<SVGSVGElement>) {
+  return <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true" focusable="false" className={cn("shrink-0", className)} {...props}><path d="M9.5 2H16L8.9 22H2.4L9.5 2Zm7.1 0 7 20H9.8l5.3-3.1h4.1L13.7 2h2.9Z" /></svg>
+}
+
+export function CloudProviderIcon({ provider, ...props }: React.SVGProps<SVGSVGElement> & { provider: CloudProvider }) {
+  return provider === "azure" ? <AzureIcon {...props} /> : <GCPIcon {...props} />
+}
 
 // Google Cloud symbol: https://www.gstatic.com/pantheon/images/welcome/supercloud.svg
 // Preserve the official geometry and inherit the surrounding UI's icon color.

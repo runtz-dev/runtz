@@ -34,6 +34,9 @@ type cloudCounts struct {
 }
 
 type cloudConnection struct {
+	AccountID            string                  `bson:"account_id,omitempty" json:"accountId,omitempty"`
+	RoleARN              string                  `bson:"role_arn,omitempty" json:"roleArn,omitempty"`
+	Regions              []string                `bson:"regions,omitempty" json:"regions,omitempty"`
 	SecurityConnectionID string                  `bson:"security_connection_id,omitempty" json:"-"`
 	RemoteAttemptID      string                  `bson:"remote_attempt_id,omitempty" json:"-"`
 	RemoteScanID         string                  `bson:"remote_scan_id,omitempty" json:"-"`
@@ -68,6 +71,7 @@ type cloudFindingRecord struct {
 }
 
 type cloudConnectRequest struct {
+	AccountID      string          `json:"accountId"`
 	WorkspaceID    string          `json:"workspaceId"`
 	Name           string          `json:"name"`
 	ProjectID      string          `json:"projectId"`
@@ -78,6 +82,9 @@ type cloudConnectRequest struct {
 
 func (s *Server) registerCloudRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/cloud/connections", s.auth(http.HandlerFunc(s.handleListCloudConnections)))
+	mux.Handle("POST /api/v1/cloud/aws/onboarding", s.auth(http.HandlerFunc(s.handleAWSOnboarding)))
+	mux.Handle("POST /api/v1/cloud/aws/validate", s.auth(http.HandlerFunc(s.handleValidateAWS)))
+	mux.Handle("POST /api/v1/cloud/aws/connections", s.auth(http.HandlerFunc(s.handleConnectAWS)))
 	mux.Handle("POST /api/v1/cloud/gcp/validate", s.auth(http.HandlerFunc(s.handleValidateGCP)))
 	mux.Handle("POST /api/v1/cloud/gcp/connections", s.auth(http.HandlerFunc(s.handleConnectGCP)))
 	mux.Handle("POST /api/v1/cloud/azure/validate", s.auth(http.HandlerFunc(s.handleValidateAzure)))
@@ -257,7 +264,7 @@ func (s *Server) decodeCloudConnect(w http.ResponseWriter, r *http.Request) (clo
 	if request.Location == "" {
 		request.Location = "global"
 	}
-	if !cloudgcp.ValidProject(request.ProjectID) || request.Location != "global" || request.SubscriptionID != "" {
+	if !cloudgcp.ValidProject(request.ProjectID) || request.Location != "global" || request.SubscriptionID != "" || request.AccountID != "" {
 		writeError(w, 400, "invalid project ID; configuration checks run at project scope")
 		return request, c, false
 	}
@@ -598,7 +605,9 @@ func writeCloudServiceError(w http.ResponseWriter, err error) {
 func (s *Server) attachSecurityConnection(ctx context.Context, c *cloudConnection, raw []byte) error {
 	var created securityclient.CreateResponse
 	var err error
-	if c.Provider == "azure" {
+	if c.Provider == "aws" {
+		created, err = s.security.CreateAWS(ctx, c.WorkspaceID.Hex(), c.Name, c.AccountID, json.RawMessage(raw))
+	} else if c.Provider == "azure" {
 		created, err = s.security.CreateAzure(ctx, c.WorkspaceID.Hex(), c.Name, c.SubscriptionID, json.RawMessage(raw))
 	} else {
 		created, err = s.security.Create(ctx, c.WorkspaceID.Hex(), c.Name, c.ProjectID, json.RawMessage(raw))
@@ -635,7 +644,7 @@ func (s *Server) refreshCloudConnection(ctx context.Context, c cloudConnection) 
 	if err != nil {
 		return unavailable(err)
 	}
-	if remote.ProjectID != c.ProjectID || remote.Provider != c.Provider || (c.Provider == "azure" && (remote.SubscriptionID != c.SubscriptionID || remote.DirectoryTenantID != c.DirectoryTenantID || remote.ClientID != c.ClientID)) {
+	if remote.ProjectID != c.ProjectID || remote.Provider != c.Provider || (c.Provider == "aws" && (remote.AccountID != c.AccountID || remote.RoleARN != c.RoleARN || !securityclient.SameRegions(remote.Regions, c.Regions))) || (c.Provider == "azure" && (remote.SubscriptionID != c.SubscriptionID || remote.DirectoryTenantID != c.DirectoryTenantID || remote.ClientID != c.ClientID)) {
 		return unavailable(errors.New("cloud scope or identity does not match this connection"))
 	}
 	publish := func(job securityclient.Job) bool {
@@ -747,7 +756,7 @@ func (s *Server) handleCloudFindings(w http.ResponseWriter, r *http.Request) {
 		if search != "" && !strings.Contains(strings.ToLower(f.Title+" "+f.ResourceName+" "+f.Source+" "+f.RuleID+" "+f.Evidence), search) {
 			continue
 		}
-		findings = append(findings, cloudgcp.Finding{ID: f.ID, RuleID: f.RuleID, Evidence: f.Evidence, Title: f.Title, Category: f.Category, Description: f.Description, Severity: f.Severity, State: "ACTIVE", Mute: "UNMUTED", ResourceName: f.ResourceName, ProjectName: c.ProjectID, Source: f.Source, ExternalURI: f.Documentation, EventTime: job.Result.FinishedAt.Format(time.RFC3339), Remediation: f.Remediation})
+		findings = append(findings, cloudgcp.Finding{ID: f.ID, Location: f.Region, RuleID: f.RuleID, Evidence: f.Evidence, Title: f.Title, Category: f.Category, Description: f.Description, Severity: f.Severity, State: "ACTIVE", Mute: "UNMUTED", ResourceName: f.ResourceName, ProjectName: c.ProjectID, Source: f.Source, ExternalURI: f.Documentation, EventTime: job.Result.FinishedAt.Format(time.RFC3339), Remediation: f.Remediation})
 	}
 	rank := map[string]int{"critical": 0, "high": 1, "medium": 2, "low": 3, "unknown": 4}
 	sort.Slice(findings, func(i, j int) bool {

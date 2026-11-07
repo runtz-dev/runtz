@@ -6,6 +6,7 @@ import { ChevronDownIcon, CloudIcon, ExternalLinkIcon, KeyRoundIcon, LoaderCircl
 import { useCloud } from "@/components/runtz/cloud-context"
 import { useWorkspace } from "@/components/runtz/workspace-context"
 import { CloudSetupGuideLink } from "@/components/runtz/cloud-setup-guide-link"
+import { AWSConnectionControls } from "@/components/runtz/aws-connection-controls"
 import { AzureConnectionControls } from "@/components/runtz/azure-connection-controls"
 import { CloudCommand } from "@/components/runtz/cloud-command"
 import { CloudProviderIcon } from "@/components/runtz/cloud-icons"
@@ -24,7 +25,7 @@ export function CloudSettingsPanel() {
   const [search, setSearch] = React.useState("")
   const [selected, setSelected] = React.useState<string | null>(null)
   React.useEffect(() => { setSelected(new URLSearchParams(window.location.search).get("connection")) }, [])
-  const visible = connections.filter(c => `${c.name} ${cloudScope(c)} ${c.serviceAccount} ${c.clientId ?? ""} ${c.provider}`.toLowerCase().includes(search.toLowerCase()))
+  const visible = connections.filter(c => `${c.name} ${cloudScope(c)} ${c.serviceAccount} ${c.clientId ?? ""} ${c.roleArn ?? ""} ${c.regions?.join(" ") ?? ""} ${c.provider}`.toLowerCase().includes(search.toLowerCase()))
   return <SettingsSection title="Cloud connections" description="Manage cloud connections, application credentials and scan access." action={workspaces.some(w => canManage(w.id)) && <Button onClick={openConnect}><PlusIcon />Add cloud</Button>}>
     <div className="space-y-4">
       {error && <SettingsFeedback error>{error}<Button variant="link" size="sm" onClick={() => void refresh()}>Retry</Button></SettingsFeedback>}
@@ -36,8 +37,8 @@ export function CloudSettingsPanel() {
           <div className="flex items-center justify-between gap-3"><Badge variant="outline" className="text-muted-foreground">{connection.status.replaceAll("_", " ")}</Badge>
           <Button variant="ghost" size="sm" aria-expanded={selected === connection.id} aria-controls={`cloud-settings-${connection.id}`} onClick={() => setSelected(selected === connection.id ? null : connection.id)}>{canManage(connection.workspaceId) ? "Manage" : "Details"}<ChevronDownIcon className={selected === connection.id ? "rotate-180" : ""} /></Button></div>
         </div>
-        {selected === connection.id && <div id={`cloud-settings-${connection.id}`} className="min-w-0 border-t bg-muted/10 p-4">{connection.provider === "azure" ? <AzureConnectionControls connection={connection} canManage={canManage(connection.workspaceId)} /> : <CloudConnectionControls connection={connection} canManage={canManage(connection.workspaceId)} />}</div>}
-      </div>) : <SettingsEmpty icon={CloudIcon} title={search ? "No matching connections" : "No cloud connections"} description={search ? "Try a connection name, cloud scope or application ID." : "Connect a project or subscription to start scanning your resources."} />}
+        {selected === connection.id && <div id={`cloud-settings-${connection.id}`} className="min-w-0 border-t bg-muted/10 p-4">{connection.provider === "aws" ? <AWSConnectionControls connection={connection} canManage={canManage(connection.workspaceId)} /> : connection.provider === "azure" ? <AzureConnectionControls connection={connection} canManage={canManage(connection.workspaceId)} /> : <CloudConnectionControls connection={connection} canManage={canManage(connection.workspaceId)} />}</div>}
+      </div>) : <SettingsEmpty icon={CloudIcon} title={search ? "No matching connections" : "No cloud connections"} description={search ? "Try a connection name, cloud scope or application ID." : "Connect an account, project or subscription to start scanning your resources."} />}
       <Button variant="link" className="h-auto px-0 text-xs" render={<CloudSetupGuideLink target="_blank" rel="noopener noreferrer" />}>Google Cloud setup and required permissions<ExternalLinkIcon /></Button>
       <Button variant="link" className="h-auto px-0 text-xs" render={<a href={azureSetupDocumentation} target="_blank" rel="noopener noreferrer" />}>Microsoft Azure application setup<ExternalLinkIcon /></Button>
     </div>

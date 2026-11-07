@@ -5,10 +5,11 @@ import { ArrowLeftIcon, ArrowRightIcon, CheckIcon, CheckCircle2Icon, CloudIcon, 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { CloudCommand } from "@/components/runtz/cloud-command"
 import { CloudSetupGuideLink } from "@/components/runtz/cloud-setup-guide-link"
+import { AWSConnectDialog } from "@/components/runtz/aws-connect-dialog"
+import { AWSIcon } from "@/components/runtz/cloud-icons"
 import { GCPIcon } from "@/components/runtz/cloud-icons"
 import { AzureIcon } from "@/components/runtz/cloud-icons"
 import { AzureConnectDialog } from "@/components/runtz/azure-connect-dialog"
@@ -44,6 +45,7 @@ export function CloudConnectDialog({ onClose, onCreated, onConnected }: { onClos
   const manageable = workspaces.filter(w => deploymentMode === "self-hosted" ? currentUser.role === "admin" : w.createdBy === currentUser.id)
   const [step, setStep] = React.useState(0)
   const [azure, setAzure] = React.useState(false)
+  const [aws, setAWS] = React.useState(false)
   const [workspaceId, setWorkspaceId] = React.useState(manageable.some(w => w.id === selectedWorkspaceId) ? selectedWorkspaceId : manageable[0]?.id ?? "")
   const [projectId, setProjectId] = React.useState("")
   const [name, setName] = React.useState("")
@@ -92,6 +94,7 @@ export function CloudConnectDialog({ onClose, onCreated, onConnected }: { onClos
   }
 
   if (azure) return <AzureConnectDialog onClose={onClose} onBack={() => setAzure(false)} onCreated={onCreated} onConnected={onConnected} />
+  if (aws) return <AWSConnectDialog onClose={onClose} onBack={() => setAWS(false)} onCreated={onCreated} onConnected={onConnected} />
   return <Dialog open onOpenChange={open => { if (!open && !busy) onClose() }}>
     <DialogContent showCloseButton={!busy} className="max-h-[90dvh] min-w-0 grid-cols-[minmax(0,1fr)] gap-0 overflow-x-hidden overflow-y-auto p-0 sm:max-w-4xl">
       <DialogHeader className="border-b px-6 py-5 pr-12 sm:px-8">
@@ -114,7 +117,7 @@ export function CloudConnectDialog({ onClose, onCreated, onConnected }: { onClos
             <div className="min-w-0 flex-1"><h3 className="font-medium">Google Cloud</h3><p className="mt-1 text-sm text-muted-foreground">32 configuration checks, organized by severity.</p></div><ArrowRightIcon className="size-5 text-muted-foreground group-hover:text-primary" />
           </button>
           <button onClick={() => setAzure(true)} className="group flex w-full items-center gap-4 rounded-xl border bg-card p-5 text-left transition-colors hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-primary"><div className="flex size-12 shrink-0 items-center justify-center rounded-xl border bg-background"><AzureIcon className="size-8" /></div><div className="min-w-0 flex-1"><h3 className="font-medium">Microsoft Azure</h3><p className="mt-1 text-sm text-muted-foreground">14 configuration checks at subscription scope.</p></div><ArrowRightIcon className="size-5 text-muted-foreground group-hover:text-primary" /></button>
-          <div aria-disabled="true" className="flex items-center gap-3 rounded-xl border bg-muted/20 p-4 text-muted-foreground"><CloudIcon className="size-5" /><span className="flex-1 text-sm">Amazon Web Services</span><Badge variant="secondary" className="text-[10px]">Coming soon</Badge></div>
+          <button onClick={() => setAWS(true)} className="group flex w-full items-center gap-4 rounded-xl border bg-card p-5 text-left transition-colors hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-primary"><div className="flex size-12 shrink-0 items-center justify-center rounded-xl border bg-background"><AWSIcon className="size-8" /></div><div className="min-w-0 flex-1"><h3 className="font-medium">Amazon Web Services</h3><p className="mt-1 text-sm text-muted-foreground">18 checks with role-based access. Connect without sharing access keys.</p></div><ArrowRightIcon className="size-5 text-muted-foreground" /></button>
           <p className="flex items-center gap-2 text-xs text-muted-foreground"><LockKeyholeIcon className="size-3.5 shrink-0" />Read-only access in all clouds.</p>
         </>}
         {step === 1 && <>

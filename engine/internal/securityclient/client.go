@@ -107,6 +107,7 @@ type Summary struct {
 	Low           int `json:"low"`
 }
 type Check struct {
+	Region   string `json:"region"`
 	RuleID   string `json:"ruleId"`
 	Title    string `json:"title"`
 	Status   string `json:"status"`
@@ -115,6 +116,8 @@ type Check struct {
 	Evidence string `json:"evidence"`
 }
 type Finding struct {
+	AccountID      string `json:"accountId"`
+	Region         string `json:"region"`
 	ID             string `json:"id"`
 	RuleID         string `json:"ruleId"`
 	Title          string `json:"title"`
@@ -130,6 +133,8 @@ type Finding struct {
 	Documentation  string `json:"documentation"`
 }
 type Result struct {
+	AccountID      string    `json:"accountId"`
+	Regions        []string  `json:"regions"`
 	Provider       string    `json:"provider"`
 	ProjectID      string    `json:"projectId"`
 	SubscriptionID string    `json:"subscriptionId"`
@@ -141,17 +146,20 @@ type Result struct {
 	Findings       []Finding `json:"findings"`
 }
 type Connection struct {
-	ID                string `json:"id"`
-	TenantID          string `json:"tenantId"`
-	Provider          string `json:"provider"`
-	Name              string `json:"name"`
-	ProjectID         string `json:"projectId"`
-	SubscriptionID    string `json:"subscriptionId"`
-	DirectoryTenantID string `json:"directoryTenantId"`
-	ClientID          string `json:"clientId"`
-	ServiceAccount    string `json:"serviceAccount"`
-	LastScanID        string `json:"lastScanId"`
-	LastAttemptID     string `json:"lastAttemptId"`
+	AccountID         string   `json:"accountId"`
+	RoleARN           string   `json:"roleArn"`
+	Regions           []string `json:"regions"`
+	ID                string   `json:"id"`
+	TenantID          string   `json:"tenantId"`
+	Provider          string   `json:"provider"`
+	Name              string   `json:"name"`
+	ProjectID         string   `json:"projectId"`
+	SubscriptionID    string   `json:"subscriptionId"`
+	DirectoryTenantID string   `json:"directoryTenantId"`
+	ClientID          string   `json:"clientId"`
+	ServiceAccount    string   `json:"serviceAccount"`
+	LastScanID        string   `json:"lastScanId"`
+	LastAttemptID     string   `json:"lastAttemptId"`
 }
 type Job struct {
 	ID           string     `json:"id"`
@@ -170,11 +178,14 @@ type CreateResponse struct {
 
 func validConnection(tenant, project string, c Connection) bool {
 	return idPattern.MatchString(c.ID) && c.TenantID == tenant && c.ProjectID == project &&
-		(c.Provider == "gcp" || (c.Provider == "azure" && c.SubscriptionID == project))
+		(c.Provider == "gcp" || (c.Provider == "azure" && c.SubscriptionID == project) || (c.Provider == "aws" && ValidAWSAccount(c.AccountID) && c.AccountID == project && AWSRoleAccount(c.RoleARN) == project && len(c.Regions) > 0))
 }
 
 // ScopeID is the project for GCP and the subscription for Azure results.
 func (r Result) ScopeID() string {
+	if r.Provider == "aws" {
+		return r.AccountID
+	}
 	if r.Provider == "azure" {
 		return r.SubscriptionID
 	}
@@ -230,7 +241,9 @@ func (c *Client) CreateAzure(ctx context.Context, tenant, name, subscription str
 func (c *Client) create(ctx context.Context, tenant, name, provider, project string, credential json.RawMessage) (CreateResponse, error) {
 	var out CreateResponse
 	body := map[string]any{"name": name, "provider": provider, "credentials": credential}
-	if provider == "azure" {
+	if provider == "aws" {
+		body["accountId"] = project
+	} else if provider == "azure" {
 		body["subscriptionId"] = project
 	} else {
 		body["projectId"] = project
@@ -245,6 +258,14 @@ func (c *Client) create(ctx context.Context, tenant, name, provider, project str
 		}
 		for _, conn := range rows {
 			if conn.ProjectID == project && conn.Provider == provider {
+				if provider == "aws" {
+					expected, parseErr := ParseAWSCredentials(credential)
+					if parseErr != nil || conn.RoleARN != expected.RoleARN || !SameRegions(conn.Regions, expected.Regions) {
+						return out, &Error{409, "this AWS account is already connected with a different role or region scope"}
+					}
+					job, enqueueErr := c.Enqueue(ctx, tenant, conn.ID)
+					return CreateResponse{Connection: conn, Scan: job}, enqueueErr
+				}
 				if err = c.Rotate(ctx, tenant, conn.ID, credential); err != nil {
 					return out, err
 				}
@@ -313,6 +334,8 @@ func (c *Client) Job(ctx context.Context, tenant, id string) (Job, error) {
 			CreatedAt    time.Time  `json:"createdAt"`
 			FinishedAt   *time.Time `json:"finishedAt"`
 			Result       *struct {
+				AccountID      string    `json:"accountId"`
+				Regions        []string  `json:"regions"`
 				Provider       string    `json:"provider"`
 				ProjectID      string    `json:"projectId"`
 				SubscriptionID string    `json:"subscriptionId"`
@@ -326,7 +349,7 @@ func (c *Client) Job(ctx context.Context, tenant, id string) (Job, error) {
 	j := out.Scan
 	job := Job{ID: j.ID, TenantID: j.TenantID, ConnectionID: j.ConnectionID, State: j.State, Error: j.Error, CreatedAt: j.CreatedAt, FinishedAt: j.FinishedAt}
 	if j.Result != nil {
-		job.Result = &Result{Provider: j.Result.Provider, ProjectID: j.Result.ProjectID, SubscriptionID: j.Result.SubscriptionID, CatalogVersion: j.Result.CatalogVersion, FinishedAt: j.Result.FinishedAt, Summary: j.Result.Summary}
+		job.Result = &Result{AccountID: j.Result.AccountID, Regions: j.Result.Regions, Provider: j.Result.Provider, ProjectID: j.Result.ProjectID, SubscriptionID: j.Result.SubscriptionID, CatalogVersion: j.Result.CatalogVersion, FinishedAt: j.Result.FinishedAt, Summary: j.Result.Summary}
 	}
 	if err == nil && (job.ID != id || job.TenantID != tenant) {
 		err = &Error{502, "Runtz Security returned an invalid scan"}
@@ -342,7 +365,7 @@ func (c *Client) Latest(ctx context.Context, tenant, id string) (Job, error) {
 		Scan Job `json:"scan"`
 	}
 	err = c.request(ctx, tenant, "GET", path+"/results", nil, &out)
-	if err == nil && (out.Scan.TenantID != tenant || out.Scan.ConnectionID != id || out.Scan.Result == nil || (out.Scan.Result.Provider != "gcp" && out.Scan.Result.Provider != "azure")) {
+	if err == nil && (out.Scan.TenantID != tenant || out.Scan.ConnectionID != id || out.Scan.Result == nil || (out.Scan.Result.Provider != "gcp" && out.Scan.Result.Provider != "azure" && out.Scan.Result.Provider != "aws")) {
 		err = &Error{502, "Runtz Security returned an invalid result"}
 	}
 	return out.Scan, err

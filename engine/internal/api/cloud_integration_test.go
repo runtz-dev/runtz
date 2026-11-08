@@ -57,6 +57,22 @@ func (f *securityFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		respond(401, map[string]string{"error": "service auth missing"})
 		return
 	}
+	if r.URL.Path == "/v1/aws/onboarding" {
+		var body struct {
+			AccountID string `json:"accountId"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		respond(200, securityclient.AWSSetup{AccountID: body.AccountID, RoleARN: "arn:aws:iam::" + body.AccountID + ":role/RuntzTest", PrincipalARN: "arn:aws:iam::123456789013:role/RuntzScanner", ExternalID: "runtz-" + strings.Repeat("a", 64), Template: json.RawMessage(`{"Resources":{}}`)})
+		return
+	}
+	if r.URL.Path == "/v1/aws/validate" {
+		var body struct {
+			AccountID string `json:"accountId"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		respond(200, map[string]any{"valid": true, "accountId": body.AccountID})
+		return
+	}
 	if r.URL.Path == "/v1/gcp/validate" {
 		var body struct {
 			ProjectID string `json:"projectId"`
@@ -85,19 +101,25 @@ func (f *securityFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var body struct {
+			AccountID      string `json:"accountId"`
 			Name           string `json:"name"`
 			Provider       string `json:"provider"`
 			ProjectID      string `json:"projectId"`
 			SubscriptionID string `json:"subscriptionId"`
 			Credentials    struct {
-				ClientEmail string `json:"client_email"`
-				TenantID    string `json:"tenantId"`
-				ClientID    string `json:"clientId"`
+				RoleARN     string   `json:"roleArn"`
+				Regions     []string `json:"regions"`
+				ClientEmail string   `json:"client_email"`
+				TenantID    string   `json:"tenantId"`
+				ClientID    string   `json:"clientId"`
 			} `json:"credentials"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		if body.Provider == "" {
 			body.Provider = "gcp"
+		}
+		if body.Provider == "aws" {
+			body.ProjectID = body.AccountID
 		}
 		if body.Provider == "azure" {
 			body.ProjectID = body.SubscriptionID
@@ -108,7 +130,7 @@ func (f *securityFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		c := securityclient.Connection{ID: bson.NewObjectID().Hex(), TenantID: tenant, Provider: body.Provider, Name: body.Name, ProjectID: body.ProjectID, SubscriptionID: body.SubscriptionID, DirectoryTenantID: body.Credentials.TenantID, ClientID: body.Credentials.ClientID, ServiceAccount: body.Credentials.ClientEmail}
+		c := securityclient.Connection{AccountID: body.AccountID, RoleARN: body.Credentials.RoleARN, Regions: body.Credentials.Regions, ID: bson.NewObjectID().Hex(), TenantID: tenant, Provider: body.Provider, Name: body.Name, ProjectID: body.ProjectID, SubscriptionID: body.SubscriptionID, DirectoryTenantID: body.Credentials.TenantID, ClientID: body.Credentials.ClientID, ServiceAccount: body.Credentials.ClientEmail}
 		f.connections[c.ID] = c
 		job := f.queue(c)
 		c = f.connections[c.ID]
@@ -184,13 +206,21 @@ func (f *securityFixture) publish(id string) {
 		job.Result.Findings = []securityclient.Finding{{ID: "one", RuleID: "RZ-AZURE-003", Title: "Storage anonymous access capability", Severity: "high", SubscriptionID: c.SubscriptionID, Source: "Runtz Azure configuration checks", Evidence: "anonymous access allowed"}, {ID: "two", RuleID: "RZ-AZURE-009", Title: "SQL public access", Severity: "medium", SubscriptionID: c.SubscriptionID}}
 		job.Result.Checks = []securityclient.Check{{RuleID: "RZ-AZURE-003", Status: "fail", Title: "Storage anonymous access capability"}, {RuleID: "RZ-AZURE-011", Status: "skipped", Title: "Read permission missing", Evidence: "Microsoft.ContainerService/managedClusters/read"}}
 	}
+	if c.Provider == "aws" {
+		job.Result.Provider = "aws"
+		job.Result.ProjectID = ""
+		job.Result.AccountID = c.AccountID
+		job.Result.Regions = c.Regions
+		job.Result.Findings = []securityclient.Finding{{ID: "one", RuleID: "RZ-AWS-007", Title: "SSH rule", Severity: "high", AccountID: c.AccountID, Region: "us-east-1"}, {ID: "two", RuleID: "RZ-AWS-011", Title: "EBS encryption", Severity: "medium", AccountID: c.AccountID, Region: "us-east-1"}}
+		job.Result.Checks = []securityclient.Check{{RuleID: "RZ-AWS-007", Status: "fail", Title: "SSH rule", Region: "us-east-1"}, {RuleID: "RZ-AWS-012", Status: "skipped", Title: "Read permission missing", Evidence: "rds:DescribeDBInstances", Region: "us-east-1"}}
+	}
 	f.jobs[job.ID] = job
 	c.LastScanID = job.ID
 	f.connections[c.ID] = c
 }
 
 func TestCloudConnectionLifecycleAndWorkspaceIsolation(t *testing.T) {
-	for _, provider := range []string{"gcp", "azure"} {
+	for _, provider := range []string{"gcp", "azure", "aws"} {
 		t.Run(provider, func(t *testing.T) { testCloudConnectionLifecycle(t, provider) })
 	}
 }
@@ -244,6 +274,9 @@ func testCloudConnectionLifecycle(t *testing.T, provider string) {
 	creds := cloudgcp.Credentials{Type: "service_account", ProjectID: "test-project", ClientEmail: "scanner@test-project.iam.gserviceaccount.com", PrivateKeyID: "ephemeral-test-key", PrivateKey: string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})), TokenURI: "https://oauth2.googleapis.com/token"}
 	credential, _ := json.Marshal(creds)
 	var secret string
+	if provider == "aws" {
+		credential, _ = json.Marshal(securityclient.AWSCredentials{RoleARN: "arn:aws:iam::123456789012:role/RuntzTest", ExternalID: "runtz-" + strings.Repeat("a", 64), Regions: []string{"us-east-1", "sa-east-1"}})
+	}
 	if provider == "azure" {
 		raw := make([]byte, 32)
 		if _, err := rand.Read(raw); err != nil {
@@ -273,6 +306,17 @@ func testCloudConnectionLifecycle(t *testing.T, provider string) {
 	}
 	body := cloudConnectRequest{WorkspaceID: workspace.ID.Hex(), Name: "Production", ProjectID: "test-project", Credentials: credential}
 	base := "/api/v1/cloud/" + provider
+	if provider == "aws" {
+		body.ProjectID = ""
+		body.AccountID = "123456789012"
+		expect(request("member", "POST", base+"/onboarding", body), 403)
+		expect(request("other", "POST", base+"/onboarding", body), 403)
+		setup := request("owner", "POST", base+"/onboarding", body)
+		expect(setup, 200)
+		if !strings.Contains(setup.Body.String(), "runtz-") {
+			t.Fatal("AWS onboarding missing external ID")
+		}
+	}
 	if provider == "azure" {
 		body.ProjectID, body.SubscriptionID = "", "11111111-1111-4111-8111-111111111111"
 	}
@@ -322,6 +366,9 @@ func testCloudConnectionLifecycle(t *testing.T, provider string) {
 	w = request("owner", "GET", path+"/checks?status=skipped", nil)
 	expect(w, 200)
 	permission := "compute.instances.list"
+	if provider == "aws" {
+		permission = "rds:DescribeDBInstances"
+	}
 	if provider == "azure" {
 		permission = "Microsoft.ContainerService/managedClusters/read"
 	}
@@ -338,13 +385,16 @@ func testCloudConnectionLifecycle(t *testing.T, provider string) {
 	if !strings.Contains(w.Body.String(), `"total":0`) {
 		t.Fatal("search evaluated as regex")
 	}
-	if provider == "azure" {
+	if provider == "azure" || provider == "aws" {
 		fixture.mu.Lock()
 		remote := fixture.connections[stored.SecurityConnectionID]
 		job := fixture.jobs[remote.LastScanID]
 		original := job.Result
 		wrong := *original
 		wrong.SubscriptionID = "99999999-9999-4999-8999-999999999999"
+		if provider == "aws" {
+			wrong.AccountID = "999999999999"
+		}
 		job.Result = &wrong
 		fixture.jobs[job.ID] = job
 		fixture.mu.Unlock()
@@ -382,7 +432,11 @@ func testCloudConnectionLifecycle(t *testing.T, provider string) {
 	fixture.mu.Unlock()
 	expect(request("owner", "POST", path+"/scan", nil), 202)
 	expect(request("owner", "POST", path+"/scan", nil), 202)
-	expect(request("owner", "PATCH", path+"/credentials", map[string]any{"credentials": json.RawMessage(credential)}), 200)
+	rotationStatus := 200
+	if provider == "aws" {
+		rotationStatus = 400
+	}
+	expect(request("owner", "PATCH", path+"/credentials", map[string]any{"credentials": json.RawMessage(credential)}), rotationStatus)
 	if provider == "azure" {
 		var wrongIdentity securityclient.AzureCredentials
 		_ = json.Unmarshal(credential, &wrongIdentity)
@@ -409,7 +463,13 @@ func testCloudConnectionLifecycle(t *testing.T, provider string) {
 		t.Fatal("disconnect left credentials in Security")
 	}
 	setScope := func(n int) {
-		if provider == "azure" {
+		if provider == "aws" {
+			body.AccountID = fmt.Sprintf("%012d", n)
+			var c securityclient.AWSCredentials
+			json.Unmarshal(credential, &c)
+			c.RoleARN = "arn:aws:iam::" + body.AccountID + ":role/RuntzTest"
+			body.Credentials, _ = json.Marshal(c)
+		} else if provider == "azure" {
 			body.SubscriptionID = fmt.Sprintf("%08d-1111-4111-8111-111111111111", n)
 		} else {
 			body.ProjectID = fmt.Sprintf("project-%d", n)

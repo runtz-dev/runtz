@@ -22,7 +22,7 @@ export function CloudSidebar() {
   const { workspaces } = useWorkspace()
   const pathname = usePathname()
   const hasConnections = connections.length > 0
-  const providers: CloudProvider[] = ["gcp", "azure"]
+  const providers: CloudProvider[] = ["gcp", "azure", "aws"]
   const canAdd = workspaces.some(w => canManage(w.id))
   return (
     <SidebarGroup className="group/cloud">

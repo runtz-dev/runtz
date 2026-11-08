@@ -23,7 +23,7 @@ func (s *Server) decodeAzureConnect(w http.ResponseWriter, r *http.Request) (clo
 		return request, creds, false
 	}
 	request.SubscriptionID = strings.ToLower(strings.TrimSpace(request.SubscriptionID))
-	if !securityclient.ValidAzureID(request.SubscriptionID) || request.ProjectID != "" || (request.Location != "" && request.Location != "global") {
+	if !securityclient.ValidAzureID(request.SubscriptionID) || request.ProjectID != "" || request.AccountID != "" || (request.Location != "" && request.Location != "global") {
 		writeError(w, 400, "provide an Azure subscription ID (UUID); Azure checks run at subscription scope")
 		return request, creds, false
 	}
@@ -57,6 +57,9 @@ func (s *Server) handleConnectAzure(w http.ResponseWriter, r *http.Request) {
 }
 
 func cloudCredentialIdentity(c cloudConnection, raw json.RawMessage) (string, error) {
+	if c.Provider == "aws" {
+		return "", errors.New("AWS role and regions are immutable; disconnect and reconnect to change access")
+	}
 	if c.Provider == "azure" {
 		creds, err := securityclient.ParseAzureCredentials(raw)
 		if err != nil {
@@ -72,5 +75,35 @@ func cloudCredentialIdentity(c cloudConnection, raw json.RawMessage) (string, er
 }
 
 func matchesCloudResult(c cloudConnection, result *securityclient.Result) bool {
-	return result != nil && result.Provider == c.Provider && result.ScopeID() == c.ProjectID
+	if result == nil || result.Provider != c.Provider || result.ScopeID() != c.ProjectID {
+		return false
+	}
+	if c.Provider != "aws" {
+		return true
+	}
+	if !securityclient.SameRegions(c.Regions, result.Regions) {
+		return false
+	}
+	inScope := func(region string) bool {
+		if region == "global" {
+			return true
+		}
+		for _, r := range c.Regions {
+			if region == r {
+				return true
+			}
+		}
+		return false
+	}
+	for _, f := range result.Findings {
+		if f.AccountID != c.AccountID || !inScope(f.Region) {
+			return false
+		}
+	}
+	for _, check := range result.Checks {
+		if !inScope(check.Region) {
+			return false
+		}
+	}
+	return true
 }

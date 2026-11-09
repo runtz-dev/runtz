@@ -146,6 +146,7 @@ type Result struct {
 	Findings       []Finding `json:"findings"`
 }
 type Connection struct {
+	AuthMethod        string   `json:"authMethod"`
 	AccountID         string   `json:"accountId"`
 	RoleARN           string   `json:"roleArn"`
 	Regions           []string `json:"regions"`
@@ -178,7 +179,11 @@ type CreateResponse struct {
 
 func validConnection(tenant, project string, c Connection) bool {
 	return idPattern.MatchString(c.ID) && c.TenantID == tenant && c.ProjectID == project &&
-		(c.Provider == "gcp" || (c.Provider == "azure" && c.SubscriptionID == project) || (c.Provider == "aws" && ValidAWSAccount(c.AccountID) && c.AccountID == project && AWSRoleAccount(c.RoleARN) == project && len(c.Regions) > 0))
+		(c.Provider == "gcp" || (c.Provider == "azure" && c.SubscriptionID == project) || (c.Provider == "aws" && ValidAWSAccount(c.AccountID) && c.AccountID == project && validAWSAuthMetadata(c) && len(c.Regions) > 0))
+}
+
+func validAWSAuthMetadata(c Connection) bool {
+	return (AWSAuthMethod(c.AuthMethod) == AWSAuthRole && AWSRoleAccount(c.RoleARN) == c.AccountID) || (c.AuthMethod == AWSAuthAccessKey && c.RoleARN == "")
 }
 
 // ScopeID is the project for GCP and the subscription for Azure results.
@@ -260,8 +265,15 @@ func (c *Client) create(ctx context.Context, tenant, name, provider, project str
 			if conn.ProjectID == project && conn.Provider == provider {
 				if provider == "aws" {
 					expected, parseErr := ParseAWSCredentials(credential)
-					if parseErr != nil || conn.RoleARN != expected.RoleARN || !SameRegions(conn.Regions, expected.Regions) {
-						return out, &Error{409, "this AWS account is already connected with a different role or region scope"}
+					// Recover only the same authentication method and immutable scope.
+					// Rotation revalidates direct keys against the stored AWS account.
+					if parseErr != nil || expected.AuthMethod != AWSAuthMethod(conn.AuthMethod) || conn.RoleARN != expected.RoleARN || !SameRegions(conn.Regions, expected.Regions) {
+						return out, &Error{409, "this AWS account is already connected; use its settings to rotate keys or disconnect before changing authentication or regions"}
+					}
+					if expected.AuthMethod == AWSAuthAccessKey {
+						if rotateErr := c.Rotate(ctx, tenant, conn.ID, credential); rotateErr != nil {
+							return out, rotateErr
+						}
 					}
 					job, enqueueErr := c.Enqueue(ctx, tenant, conn.ID)
 					return CreateResponse{Connection: conn, Scan: job}, enqueueErr

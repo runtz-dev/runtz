@@ -18,7 +18,7 @@ func (s *Server) handleAWSOnboarding(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	setup, err := s.security.AWSOnboarding(ctx, request.WorkspaceID, request.AccountID)
+	setup, err := s.security.AWSOnboarding(ctx, request.WorkspaceID, request.AccountID, request.AuthMethod)
 	if err != nil {
 		writeCloudServiceError(w, err)
 		return
@@ -35,8 +35,8 @@ func (s *Server) decodeAWSConnect(w http.ResponseWriter, r *http.Request) (cloud
 		writeError(w, 400, err.Error())
 		return request, creds, false
 	}
-	if !securityclient.ValidAWSAccount(request.AccountID) || securityclient.AWSRoleAccount(creds.RoleARN) != request.AccountID || request.ProjectID != "" || request.SubscriptionID != "" || (request.Location != "" && request.Location != "global") {
-		writeError(w, 400, "AWS role must belong to the requested account; omit other provider scopes")
+	if !securityclient.ValidAWSAccount(request.AccountID) || (creds.AuthMethod == securityclient.AWSAuthRole && securityclient.AWSRoleAccount(creds.RoleARN) != request.AccountID) || request.ProjectID != "" || request.SubscriptionID != "" || (request.Location != "" && request.Location != "global") {
+		writeError(w, 400, "provide the AWS account ID and credentials for that account; omit other provider scopes")
 		return request, creds, false
 	}
 	return request, creds, true
@@ -61,5 +61,5 @@ func (s *Server) handleConnectAWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer clear(request.Credentials)
-	s.connectCloud(w, r, request, cloudConnection{Provider: "aws", ProjectID: request.AccountID, AccountID: request.AccountID, RoleARN: creds.RoleARN, Regions: creds.Regions})
+	s.connectCloud(w, r, request, cloudConnection{Provider: "aws", AuthMethod: creds.AuthMethod, ProjectID: request.AccountID, AccountID: request.AccountID, RoleARN: creds.RoleARN, Regions: creds.Regions})
 }

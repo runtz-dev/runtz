@@ -5,7 +5,7 @@ export type CloudCoverage = { passed: number; failed: number; errors: number; sk
 export type CloudProvider = "gcp" | "azure" | "aws"
 export type CloudConnection = {
   id: string; workspaceId: string; provider: CloudProvider; name: string; projectId: string
-  accountId?: string; roleArn?: string; regions?: string[]
+  accountId?: string; authMethod?: "role" | "access_key"; roleArn?: string; regions?: string[]
   subscriptionId?: string; directoryTenantId?: string; clientId?: string
   location: string; serviceAccount: string; status: string; lastError?: string
   summary: CloudCounts; lastScanAt?: string; createdAt: string; updatedAt: string

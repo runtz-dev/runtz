@@ -58,7 +58,14 @@ func (s *Server) handleConnectAzure(w http.ResponseWriter, r *http.Request) {
 
 func cloudCredentialIdentity(c cloudConnection, raw json.RawMessage) (string, error) {
 	if c.Provider == "aws" {
-		return "", errors.New("AWS role and regions are immutable; disconnect and reconnect to change access")
+		creds, err := securityclient.ParseAWSCredentials(raw)
+		if err != nil {
+			return "", err
+		}
+		if securityclient.AWSAuthMethod(c.AuthMethod) != securityclient.AWSAuthAccessKey || creds.AuthMethod != securityclient.AWSAuthAccessKey || !securityclient.SameRegions(c.Regions, creds.Regions) {
+			return "", errors.New("AWS key rotation must preserve access key authentication, account and regions; reconnect to change scope")
+		}
+		return "", nil
 	}
 	if c.Provider == "azure" {
 		creds, err := securityclient.ParseAzureCredentials(raw)

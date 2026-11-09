@@ -7,6 +7,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -59,9 +60,14 @@ func (f *securityFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.URL.Path == "/v1/aws/onboarding" {
 		var body struct {
-			AccountID string `json:"accountId"`
+			AccountID  string `json:"accountId"`
+			AuthMethod string `json:"authMethod"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body.AuthMethod == securityclient.AWSAuthAccessKey {
+			respond(200, securityclient.AWSSetup{AccountID: body.AccountID, AuthMethod: body.AuthMethod, Policy: json.RawMessage(`{"Version":"2012-10-17","Statement":[]}`)})
+			return
+		}
 		respond(200, securityclient.AWSSetup{AccountID: body.AccountID, RoleARN: "arn:aws:iam::" + body.AccountID + ":role/RuntzTest", PrincipalARN: "arn:aws:iam::123456789013:role/RuntzScanner", ExternalID: "runtz-" + strings.Repeat("a", 64), Template: json.RawMessage(`{"Resources":{}}`)})
 		return
 	}
@@ -107,6 +113,7 @@ func (f *securityFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ProjectID      string `json:"projectId"`
 			SubscriptionID string `json:"subscriptionId"`
 			Credentials    struct {
+				AuthMethod  string   `json:"authMethod"`
 				RoleARN     string   `json:"roleArn"`
 				Regions     []string `json:"regions"`
 				ClientEmail string   `json:"client_email"`
@@ -130,7 +137,7 @@ func (f *securityFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		c := securityclient.Connection{AccountID: body.AccountID, RoleARN: body.Credentials.RoleARN, Regions: body.Credentials.Regions, ID: bson.NewObjectID().Hex(), TenantID: tenant, Provider: body.Provider, Name: body.Name, ProjectID: body.ProjectID, SubscriptionID: body.SubscriptionID, DirectoryTenantID: body.Credentials.TenantID, ClientID: body.Credentials.ClientID, ServiceAccount: body.Credentials.ClientEmail}
+		c := securityclient.Connection{AuthMethod: body.Credentials.AuthMethod, AccountID: body.AccountID, RoleARN: body.Credentials.RoleARN, Regions: body.Credentials.Regions, ID: bson.NewObjectID().Hex(), TenantID: tenant, Provider: body.Provider, Name: body.Name, ProjectID: body.ProjectID, SubscriptionID: body.SubscriptionID, DirectoryTenantID: body.Credentials.TenantID, ClientID: body.Credentials.ClientID, ServiceAccount: body.Credentials.ClientEmail}
 		f.connections[c.ID] = c
 		job := f.queue(c)
 		c = f.connections[c.ID]
@@ -220,12 +227,16 @@ func (f *securityFixture) publish(id string) {
 }
 
 func TestCloudConnectionLifecycleAndWorkspaceIsolation(t *testing.T) {
-	for _, provider := range []string{"gcp", "azure", "aws"} {
+	for _, provider := range []string{"gcp", "azure", "aws", "aws_keys"} {
 		t.Run(provider, func(t *testing.T) { testCloudConnectionLifecycle(t, provider) })
 	}
 }
 
 func testCloudConnectionLifecycle(t *testing.T, provider string) {
+	usesAWSKeys := provider == "aws_keys"
+	if usesAWSKeys {
+		provider = "aws"
+	}
 	uri := os.Getenv("RUNTZ_TEST_MONGO_URI")
 	if uri == "" {
 		t.Skip("set RUNTZ_TEST_MONGO_URI for MongoDB integration tests")
@@ -273,9 +284,20 @@ func testCloudConnectionLifecycle(t *testing.T, provider string) {
 	der, _ := x509.MarshalPKCS8PrivateKey(key)
 	creds := cloudgcp.Credentials{Type: "service_account", ProjectID: "test-project", ClientEmail: "scanner@test-project.iam.gserviceaccount.com", PrivateKeyID: "ephemeral-test-key", PrivateKey: string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})), TokenURI: "https://oauth2.googleapis.com/token"}
 	credential, _ := json.Marshal(creds)
-	var secret string
+	var secret, accessKeyID string
 	if provider == "aws" {
 		credential, _ = json.Marshal(securityclient.AWSCredentials{RoleARN: "arn:aws:iam::123456789012:role/RuntzTest", ExternalID: "runtz-" + strings.Repeat("a", 64), Regions: []string{"us-east-1", "sa-east-1"}})
+	}
+	if usesAWSKeys {
+		raw, id := make([]byte, 30), make([]byte, 8)
+		if _, err := rand.Read(raw); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := rand.Read(id); err != nil {
+			t.Fatal(err)
+		}
+		secret, accessKeyID = base64.StdEncoding.EncodeToString(raw), "AKIA"+strings.ToUpper(hex.EncodeToString(id))
+		credential, _ = json.Marshal(securityclient.AWSCredentials{AuthMethod: securityclient.AWSAuthAccessKey, AccessKeyID: accessKeyID, SecretAccessKey: secret, Regions: []string{"us-east-1", "sa-east-1"}})
 	}
 	if provider == "azure" {
 		raw := make([]byte, 32)
@@ -293,7 +315,7 @@ func testCloudConnectionLifecycle(t *testing.T, provider string) {
 		r.AddCookie(&http.Cookie{Name: sessionCookieName, Value: tokens[who]})
 		w := httptest.NewRecorder()
 		s.Handler().ServeHTTP(w, r)
-		if strings.Contains(w.Body.String(), "PRIVATE KEY") || strings.Contains(w.Body.String(), s.cfg.SecurityAPIKey) || (secret != "" && strings.Contains(w.Body.String(), secret)) {
+		if strings.Contains(w.Body.String(), "PRIVATE KEY") || strings.Contains(w.Body.String(), s.cfg.SecurityAPIKey) || (secret != "" && strings.Contains(w.Body.String(), secret)) || (accessKeyID != "" && strings.Contains(w.Body.String(), accessKeyID)) {
 			t.Fatal("credential leaked")
 		}
 		return w
@@ -309,11 +331,14 @@ func testCloudConnectionLifecycle(t *testing.T, provider string) {
 	if provider == "aws" {
 		body.ProjectID = ""
 		body.AccountID = "123456789012"
+		if usesAWSKeys {
+			body.AuthMethod = securityclient.AWSAuthAccessKey
+		}
 		expect(request("member", "POST", base+"/onboarding", body), 403)
 		expect(request("other", "POST", base+"/onboarding", body), 403)
 		setup := request("owner", "POST", base+"/onboarding", body)
 		expect(setup, 200)
-		if !strings.Contains(setup.Body.String(), "runtz-") {
+		if !usesAWSKeys && !strings.Contains(setup.Body.String(), "runtz-") {
 			t.Fatal("AWS onboarding missing external ID")
 		}
 	}
@@ -433,10 +458,21 @@ func testCloudConnectionLifecycle(t *testing.T, provider string) {
 	expect(request("owner", "POST", path+"/scan", nil), 202)
 	expect(request("owner", "POST", path+"/scan", nil), 202)
 	rotationStatus := 200
-	if provider == "aws" {
+	if provider == "aws" && !usesAWSKeys {
 		rotationStatus = 400
 	}
 	expect(request("owner", "PATCH", path+"/credentials", map[string]any{"credentials": json.RawMessage(credential)}), rotationStatus)
+	if usesAWSKeys {
+		var wrong securityclient.AWSCredentials
+		json.Unmarshal(credential, &wrong)
+		wrong.Regions = []string{"sa-east-1"}
+		expect(request("owner", "PATCH", path+"/credentials", map[string]any{"credentials": wrong}), 400)
+		w = request("owner", "GET", path+"/findings", nil)
+		expect(w, 200)
+		if !strings.Contains(w.Body.String(), `"total":2`) {
+			t.Fatal("key rotation lost existing results")
+		}
+	}
 	if provider == "azure" {
 		var wrongIdentity securityclient.AzureCredentials
 		_ = json.Unmarshal(credential, &wrongIdentity)
@@ -467,7 +503,9 @@ func testCloudConnectionLifecycle(t *testing.T, provider string) {
 			body.AccountID = fmt.Sprintf("%012d", n)
 			var c securityclient.AWSCredentials
 			json.Unmarshal(credential, &c)
-			c.RoleARN = "arn:aws:iam::" + body.AccountID + ":role/RuntzTest"
+			if !usesAWSKeys {
+				c.RoleARN = "arn:aws:iam::" + body.AccountID + ":role/RuntzTest"
+			}
 			body.Credentials, _ = json.Marshal(c)
 		} else if provider == "azure" {
 			body.SubscriptionID = fmt.Sprintf("%08d-1111-4111-8111-111111111111", n)

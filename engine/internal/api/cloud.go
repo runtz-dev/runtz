@@ -34,6 +34,7 @@ type cloudCounts struct {
 }
 
 type cloudConnection struct {
+	AuthMethod           string                  `bson:"auth_method,omitempty" json:"authMethod,omitempty"`
 	AccountID            string                  `bson:"account_id,omitempty" json:"accountId,omitempty"`
 	RoleARN              string                  `bson:"role_arn,omitempty" json:"roleArn,omitempty"`
 	Regions              []string                `bson:"regions,omitempty" json:"regions,omitempty"`
@@ -71,6 +72,7 @@ type cloudFindingRecord struct {
 }
 
 type cloudConnectRequest struct {
+	AuthMethod     string          `json:"authMethod"`
 	AccountID      string          `json:"accountId"`
 	WorkspaceID    string          `json:"workspaceId"`
 	Name           string          `json:"name"`
@@ -644,7 +646,7 @@ func (s *Server) refreshCloudConnection(ctx context.Context, c cloudConnection) 
 	if err != nil {
 		return unavailable(err)
 	}
-	if remote.ProjectID != c.ProjectID || remote.Provider != c.Provider || (c.Provider == "aws" && (remote.AccountID != c.AccountID || remote.RoleARN != c.RoleARN || !securityclient.SameRegions(remote.Regions, c.Regions))) || (c.Provider == "azure" && (remote.SubscriptionID != c.SubscriptionID || remote.DirectoryTenantID != c.DirectoryTenantID || remote.ClientID != c.ClientID)) {
+	if remote.ProjectID != c.ProjectID || remote.Provider != c.Provider || (c.Provider == "aws" && (remote.AccountID != c.AccountID || securityclient.AWSAuthMethod(remote.AuthMethod) != securityclient.AWSAuthMethod(c.AuthMethod) || remote.RoleARN != c.RoleARN || !securityclient.SameRegions(remote.Regions, c.Regions))) || (c.Provider == "azure" && (remote.SubscriptionID != c.SubscriptionID || remote.DirectoryTenantID != c.DirectoryTenantID || remote.ClientID != c.ClientID)) {
 		return unavailable(errors.New("cloud scope or identity does not match this connection"))
 	}
 	publish := func(job securityclient.Job) bool {

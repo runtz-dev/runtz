@@ -34,6 +34,8 @@ type cloudCounts struct {
 }
 
 type cloudConnection struct {
+	Source               string                  `bson:"source,omitempty" json:"source,omitempty"`
+	CLIScanID            bson.ObjectID           `bson:"cli_scan_id,omitempty" json:"-"`
 	AuthMethod           string                  `bson:"auth_method,omitempty" json:"authMethod,omitempty"`
 	AccountID            string                  `bson:"account_id,omitempty" json:"accountId,omitempty"`
 	RoleARN              string                  `bson:"role_arn,omitempty" json:"roleArn,omitempty"`
@@ -83,6 +85,7 @@ type cloudConnectRequest struct {
 }
 
 func (s *Server) registerCloudRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("POST /api/v1/ingest/cloud", s.handleIngestCloud)
 	mux.Handle("GET /api/v1/cloud/connections", s.auth(http.HandlerFunc(s.handleListCloudConnections)))
 	mux.Handle("POST /api/v1/cloud/aws/onboarding", s.auth(http.HandlerFunc(s.handleAWSOnboarding)))
 	mux.Handle("POST /api/v1/cloud/aws/validate", s.auth(http.HandlerFunc(s.handleValidateAWS)))
@@ -499,6 +502,10 @@ func (s *Server) handleScanCloud(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if c.Source == "cli" {
+		writeError(w, 409, "run runtz "+c.Provider+" on your machine to send a new scan")
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 35*time.Second)
 	defer cancel()
 	if c.SecurityConnectionID == "" {
@@ -529,6 +536,10 @@ func (s *Server) handleScanCloud(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleRotateCloudCredentials(w http.ResponseWriter, r *http.Request) {
 	c, ok := s.cloudFromRequest(w, r, true)
 	if !ok {
+		return
+	}
+	if c.Source == "cli" {
+		writeError(w, 409, "update local credentials with runtz "+c.Provider+" config")
 		return
 	}
 	var request struct {
@@ -581,6 +592,12 @@ func (s *Server) handleDeleteCloudConnection(w http.ResponseWriter, r *http.Requ
 	if _, err := s.cloudFindings.DeleteMany(r.Context(), bson.M{"connection_id": c.ID, "workspace_id": c.WorkspaceID}); err != nil {
 		writeError(w, 500, "cloud disconnected, but previous findings cleanup failed")
 		return
+	}
+	if c.Source == "cli" {
+		if _, err := s.scans.UpdateMany(r.Context(), bson.M{"workspace_id": c.WorkspaceID, "cloud_connection_id": c.ID, "type": "cloud"}, bson.M{"$unset": bson.M{"cloud_result": ""}}); err != nil {
+			writeError(w, 500, "disconnected; cloud result cleanup failed")
+			return
+		}
 	}
 	writeJSON(w, 200, map[string]string{"status": "disconnected"})
 }
@@ -723,7 +740,7 @@ func (s *Server) handleCloudFindings(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if c.SecurityConnectionID == "" {
+	if c.SecurityConnectionID == "" && c.Source != "cli" {
 		s.handleLegacyCloudFindings(w, r)
 		return
 	}
@@ -732,7 +749,7 @@ func (s *Server) handleCloudFindings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, err.Error())
 		return
 	}
-	job, err := s.security.Latest(r.Context(), c.WorkspaceID.Hex(), c.SecurityConnectionID)
+	job, err := s.latestCloudResult(r, c)
 	if securityclient.IsStatus(err, 404) {
 		if !c.SnapshotID.IsZero() {
 			s.handleLegacyCloudFindings(w, r)
@@ -782,11 +799,11 @@ func (s *Server) handleCloudChecks(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, err.Error())
 		return
 	}
-	if c.SecurityConnectionID == "" {
+	if c.SecurityConnectionID == "" && c.Source != "cli" {
 		writeJSON(w, 200, map[string]any{"checks": []securityclient.Check{}, "total": 0, "page": page, "pageSize": 50, "resultAvailable": false})
 		return
 	}
-	job, err := s.security.Latest(r.Context(), c.WorkspaceID.Hex(), c.SecurityConnectionID)
+	job, err := s.latestCloudResult(r, c)
 	if securityclient.IsStatus(err, 404) {
 		writeJSON(w, 200, map[string]any{"checks": []securityclient.Check{}, "total": 0, "page": page, "pageSize": 50, "resultAvailable": false})
 		return

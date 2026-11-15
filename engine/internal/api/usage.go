@@ -22,7 +22,7 @@ const (
 )
 
 // usageScanTypes is the order the frontend renders the per-type breakdown in.
-var usageScanTypes = []string{"sca", "sast", "container", "host", "k8s"}
+var usageScanTypes = []string{"sca", "sast", "container", "host", "k8s", "cloud"}
 
 type usageWindow struct {
 	Total  int64            `json:"total"`

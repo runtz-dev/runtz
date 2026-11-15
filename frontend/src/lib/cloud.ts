@@ -4,7 +4,7 @@ export type CloudCounts = { total: number; critical: number; high: number; mediu
 export type CloudCoverage = { passed: number; failed: number; errors: number; skipped: number; notApplicable: number; critical: number; high: number; medium: number; low: number }
 export type CloudProvider = "gcp" | "azure" | "aws"
 export type CloudConnection = {
-  id: string; workspaceId: string; provider: CloudProvider; name: string; projectId: string
+  source?: "cli"; id: string; workspaceId: string; provider: CloudProvider; name: string; projectId: string
   accountId?: string; authMethod?: "role" | "access_key"; roleArn?: string; regions?: string[]
   subscriptionId?: string; directoryTenantId?: string; clientId?: string
   location: string; serviceAccount: string; status: string; lastError?: string
@@ -38,7 +38,7 @@ export function safeCloudLink(uri: string) {
 
 export const gcpSetupDocumentation = "https://runtz.dev/docs/scans/google-cloud"
 export const awsSetupDocumentation = "https://runtz.dev/docs/scans/aws"
-export const azureSetupDocumentation = "https://learn.microsoft.com/entra/identity-platform/howto-create-service-principal-portal"
+export const azureSetupDocumentation = "https://runtz.dev/docs/scans/azure"
 export const cloudProviderNames: Record<CloudProvider, string> = { gcp: "Google Cloud", azure: "Microsoft Azure", aws: "Amazon Web Services" }
 export function cloudScope(connection: CloudConnection) { return connection.provider === "aws" ? connection.accountId || connection.projectId : connection.provider === "azure" ? connection.subscriptionId || connection.projectId : connection.projectId }
 export function cloudConnectionPath(connection: CloudConnection) { return `/cloud/${connection.provider}/${connection.id}` }

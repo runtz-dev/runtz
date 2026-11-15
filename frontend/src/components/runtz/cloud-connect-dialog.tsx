@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { CloudCommand } from "@/components/runtz/cloud-command"
 import { CloudSetupGuideLink } from "@/components/runtz/cloud-setup-guide-link"
+import { CloudMethodDialog } from "@/components/runtz/cloud-method-dialog"
+import { CloudCLIDialog } from "@/components/runtz/cloud-cli-dialog"
 import { AWSConnectDialog } from "@/components/runtz/aws-connect-dialog"
 import { AWSIcon } from "@/components/runtz/cloud-icons"
 import { GCPIcon } from "@/components/runtz/cloud-icons"
@@ -15,7 +17,7 @@ import { AzureIcon } from "@/components/runtz/cloud-icons"
 import { AzureConnectDialog } from "@/components/runtz/azure-connect-dialog"
 import { useWorkspace } from "@/components/runtz/workspace-context"
 import { apiRequest } from "@/lib/api"
-import { cloudError, type CloudConnection } from "@/lib/cloud"
+import { cloudError, type CloudConnection, type CloudProvider } from "@/lib/cloud"
 
 const steps = ["Project", "Resource APIs", "Configure access", "Upload key", "Connect"]
 const projectPattern = /^[a-z][a-z0-9-]{4,61}[a-z0-9]$/
@@ -44,8 +46,8 @@ export function CloudConnectDialog({ onClose, onCreated, onConnected }: { onClos
   const { selectedWorkspaceId, workspaces, currentUser, deploymentMode } = useWorkspace()
   const manageable = workspaces.filter(w => deploymentMode === "self-hosted" ? currentUser.role === "admin" : w.createdBy === currentUser.id)
   const [step, setStep] = React.useState(0)
-  const [azure, setAzure] = React.useState(false)
-  const [aws, setAWS] = React.useState(false)
+  const [provider, setProvider] = React.useState<CloudProvider | null>(null)
+ const [method, setMethod] = React.useState<"site" | "cli" | null>(null)
   const [workspaceId, setWorkspaceId] = React.useState(manageable.some(w => w.id === selectedWorkspaceId) ? selectedWorkspaceId : manageable[0]?.id ?? "")
   const [projectId, setProjectId] = React.useState("")
   const [name, setName] = React.useState("")
@@ -93,8 +95,10 @@ export function CloudConnectDialog({ onClose, onCreated, onConnected }: { onClos
     finally { setBusy(false) }
   }
 
-  if (azure) return <AzureConnectDialog onClose={onClose} onBack={() => setAzure(false)} onCreated={onCreated} onConnected={onConnected} />
-  if (aws) return <AWSConnectDialog onClose={onClose} onBack={() => setAWS(false)} onCreated={onCreated} onConnected={onConnected} />
+  if (provider && !method) return <CloudMethodDialog provider={provider} onClose={onClose} onBack={() => setProvider(null)} onSelect={value => { setMethod(value); if (value === "site" && provider === "gcp") go(1) }} />
+ if (provider && method === "cli") return <CloudCLIDialog provider={provider} onClose={onClose} onBack={() => setMethod(null)} onCreated={onCreated} onConnected={onConnected} />
+ if (provider === "azure" && method === "site") return <AzureConnectDialog onClose={onClose} onBack={() => setMethod(null)} onCreated={onCreated} onConnected={onConnected} />
+ if (provider === "aws" && method === "site") return <AWSConnectDialog onClose={onClose} onBack={() => setMethod(null)} onCreated={onCreated} onConnected={onConnected} />
   return <Dialog open onOpenChange={open => { if (!open && !busy) onClose() }}>
     <DialogContent showCloseButton={!busy} className="max-h-[90dvh] min-w-0 grid-cols-[minmax(0,1fr)] gap-0 overflow-x-hidden overflow-y-auto p-0 sm:max-w-4xl">
       <DialogHeader className="border-b px-6 py-5 pr-12 sm:px-8">
@@ -112,12 +116,12 @@ export function CloudConnectDialog({ onClose, onCreated, onConnected }: { onClos
       </div>}
       <div className="min-w-0 space-y-5 px-6 py-6 sm:px-8">
         {step === 0 && <>
-          <button onClick={() => go(1)} className="group flex w-full items-center gap-4 rounded-xl border bg-card p-5 text-left transition-colors hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-primary">
+          <button onClick={() => setProvider("gcp")} className="group flex w-full items-center gap-4 rounded-xl border bg-card p-5 text-left transition-colors hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-primary">
             <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border bg-background"><GCPIcon className="size-8" /></div>
             <div className="min-w-0 flex-1"><h3 className="font-medium">Google Cloud</h3><p className="mt-1 text-sm text-muted-foreground">32 configuration checks, organized by severity.</p></div><ArrowRightIcon className="size-5 text-muted-foreground group-hover:text-primary" />
           </button>
-          <button onClick={() => setAzure(true)} className="group flex w-full items-center gap-4 rounded-xl border bg-card p-5 text-left transition-colors hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-primary"><div className="flex size-12 shrink-0 items-center justify-center rounded-xl border bg-background"><AzureIcon className="size-8" /></div><div className="min-w-0 flex-1"><h3 className="font-medium">Microsoft Azure</h3><p className="mt-1 text-sm text-muted-foreground">14 configuration checks at subscription scope.</p></div><ArrowRightIcon className="size-5 text-muted-foreground group-hover:text-primary" /></button>
-          <button onClick={() => setAWS(true)} className="group flex w-full items-center gap-4 rounded-xl border bg-card p-5 text-left transition-colors hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-primary"><div className="flex size-12 shrink-0 items-center justify-center rounded-xl border bg-background"><AWSIcon className="size-8" /></div><div className="min-w-0 flex-1"><h3 className="font-medium">Amazon Web Services</h3><p className="mt-1 text-sm text-muted-foreground">18 checks with role-based access. Connect without sharing access keys.</p></div><ArrowRightIcon className="size-5 text-muted-foreground" /></button>
+          <button onClick={() => setProvider("azure")} className="group flex w-full items-center gap-4 rounded-xl border bg-card p-5 text-left transition-colors hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-primary"><div className="flex size-12 shrink-0 items-center justify-center rounded-xl border bg-background"><AzureIcon className="size-8" /></div><div className="min-w-0 flex-1"><h3 className="font-medium">Microsoft Azure</h3><p className="mt-1 text-sm text-muted-foreground">14 configuration checks at subscription scope.</p></div><ArrowRightIcon className="size-5 text-muted-foreground group-hover:text-primary" /></button>
+          <button onClick={() => setProvider("aws")} className="group flex w-full items-center gap-4 rounded-xl border bg-card p-5 text-left transition-colors hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-primary"><div className="flex size-12 shrink-0 items-center justify-center rounded-xl border bg-background"><AWSIcon className="size-8" /></div><div className="min-w-0 flex-1"><h3 className="font-medium">Amazon Web Services</h3><p className="mt-1 text-sm text-muted-foreground">18 read-only checks across your AWS account and selected regions.</p></div><ArrowRightIcon className="size-5 text-muted-foreground" /></button>
           <p className="flex items-center gap-2 text-xs text-muted-foreground"><LockKeyholeIcon className="size-3.5 shrink-0" />Read-only access in all clouds.</p>
         </>}
         {step === 1 && <>
@@ -176,7 +180,7 @@ export function CloudConnectDialog({ onClose, onCreated, onConnected }: { onClos
         {error && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
       </div>
       {step > 0 && <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-6 py-4 sm:px-8">
-        {step === 6 ? <Button variant="ghost" disabled={busy} onClick={onClose}>Close</Button> : <Button variant="ghost" disabled={busy} onClick={() => go(step - 1)}><ArrowLeftIcon />Back</Button>}
+        {step === 6 ? <Button variant="ghost" disabled={busy} onClick={onClose}>Close</Button> : <Button variant="ghost" disabled={busy} onClick={() => step === 1 ? (setMethod(null), go(0)) : go(step - 1)}><ArrowLeftIcon />Back</Button>}
         {step > 0 && step < 4 && <Button disabled={step === 1 && (!workspaceId || !projectPattern.test(projectId))} onClick={() => go(step + 1)}>Continue<ArrowRightIcon /></Button>}
         {step === 4 && <Button disabled={!credentials || busy} onClick={() => void validate()}>{busy ? <LoaderCircleIcon className="animate-spin" /> : <LockKeyholeIcon />}{busy ? "Verifying access…" : "Verify & continue"}</Button>}
         {step === 5 && <Button disabled={!validated || !name.trim() || busy} onClick={() => void connect()}>{busy ? <LoaderCircleIcon className="animate-spin" /> : <GCPIcon className="size-4" />}{busy ? "Connecting…" : "Connect & start scan"}</Button>}

@@ -337,3 +337,16 @@ covers last-workspace deletion, data removal, repeat sign-in, Free creation and
 limits, name collisions, account isolation, and self-hosted permissions. Sharing
 coverage includes owner-only management, plan and seat limits, duplicate additions,
 member visibility, removal after downgrade, and revocation of member API keys.
+
+### CLI cloud scans
+
+`POST /api/v1/ingest/cloud` accepts completed GCP, AWS and Azure check results
+from Runtz CLI using the normal workspace-scoped `ingest:write` API token.
+The CLI calls the public Security API over HTTPS with cloud authorization;
+private check implementations remain in Security. The CLI then uploads evaluated
+results to the engine. The public scan API does not persist cloud credentials. The engine stores results in
+the scan usage ledger and publishes the latest snapshot under Cloud, with
+`source: "cli"`. Upload retries have deterministic scan IDs. CLI connections
+are updated from the terminal/CI rather than by the Security scheduler; the
+site does not offer credential replacement or remote execution for them.
+Disconnect a site-managed scope before switching it to CLI mode.

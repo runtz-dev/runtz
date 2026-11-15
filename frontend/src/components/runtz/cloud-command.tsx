@@ -4,7 +4,7 @@ import * as React from "react"
 import { CheckIcon, ChevronDownIcon, CopyIcon, TerminalIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-export function CloudCommand({ value, label = "Show gcloud commands" }: { value: string; label?: string }) {
+export function CloudCommand({ value, label = "Show commands" }: { value: string; label?: string }) {
   const [expanded, setExpanded] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
   const [failed, setFailed] = React.useState(false)
@@ -29,7 +29,7 @@ export function CloudCommand({ value, label = "Show gcloud commands" }: { value:
       <Button variant="ghost" className="h-auto min-w-0 flex-1 justify-start whitespace-normal text-left" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded(!expanded)}>
         <TerminalIcon className="shrink-0" /><span>{label}</span><ChevronDownIcon className={`ml-auto shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
       </Button>
-      <Button variant="outline" size="sm" onClick={() => void copy()} aria-label="Copy and show gcloud commands">{copied ? <CheckIcon /> : <CopyIcon />}{copied ? "Copied" : "Copy"}</Button>
+      <Button variant="outline" size="sm" onClick={() => void copy()} aria-label="Copy and show commands">{copied ? <CheckIcon /> : <CopyIcon />}{copied ? "Copied" : "Copy"}</Button>
     </div>
     <div id={id} hidden={!expanded} className="min-w-0 border-t p-3">
       <pre className="whitespace-pre-wrap break-all text-xs leading-relaxed"><code>{value}</code></pre>

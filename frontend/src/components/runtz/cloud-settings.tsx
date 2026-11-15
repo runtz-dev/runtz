@@ -37,7 +37,7 @@ export function CloudSettingsPanel() {
           <div className="flex items-center justify-between gap-3"><Badge variant="outline" className="text-muted-foreground">{connection.status.replaceAll("_", " ")}</Badge>
           <Button variant="ghost" size="sm" aria-expanded={selected === connection.id} aria-controls={`cloud-settings-${connection.id}`} onClick={() => setSelected(selected === connection.id ? null : connection.id)}>{canManage(connection.workspaceId) ? "Manage" : "Details"}<ChevronDownIcon className={selected === connection.id ? "rotate-180" : ""} /></Button></div>
         </div>
-        {selected === connection.id && <div id={`cloud-settings-${connection.id}`} className="min-w-0 border-t bg-muted/10 p-4">{connection.provider === "aws" ? <AWSConnectionControls connection={connection} canManage={canManage(connection.workspaceId)} /> : connection.provider === "azure" ? <AzureConnectionControls connection={connection} canManage={canManage(connection.workspaceId)} /> : <CloudConnectionControls connection={connection} canManage={canManage(connection.workspaceId)} />}</div>}
+        {selected === connection.id && <div id={`cloud-settings-${connection.id}`} className="min-w-0 border-t bg-muted/10 p-4">{connection.source === "cli" ? <CLIConnectionControls connection={connection} canManage={canManage(connection.workspaceId)} /> : connection.provider === "aws" ? <AWSConnectionControls connection={connection} canManage={canManage(connection.workspaceId)} /> : connection.provider === "azure" ? <AzureConnectionControls connection={connection} canManage={canManage(connection.workspaceId)} /> : <CloudConnectionControls connection={connection} canManage={canManage(connection.workspaceId)} />}</div>}
       </div>) : <SettingsEmpty icon={CloudIcon} title={search ? "No matching connections" : "No cloud connections"} description={search ? "Try a connection name, cloud scope or application ID." : "Connect an account, project or subscription to start scanning your resources."} />}
       <Button variant="link" className="h-auto px-0 text-xs" render={<CloudSetupGuideLink target="_blank" rel="noopener noreferrer" />}>Google Cloud setup and required permissions<ExternalLinkIcon /></Button>
       <Button variant="link" className="h-auto px-0 text-xs" render={<a href={azureSetupDocumentation} target="_blank" rel="noopener noreferrer" />}>Microsoft Azure application setup<ExternalLinkIcon /></Button>
@@ -84,4 +84,21 @@ function CloudConnectionControls({ connection, canManage }: { connection: CloudC
     </>}
     {notice && <SettingsFeedback>{notice}</SettingsFeedback>}{error && <SettingsFeedback error>{error}</SettingsFeedback>}
   </div>
+}
+
+function CLIConnectionControls({ connection, canManage }: { connection: CloudConnection; canManage: boolean }) {
+ const { refresh } = useCloud()
+ const [confirm, setConfirm] = React.useState("")
+ const [busy, setBusy] = React.useState(false)
+ const [error, setError] = React.useState("")
+ const scope = cloudScope(connection)
+ return <div className="min-w-0 space-y-4">
+  <Badge variant="outline">Runtz CLI</Badge>
+  <p className="text-sm leading-6 text-muted-foreground">Configuration is managed on your machine. The command sends credentials over HTTPS to Runtz Security for each scan, then uploads the results to your workspace.</p>
+  <CloudCommand label="Send a fresh scan" value={`runtz ${connection.provider}`} />
+  <CloudCommand label="Update local cloud credentials" value={`runtz ${connection.provider} config`} />
+  <Button variant="outline" size="sm" render={<Link href={cloudConnectionPath(connection)} />}>View findings</Button>
+  {canManage && <section className="space-y-3 rounded-lg border border-destructive/25 p-4"><h3 className="font-medium">Remove CLI cloud results</h3><p className="text-sm text-muted-foreground">Remove this connection and its cloud results from Runtz. Your local config and credential files are kept. Running the command again creates a new connection.</p><label htmlFor={`cli-remove-${connection.id}`} className="text-xs text-muted-foreground">Type {scope} to confirm</label><Input id={`cli-remove-${connection.id}`} value={confirm} onChange={e => setConfirm(e.target.value)} disabled={busy} /><Button variant="destructive" disabled={busy || confirm !== scope} onClick={async () => { setBusy(true); setError(""); try { await apiRequest(`/api/v1/cloud/connections/${connection.id}`, { method: "DELETE" }); await refresh() } catch (err) { setError(cloudError(err)) } finally { setBusy(false) } }}>{busy && <LoaderCircleIcon className="animate-spin" />}Remove results</Button></section>}
+  {error && <SettingsFeedback error>{error}</SettingsFeedback>}
+ </div>
 }
